@@ -1,0 +1,10 @@
+Archive
+corpus
+assets
+metrics
+packages
+training
+vectors
+wandb
+.DS_Store
+project.lock
