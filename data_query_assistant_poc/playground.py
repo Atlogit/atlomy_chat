@@ -12,29 +12,30 @@ from langchain.schema import HumanMessage, SystemMessage
 # from langchain.chains import SimpleSequentialChain
 # import numpy as np
 import spacy
-api_key = os.getenv("OPENAI_API_KEY_ATLOMY")
+api_key = os.environ.get("OPENAI_API_KEY_ATLOMY")
 from tqdm import tqdm
 
+spaCy_Model = "models/ner_pipeline_22_dec_trf/model-best" # reference to the spaCy model
 
 
 class LLMOAssistant:
     data_query_template = """
     given a list of dicts called 'tagged_galenus' that looks like this:
- {'text': ' ὑμένες δὲ καὶ τούτοις \n'
-          "ἐπίκεινται, μεθ' ὧν ἐξαιρήσεις αὐτὰ μετά γε τὴν τῶν μυῶν \n"
-          'ἀνατομήν',
-  'tokens': [{'lemma': ' ', 'pos': 'ADV', 'tag': 'Df', 'text': ' '},
-             {'lemma': 'ὑμένες', 'pos': 'NOUN', 'tag': 'Nb', 'text': 'ὑμένες'},
-             {'lemma': 'δὲ', 'pos': 'CCONJ', 'tag': 'C-', 'text': 'δὲ'},
-             {'lemma': 'καί', 'pos': 'CCONJ', 'tag': 'C-', 'text': 'καὶ'},
+ {'text': " ὑμένες δὲ καὶ τούτοις ἐπίκεινται, μεθʼ ὧν ἐξαιρήσεις αὐτὰ μετά γε τὴν τῶν μυῶν ἀνατομήν",
+  'tokens': [{'lemma': ' ', 'pos': 'ADV', 'tag': 'Df', "category": "", 'text': ' '},
+             {'lemma': 'ὑμένες', 'pos': 'NOUN', 'tag': 'Nb', "category": "Body Part", 'text': 'ὑμένες'},
+             {'lemma': 'δὲ', 'pos': 'CCONJ', 'tag': 'C-', "category": "", 'text': 'δὲ'},
+             {'lemma': 'καί', 'pos': 'CCONJ', 'tag': 'C-', "category": "", 'text': 'καὶ'},
              {'lemma': 'τούτοις',
               'pos': 'PRON',
               'tag': 'Pd__Case=Dat|Gender=Masc|Number=Plur',
+              "category": "",
               'text': 'τούτοις'},
-             {'lemma': '\n', 'pos': 'ADV', 'tag': 'Df', 'text': '\n'},
+             {'lemma': '\n', 'pos': 'ADV', 'tag': 'Df', "category": "", 'text': '\n'},
              {'lemma': 'ἐπίκειντος',
               'pos': 'VERB',
               'tag': 'V-__Mood=Ind|Number=Plur|Person=3|Tense=Pres|VerbForm=Fin|Voice=Mid',
+              "category": "Topography",
               'text': 'ἐπίκεινται'},
              {'lemma': ',', 'pos': 'PUNCT', 'tag': 'Z', 'text': ','},
              {'lemma': "μεθ'", 'pos': 'ADP', 'tag': 'R-', 'text': "μεθ'"},
@@ -45,38 +46,42 @@ class LLMOAssistant:
              {'lemma': 'ἐξαιρήζω',
               'pos': 'VERB',
               'tag': 'V-__Mood=Ind|Number=Sing|Person=2|Tense=Pres|VerbForm=Fin|Voice=Act',
+              "category": "Action",
               'text': 'ἐξαιρήσεις'},
              {'lemma': 'αὐτός',
               'pos': 'PRON',
               'tag': 'Pp__Case=Acc|Gender=Neut|Number=Plur|Person=3|PronType=Prs',
               'text': 'αὐτὰ'},
-             {'lemma': 'μετά', 'pos': 'ADP', 'tag': 'R-', 'text': 'μετά'},
-             {'lemma': 'γε', 'pos': 'ADV', 'tag': 'Df', 'text': 'γε'},
+             {'lemma': 'μετά', 'pos': 'ADP', 'tag': 'R-', "category": "Medical", 'text': 'μετά'},
+             {'lemma': 'γε', 'pos': 'ADV', 'tag': 'Df', "category": "", 'text': 'γε'},
              {'lemma': 'ὁ',
               'pos': 'DET',
               'tag': 'S-__Case=Acc|Definite=Def|Gender=Fem|Number=Sing|PronType=Dem',
+              "category": "Body Part",
               'text': 'τὴν'},
              {'lemma': 'ὁ',
               'pos': 'DET',
               'tag': 'S-__Case=Gen|Definite=Def|Gender=Masc|Number=Plur|PronType=Dem',
+              "category": "Topography",
               'text': 'τῶν'},
-             {'lemma': 'μῦς', 'pos': 'NOUN', 'tag': 'Nb', 'text': 'μυῶν'},
-             {'lemma': '\n', 'pos': 'ADV', 'tag': 'Df', 'text': '\n'},
+             {'lemma': 'μῦς', 'pos': 'NOUN', 'tag': 'Nb', "category": "", 'text': 'μυῶν'},
+             {'lemma': '\n', 'pos': 'ADV', 'tag': 'Df', "category": "", 'text': '\n'},
              {'lemma': 'ἀνατομής',
               'pos': 'NOUN',
               'tag': 'Nb',
+              "category": "Body Part",
               'text': 'ἀνατομήν'}]},
  {'text': ' ὑπόκεινται γὰρ οἱ τοὺς δακτύλους κάμπτοντες τένοντες ἀπὸ δυοῖν '
           'ὁρμώμενοι κεφαλῶν, ἐν ἐκείνῳ μάλιστα τῷ χωρίῳ κείμενοι, ἐν ᾧ τόν τε '
           "σύνδεσμον ἔφην τετάχθαι καὶ τὴν ἐπ' αὐτῷ κεφαλὴν τοῦ πλατυνομένου "
           'τέ- \n'
           'νοντος, ὑπὲρ οὗ πέπαυμαι λέγων',
-  'tokens': [{'lemma': ' ', 'pos': 'ADV', 'tag': 'Df', 'text': ' '},
+  'tokens': [{'lemma': ' ', 'pos': 'ADV', 'tag': 'Df', "category": "Topography", 'text': ' '},
              {'lemma': 'ὑπόκειμαι',
               'pos': 'VERB',
               'tag': 'V-__Mood=Ind|Number=Plur|Person=3|Tense=Pres|VerbForm=Fin|Voice=Mid',
               'text': 'ὑπόκεινται'},
-             {'lemma': 'γάρ', 'pos': 'CCONJ', 'tag': 'C-', 'text': 'γὰρ'},
+             {'lemma': 'γάρ', 'pos': 'CCONJ', 'tag': 'C-', "category": "", 'text': 'γὰρ'},
              {'lemma': 'ὁ',
               'pos': 'DET',
               'tag': 'S-__Case=Nom|Definite=Def|Gender=Masc|Number=Plur|PronType=Dem',
@@ -189,7 +194,7 @@ class LLMOAssistant:
         self.temperature = temperature
 
     def query_llm(self, query):
-        llm = ChatOpenAI(model=self.chat_model_name, temperature=self.temperature, request_timeout=120)
+        llm = ChatOpenAI(openai_api_key=api_key, model=self.chat_model_name, temperature=self.temperature, request_timeout=120)
         user_prompt = PromptTemplate.from_template("# Input\n{text}")
         human_message = HumanMessage(content=user_prompt.format(text=query))
         answer = llm([human_message])
@@ -232,12 +237,18 @@ class LLMOAssistant:
 def sentencizer(text):
     delimiters_pattern = r'[.|·]'
     sentences = re.split(delimiters_pattern, text)
+    #print("sentence: ", sentences)
     return sentences
 def clean_text(text):
-    clean = text.replace('-\n', "")
+    apostrophes = [' ̓', "᾿", "᾽", "'", "’", "‘"]  # all possible apostrophes
+    for apostrophe in apostrophes:
+        text = text.replace(apostrophe, "ʼ")
+    clean = ' '.join(text.replace('-\n', '').replace('\r', ' ').replace('\n', ' ').split())
+    #clean = text.replace('-\n', "").replace('\r', " ").replace('\n', " ")
+    print("clean sentence: ",clean)
     return clean
 def create_text_tagging_object(sentences):
-    nlp = spacy.load("ner_pipeline_22_dec_trf/model-best")
+    nlp = spacy.load(spaCy_Model)
 
     sentences_tagged = []
     for sentence in tqdm(sentences, desc="Processing sentences", unit="sentence"):
@@ -252,6 +263,7 @@ def create_text_tagging_object(sentences):
                     "lemma": token.lemma_,
                     "pos": token.pos_,
                     "tag": token.tag_,
+                    "category": token.ent_type_,
                     # "dep": token.dep_,
                     # "is_alpha": token.is_alpha,
                     # "is_stop": token.is_stop,
@@ -269,8 +281,8 @@ def write_to_jsonl(data_list, file_path="output.jsonl"):
             file.write('\n')
 
 def create_data():
-    galenus_text = ''
-    with open("TLG_Galen_Anatomical Administrations(AA).txt", 'r') as file:
+    galenus_text = '' #/TODO: generalize to run on different texts
+    with open("TLG_Galen_Anatomical Administrations(AA).txt", 'r') as file: #/TODO: add a definition for file/s path
         galenus_text = file.read()
     galenus_text = clean_text(galenus_text)
     galenus_sentences = sentencizer(galenus_text)
@@ -307,7 +319,7 @@ if __name__ == "__main__":
     # oracle = LLMOAssistant()
     #
     #
-    # create_data()
+    #create_data()
     tagged_galenus = read_jsonl_to_list("galenus_tagged_data.jsonl")
     #
     # oracle.ask_about_data("")
