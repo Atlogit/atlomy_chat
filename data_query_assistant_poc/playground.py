@@ -15,178 +15,268 @@ import spacy
 api_key = os.environ.get("OPENAI_API_KEY_ATLOMY")
 from tqdm import tqdm
 
-spaCy_Model = "models/ner_pipeline_22_dec_trf/model-best" # reference to the spaCy model
 
 
-class LLMOAssistant:
+
+class LLMAssistant:
     data_query_template = """
-    given a list of dicts called 'tagged_galenus' that looks like this:
- {'text': " ὑμένες δὲ καὶ τούτοις ἐπίκεινται, μεθʼ ὧν ἐξαιρήσεις αὐτὰ μετά γε τὴν τῶν μυῶν ἀνατομήν",
-  'tokens': [{'lemma': ' ', 'pos': 'ADV', 'tag': 'Df', "category": "", 'text': ' '},
-             {'lemma': 'ὑμένες', 'pos': 'NOUN', 'tag': 'Nb', "category": "Body Part", 'text': 'ὑμένες'},
-             {'lemma': 'δὲ', 'pos': 'CCONJ', 'tag': 'C-', "category": "", 'text': 'δὲ'},
-             {'lemma': 'καί', 'pos': 'CCONJ', 'tag': 'C-', "category": "", 'text': 'καὶ'},
-             {'lemma': 'τούτοις',
-              'pos': 'PRON',
-              'tag': 'Pd__Case=Dat|Gender=Masc|Number=Plur',
-              "category": "",
-              'text': 'τούτοις'},
-             {'lemma': '\n', 'pos': 'ADV', 'tag': 'Df', "category": "", 'text': '\n'},
-             {'lemma': 'ἐπίκειντος',
-              'pos': 'VERB',
-              'tag': 'V-__Mood=Ind|Number=Plur|Person=3|Tense=Pres|VerbForm=Fin|Voice=Mid',
-              "category": "Topography",
-              'text': 'ἐπίκεινται'},
-             {'lemma': ',', 'pos': 'PUNCT', 'tag': 'Z', 'text': ','},
-             {'lemma': "μεθ'", 'pos': 'ADP', 'tag': 'R-', 'text': "μεθ'"},
-             {'lemma': 'ὅς',
-              'pos': 'PRON',
-              'tag': 'Pr__Case=Nom|Gender=Fem|Number=Sing|PronType=Rel',
-              'text': 'ὧν'},
-             {'lemma': 'ἐξαιρήζω',
-              'pos': 'VERB',
-              'tag': 'V-__Mood=Ind|Number=Sing|Person=2|Tense=Pres|VerbForm=Fin|Voice=Act',
-              "category": "Action",
-              'text': 'ἐξαιρήσεις'},
-             {'lemma': 'αὐτός',
-              'pos': 'PRON',
-              'tag': 'Pp__Case=Acc|Gender=Neut|Number=Plur|Person=3|PronType=Prs',
-              'text': 'αὐτὰ'},
-             {'lemma': 'μετά', 'pos': 'ADP', 'tag': 'R-', "category": "Medical", 'text': 'μετά'},
-             {'lemma': 'γε', 'pos': 'ADV', 'tag': 'Df', "category": "", 'text': 'γε'},
-             {'lemma': 'ὁ',
-              'pos': 'DET',
-              'tag': 'S-__Case=Acc|Definite=Def|Gender=Fem|Number=Sing|PronType=Dem',
-              "category": "Body Part",
-              'text': 'τὴν'},
-             {'lemma': 'ὁ',
-              'pos': 'DET',
-              'tag': 'S-__Case=Gen|Definite=Def|Gender=Masc|Number=Plur|PronType=Dem',
-              "category": "Topography",
-              'text': 'τῶν'},
-             {'lemma': 'μῦς', 'pos': 'NOUN', 'tag': 'Nb', "category": "", 'text': 'μυῶν'},
-             {'lemma': '\n', 'pos': 'ADV', 'tag': 'Df', "category": "", 'text': '\n'},
-             {'lemma': 'ἀνατομής',
-              'pos': 'NOUN',
-              'tag': 'Nb',
-              "category": "Body Part",
-              'text': 'ἀνατομήν'}]},
- {'text': ' ὑπόκεινται γὰρ οἱ τοὺς δακτύλους κάμπτοντες τένοντες ἀπὸ δυοῖν '
-          'ὁρμώμενοι κεφαλῶν, ἐν ἐκείνῳ μάλιστα τῷ χωρίῳ κείμενοι, ἐν ᾧ τόν τε '
-          "σύνδεσμον ἔφην τετάχθαι καὶ τὴν ἐπ' αὐτῷ κεφαλὴν τοῦ πλατυνομένου "
-          'τέ- \n'
-          'νοντος, ὑπὲρ οὗ πέπαυμαι λέγων',
-  'tokens': [{'lemma': ' ', 'pos': 'ADV', 'tag': 'Df', "category": "Topography", 'text': ' '},
-             {'lemma': 'ὑπόκειμαι',
-              'pos': 'VERB',
-              'tag': 'V-__Mood=Ind|Number=Plur|Person=3|Tense=Pres|VerbForm=Fin|Voice=Mid',
-              'text': 'ὑπόκεινται'},
-             {'lemma': 'γάρ', 'pos': 'CCONJ', 'tag': 'C-', "category": "", 'text': 'γὰρ'},
-             {'lemma': 'ὁ',
-              'pos': 'DET',
-              'tag': 'S-__Case=Nom|Definite=Def|Gender=Masc|Number=Plur|PronType=Dem',
-              'text': 'οἱ'},
-             {'lemma': 'ὁ',
-              'pos': 'DET',
-              'tag': 'S-__Case=Acc|Definite=Def|Gender=Neut|Number=Plur|PronType=Dem',
-              'text': 'τοὺς'},
-             {'lemma': 'δακτύλους',
-              'pos': 'NOUN',
-              'tag': 'Nb',
-              'text': 'δακτύλους'},
-             {'lemma': 'κάμπτω',
-              'pos': 'VERB',
-              'tag': 'V-__Case=Nom|Gender=Masc|Number=Sing|Tense=Pres|VerbForm=Part|Voice=Act',
-              'text': 'κάμπτοντες'},
-             {'lemma': 'τένων', 'pos': 'NOUN', 'tag': 'Nb', 'text': 'τένοντες'},
-             {'lemma': 'ἀπό', 'pos': 'ADP', 'tag': 'R-', 'text': 'ἀπὸ'},
-             {'lemma': 'δύο', 'pos': 'NUM', 'tag': 'Ma', 'text': 'δυοῖν'},
-             {'lemma': 'ὁρμώμενοι',
-              'pos': 'VERB',
-              'tag': 'V-__Case=Nom|Gender=Fem|Number=Plur|Tense=Pres|VerbForm=Part|Voice=Mid',
-              'text': 'ὁρμώμενοι'},
-             {'lemma': 'κεφαλή', 'pos': 'NOUN', 'tag': 'Nb', 'text': 'κεφαλῶν'},
-             {'lemma': ',', 'pos': 'PUNCT', 'tag': 'Z', 'text': ','},
-             {'lemma': 'ἐν', 'pos': 'ADP', 'tag': 'R-', 'text': 'ἐν'},
-             {'lemma': 'ἐκείνῳ',
-              'pos': 'DET',
-              'tag': 'Pd__Case=Dat|Gender=Neut|Number=Sing',
-              'text': 'ἐκείνῳ'},
-             {'lemma': 'μάλα', 'pos': 'ADV', 'tag': 'Df', 'text': 'μάλιστα'},
-             {'lemma': 'ὁ',
-              'pos': 'DET',
-              'tag': 'S-__Case=Dat|Definite=Def|Gender=Neut|Number=Sing|PronType=Dem',
-              'text': 'τῷ'},
-             {'lemma': 'χωρίῳ', 'pos': 'NOUN', 'tag': 'Nb', 'text': 'χωρίῳ'},
-             {'lemma': 'κείμενοι',
-              'pos': 'VERB',
-              'tag': 'V-__Case=Nom|Gender=Fem|Number=Plur|Tense=Pres|VerbForm=Part|Voice=Mid',
-              'text': 'κείμενοι'},
-             {'lemma': ',', 'pos': 'PUNCT', 'tag': 'Z', 'text': ','},
-             {'lemma': 'ἐν', 'pos': 'ADP', 'tag': 'R-', 'text': 'ἐν'},
-             {'lemma': 'ὅς',
-              'pos': 'PRON',
-              'tag': 'Pr__Case=Dat|Gender=Masc|Number=Sing|PronType=Rel',
-              'text': 'ᾧ'},
-             {'lemma': 'τόν',
-              'pos': 'DET',
-              'tag': 'S-__Case=Acc|Definite=Def|Gender=Fem|Number=Sing|PronType=Dem',
-              'text': 'τόν'},
-             {'lemma': 'τε', 'pos': 'CCONJ', 'tag': 'C-', 'text': 'τε'},
-             {'lemma': 'σύνδεσμος',
-              'pos': 'NOUN',
-              'tag': 'Nb',
-              'text': 'σύνδεσμον'},
-             {'lemma': 'φημί',
-              'pos': 'VERB',
-              'tag': 'V-__Aspect=Imp|Mood=Ind|Number=Sing|Person=3|Tense=Past|VerbForm=Fin|Voice=Act',
-              'text': 'ἔφην'},
-             {'lemma': 'τάσσω',
-              'pos': 'VERB',
-              'tag': 'V-__Aspect=Perf|Tense=Past|VerbForm=Inf|Voice=Pass',
-              'text': 'τετάχθαι'},
-             {'lemma': 'καί', 'pos': 'CCONJ', 'tag': 'C-', 'text': 'καὶ'},
-             {'lemma': 'ὁ',
-              'pos': 'DET',
-              'tag': 'S-__Case=Acc|Definite=Def|Gender=Fem|Number=Sing|PronType=Dem',
-              'text': 'τὴν'},
-             {'lemma': 'ἐπί', 'pos': 'ADP', 'tag': 'R-', 'text': "ἐπ'"},
-             {'lemma': 'αὐτός',
-              'pos': 'PRON',
-              'tag': 'Pp__Case=Dat|Gender=Neut|Number=Sing|Person=3|PronType=Prs',
-              'text': 'αὐτῷ'},
-             {'lemma': 'κεφαλή', 'pos': 'NOUN', 'tag': 'Nb', 'text': 'κεφαλὴν'},
-             {'lemma': 'ὁ',
-              'pos': 'DET',
-              'tag': 'S-__Case=Gen|Definite=Def|Gender=Fem|Number=Sing|PronType=Dem',
-              'text': 'τοῦ'},
-             {'lemma': 'πλατυνομένου',
-              'pos': 'PART',
-              'tag': 'V-__Case=Gen|Gender=Masc|Number=Sing|Tense=Pres|VerbForm=Part|Voice=Pass',
-              'text': 'πλατυνομένου'},
-             {'lemma': 'τέ', 'pos': 'CCONJ', 'tag': 'C-', 'text': 'τέ'},
-             {'lemma': '-',
-              'pos': 'PUNCT',
-              'tag': 'Ne__Case=Nom|Gender=Masc|Number=Sing',
-              'text': '-'},
-             {'lemma': '\n', 'pos': 'ADV', 'tag': 'Df', 'text': '\n'},
-             {'lemma': 'νος', 'pos': 'VERB', 'tag': 'Nb', 'text': 'νοντος'},
-             {'lemma': ',', 'pos': 'PUNCT', 'tag': 'Z', 'text': ','},
-             {'lemma': 'ὑπέρ', 'pos': 'ADP', 'tag': 'R-', 'text': 'ὑπὲρ'},
-             {'lemma': 'ὅς',
-              'pos': 'PRON',
-              'tag': 'Pr__Case=Dat|Gender=Masc|Number=Plur|PronType=Rel',
-              'text': 'οὗ'},
-             {'lemma': 'πέπαυμαι',
-              'pos': 'VERB',
-              'tag': 'V-__Aspect=Perf|Mood=Ind|Number=Sing|Person=1|Tense=Past|VerbForm=Fin|Voice=Pass',
-              'text': 'πέπαυμαι'},
-             {'lemma': 'λέγω',
-              'pos': 'VERB',
-              'tag': 'V-__Case=Nom|Gender=Masc|Number=Sing|Tense=Pres|VerbForm=Part|Voice=Act',
-              'text': 'λέγων'}]},\n\n
+    given a python dictionary names "library" with 2 keys, the first key is "galenus_tagged_data", the second key is "hippocrates_sacred_disease_tagged_data"
+    each value is a list of dicts that looks like this:\n"
+{'text': ' τῶν μὲν οὖν ἐκτὸς μυῶν συναφαιρεῖν σε χρὴ '
+                                   'καὶ τοὺς τένοντας ἅπαντας ἄχρι τῶν περάτων '
+                                   'ὧν ἔχουσι καθʼ ἕκαστον δάκτυλον, οὐ μὴν '
+                                   'ἁπάντων γε τῶν ἔνδον, ἀλλὰ πρότερον '
+                                   'ἐπισκεψάμενον τοὺς παραπεφυκότας τοῖς τὸ '
+                                   'τρίτον ἄρθρον κινοῦσι τένουσιν μῦς τοὺς '
+                                   'μικροὺς, τότʼ ἤδη πάντας ἀποτέμνειν αὐτούς',
+                           'tokens': [{'category': '',
+                                       'lemma': ' ',
+                                       'pos': 'ADV',
+                                       'tag': 'Df',
+                                       'text': ' '},
+                                      {'category': '',
+                                       'lemma': 'ὁ',
+                                       'pos': 'DET',
+                                       'tag': 'S-__Case=Gen|Definite=Def|Gender=Masc|Number=Plur|PronType=Dem',
+                                       'text': 'τῶν'},
+                                      {'category': '',
+                                       'lemma': 'μέν',
+                                       'pos': 'CCONJ',
+                                       'tag': 'C-',
+                                       'text': 'μὲν'},
+                                      {'category': '',
+                                       'lemma': 'οὖν',
+                                       'pos': 'ADV',
+                                       'tag': 'Df',
+                                       'text': 'οὖν'},
+                                      {'category': '',
+                                       'lemma': 'ἐκτός',
+                                       'pos': 'ADV',
+                                       'tag': 'Df',
+                                       'text': 'ἐκτὸς'},
+                                      {'category': 'Body Part',
+                                       'lemma': 'μῦς',
+                                       'pos': 'NOUN',
+                                       'tag': 'Nb',
+                                       'text': 'μυῶν'},
+                                      {'category': '',
+                                       'lemma': 'συναφαιρέω',
+                                       'pos': 'VERB',
+                                       'tag': 'V-__Tense=Pres|VerbForm=Inf|Voice=Act',
+                                       'text': 'συναφαιρεῖν'},
+                                      {'category': '',
+                                       'lemma': 'σύ',
+                                       'pos': 'PRON',
+                                       'tag': 'Pp__Case=Acc|Gender=Masc|Number=Sing|Person=2|PronType=Prs',
+                                       'text': 'σε'},
+                                      {'category': '',
+                                       'lemma': 'χρή',
+                                       'pos': 'VERB',
+                                       'tag': 'V-__Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin|Voice=Act',
+                                       'text': 'χρὴ'},
+                                      {'category': '',
+                                       'lemma': 'καί',
+                                       'pos': 'CCONJ',
+                                       'tag': 'C-',
+                                       'text': 'καὶ'},
+                                      {'category': '',
+                                       'lemma': 'ὁ',
+                                       'pos': 'DET',
+                                       'tag': 'S-__Case=Acc|Definite=Def|Gender=Neut|Number=Plur|PronType=Dem',
+                                       'text': 'τοὺς'},
+                                      {'category': 'Body Part',
+                                       'lemma': 'τένων',
+                                       'pos': 'NOUN',
+                                       'tag': 'Nb',
+                                       'text': 'τένοντας'},
+                                      {'category': 'Adjectives/Qualities',
+                                       'lemma': 'ἅπας',
+                                       'pos': 'ADJ',
+                                       'tag': 'A-__Case=Acc|Degree=Pos|Gender=Fem|Number=Plur',
+                                       'text': 'ἅπαντας'},
+                                      {'category': 'Topography',
+                                       'lemma': 'ἄχρι',
+                                       'pos': 'ADP',
+                                       'tag': 'R-',
+                                       'text': 'ἄχρι'},
+                                      {'category': '',
+                                       'lemma': 'ὁ',
+                                       'pos': 'DET',
+                                       'tag': 'S-__Case=Dat|Definite=Def|Gender=Fem|Number=Plur|PronType=Dem',
+                                       'text': 'τῶν'},
+                                      {'category': 'Topography',
+                                       'lemma': 'περάτων',
+                                       'pos': 'NOUN',
+                                       'tag': 'Nb',
+                                       'text': 'περάτων'},
+                                      {'category': '',
+                                       'lemma': 'ὅς',
+                                       'pos': 'PRON',
+                                       'tag': 'Pr__Case=Gen|Gender=Fem|Number=Plur|PronType=Rel',
+                                       'text': 'ὧν'},
+                                      {'category': '',
+                                       'lemma': 'ἔχω',
+                                       'pos': 'VERB',
+                                       'tag': 'V-__Mood=Ind|Number=Plur|Person=3|Tense=Pres|VerbForm=Fin|Voice=Act',
+                                       'text': 'ἔχουσι'},
+                                      {'category': 'Topography',
+                                       'lemma': 'καθά',
+                                       'pos': 'ADP',
+                                       'tag': 'R-',
+                                       'text': 'καθʼ'},
+                                      {'category': '',
+                                       'lemma': 'ἕκαστος',
+                                       'pos': 'ADJ',
+                                       'tag': 'A-__Case=Acc|Degree=Pos|Gender=Neut|Number=Sing',
+                                       'text': 'ἕκαστον'},
+                                      {'category': 'Body Part',
+                                       'lemma': 'δάκτυλος',
+                                       'pos': 'NOUN',
+                                       'tag': 'Nb',
+                                       'text': 'δάκτυλον'},
+                                      {'category': '',
+                                       'lemma': ',',
+                                       'pos': 'PUNCT',
+                                       'tag': 'Z',
+                                       'text': ','},
+                                      {'category': '',
+                                       'lemma': 'οὐ',
+                                       'pos': 'ADV',
+                                       'tag': 'Df',
+                                       'text': 'οὐ'},
+                                      {'category': '',
+                                       'lemma': 'μείς',
+                                       'pos': 'PART',
+                                       'tag': 'Df',
+                                       'text': 'μὴν'},
+                                      {'category': 'Adjectives/Qualities',
+                                       'lemma': 'ἁπάντων',
+                                       'pos': 'ADJ',
+                                       'tag': 'A-__Case=Gen|Degree=Pos|Number=Plur',
+                                       'text': 'ἁπάντων'},
+                                      {'category': '',
+                                       'lemma': 'γε',
+                                       'pos': 'CCONJ',
+                                       'tag': 'C-',
+                                       'text': 'γε'},
+                                      {'category': '',
+                                       'lemma': 'ὁ',
+                                       'pos': 'DET',
+                                       'tag': 'S-__Case=Dat|Definite=Def|Gender=Fem|Number=Plur|PronType=Dem',
+                                       'text': 'τῶν'},
+                                      {'category': 'Topography',
+                                       'lemma': 'ἔνδον',
+                                       'pos': 'ADV',
+                                       'tag': 'Df',
+                                       'text': 'ἔνδον'},
+                                      {'category': 'Topography',
+                                       'lemma': ',',
+                                       'pos': 'PUNCT',
+                                       'tag': 'Z',
+                                       'text': ','},
+                                      {'category': 'Topography',
+                                       'lemma': 'ἀλλά',
+                                       'pos': 'CCONJ',
+                                       'tag': 'C-',
+                                       'text': 'ἀλλὰ'},
+                                      {'category': '',
+                                       'lemma': 'πρότερος',
+                                       'pos': 'ADV',
+                                       'tag': 'Df',
+                                       'text': 'πρότερον'},
+                                      {'category': 'Action Verbs',
+                                       'lemma': 'ἐπισκεψάμενον',
+                                       'pos': 'VERB',
+                                       'tag': 'V-__Aspect=Perf|Case=Nom|Gender=Masc|Number=Sing|Tense=Past|VerbForm=Part|Voice=Mid',
+                                       'text': 'ἐπισκεψάμενον'},
+                                      {'category': '',
+                                       'lemma': 'ὁ',
+                                       'pos': 'DET',
+                                       'tag': 'S-__Case=Acc|Definite=Def|Gender=Neut|Number=Plur|PronType=Dem',
+                                       'text': 'τοὺς'},
+                                      {'category': 'Topography',
+                                       'lemma': 'παραπεφυκότας',
+                                       'pos': 'VERB',
+                                       'tag': 'V-__Aspect=Perf|Case=Nom|Gender=Masc|Number=Sing|Tense=Past|VerbForm=Part|Voice=Act',
+                                       'text': 'παραπεφυκότας'},
+                                      {'category': '',
+                                       'lemma': 'ὁ',
+                                       'pos': 'DET',
+                                       'tag': 'S-__Case=Dat|Definite=Def|Gender=Fem|Number=Plur|PronType=Dem',
+                                       'text': 'τοῖς'},
+                                      {'category': '',
+                                       'lemma': 'ὁ',
+                                       'pos': 'DET',
+                                       'tag': 'S-__Case=Acc|Definite=Def|Gender=Neut|Number=Sing|PronType=Dem',
+                                       'text': 'τὸ'},
+                                      {'category': '',
+                                       'lemma': 'τρίτος',
+                                       'pos': 'ADJ',
+                                       'tag': 'Df',
+                                       'text': 'τρίτον'},
+                                      {'category': 'Body Part',
+                                       'lemma': 'ἄρθρον',
+                                       'pos': 'NOUN',
+                                       'tag': 'Nb',
+                                       'text': 'ἄρθρον'},
+                                      {'category': '',
+                                       'lemma': 'κινέω',
+                                       'pos': 'VERB',
+                                       'tag': 'V-__Case=Dat|Gender=Masc|Number=Plur|Tense=Pres|VerbForm=Part|Voice=Act',
+                                       'text': 'κινοῦσι'},
+                                      {'category': 'Body Part',
+                                       'lemma': 'τένων',
+                                       'pos': 'NOUN',
+                                       'tag': 'Nb',
+                                       'text': 'τένουσιν'},
+                                      {'category': 'Body Part',
+                                       'lemma': 'μῦς',
+                                       'pos': 'NOUN',
+                                       'tag': 'Nb',
+                                       'text': 'μῦς'},
+                                      {'category': '',
+                                       'lemma': 'ὁ',
+                                       'pos': 'DET',
+                                       'tag': 'S-__Case=Acc|Definite=Def|Gender=Neut|Number=Plur|PronType=Dem',
+                                       'text': 'τοὺς'},
+                                      {'category': 'Body Part',
+                                       'lemma': 'μικροὺς',
+                                       'pos': 'ADJ',
+                                       'tag': 'A-__Case=Acc|Degree=Pos|Gender=Fem|Number=Plur',
+                                       'text': 'μικροὺς'},
+                                      {'category': 'Topography',
+                                       'lemma': ',',
+                                       'pos': 'PUNCT',
+                                       'tag': 'Z',
+                                       'text': ','},
+                                      {'category': 'Topography',
+                                       'lemma': 'τότα',
+                                       'pos': 'CCONJ',
+                                       'tag': 'C-',
+                                       'text': 'τότʼ'},
+                                      {'category': '',
+                                       'lemma': 'ἤδη',
+                                       'pos': 'ADV',
+                                       'tag': 'Df',
+                                       'text': 'ἤδη'},
+                                      {'category': '',
+                                       'lemma': 'πάς',
+                                       'pos': 'ADJ',
+                                       'tag': 'A-__Case=Acc|Degree=Pos|Gender=Fem|Number=Plur',
+                                       'text': 'πάντας'},
+                                      {'category': '',
+                                       'lemma': 'ἀποτέμνω',
+                                       'pos': 'VERB',
+                                       'tag': 'V-__Tense=Pres|VerbForm=Inf|Voice=Act',
+                                       'text': 'ἀποτέμνειν'},
+                                      {'category': '',
+                                       'lemma': 'αὐτούς',
+                                       'pos': 'PRON',
+                                       'tag': 'Pp__Case=Acc|Gender=Fem|Number=Plur|Person=3|PronType=Prs',
+                                       'text': 'αὐτούς'}]},
               
-              output a python code that can print the answer to the following question. output only the code, don't include the object itself in the code.\n
+              output a python code that can get the answer to the following question and put it into a variable named 'result'.
+              output only the code, don't include the object itself in the code.\n
               Question: 
     """
     def __init__(self, chat_model_name="gpt-3.5-turbo", temperature=.5):
@@ -200,7 +290,7 @@ class LLMOAssistant:
         answer = llm([human_message])
 
         return answer.content
-    def the_universal_function(self, python_code):
+    def the_universal_function(self, python_code, *args, **kwargs):
         exec(python_code)
 
     def _extract_code(self, input_string):
@@ -218,7 +308,9 @@ class LLMOAssistant:
             try:
                 answer = self.query_llm(question)
                 code_from_answer = self._extract_code(answer)
-                result = self.the_universal_function(code_from_answer)
+                result = 'ERROR'
+                self.the_universal_function(code_from_answer)
+                print(result)
 
                 break
             except Exception as e:
@@ -234,45 +326,7 @@ class LLMOAssistant:
 
 
 
-def sentencizer(text):
-    delimiters_pattern = r'[.|·]'
-    sentences = re.split(delimiters_pattern, text)
-    #print("sentence: ", sentences)
-    return sentences
-def clean_text(text):
-    apostrophes = [' ̓', "᾿", "᾽", "'", "’", "‘"]  # all possible apostrophes
-    for apostrophe in apostrophes:
-        text = text.replace(apostrophe, "ʼ")
-    clean = ' '.join(text.replace('-\n', '').replace('\r', ' ').replace('\n', ' ').split())
-    #clean = text.replace('-\n', "").replace('\r', " ").replace('\n', " ")
-    print("clean sentence: ",clean)
-    return clean
-def create_text_tagging_object(sentences):
-    nlp = spacy.load(spaCy_Model)
 
-    sentences_tagged = []
-    for sentence in tqdm(sentences, desc="Processing sentences", unit="sentence"):
-        # Tokenization and part-of-speech tagging
-        doc = nlp(sentence)
-
-        doc_dict = {
-            "text": sentence,
-            "tokens": [
-                {
-                    "text": token.text,
-                    "lemma": token.lemma_,
-                    "pos": token.pos_,
-                    "tag": token.tag_,
-                    "category": token.ent_type_,
-                    # "dep": token.dep_,
-                    # "is_alpha": token.is_alpha,
-                    # "is_stop": token.is_stop,
-                }
-                for token in doc
-            ]
-        }
-        sentences_tagged += [doc_dict]
-    return sentences_tagged
 
 def write_to_jsonl(data_list, file_path="output.jsonl"):
     with open(file_path, 'w', encoding='utf-8') as file:
@@ -280,14 +334,7 @@ def write_to_jsonl(data_list, file_path="output.jsonl"):
             json.dump(data_dict, file, ensure_ascii=False)
             file.write('\n')
 
-def create_data():
-    galenus_text = '' #/TODO: generalize to run on different texts
-    with open("TLG_Galen_Anatomical Administrations(AA).txt", 'r') as file: #/TODO: add a definition for file/s path
-        galenus_text = file.read()
-    galenus_text = clean_text(galenus_text)
-    galenus_sentences = sentencizer(galenus_text)
-    tagged = create_text_tagging_object(galenus_sentences)
-    write_to_jsonl(tagged, "galenus_tagged_data.jsonl")
+
 
 def read_jsonl_to_list(file_path):
     with open(file_path, 'r') as file:
@@ -296,7 +343,7 @@ def read_jsonl_to_list(file_path):
 
 def interactive_test():
     # Create an instance of LLMOAssistant
-    oracle = LLMOAssistant()
+    oracle = LLMAssistant()
 
 
 
@@ -312,15 +359,28 @@ def interactive_test():
 
     # End of the interactive loop
     print("Exiting the program.")
+def read_jsonl_files():
+    result_dict = {}
 
+    files = [f for f in os.listdir() if f.endswith(".jsonl")]
+
+    for file_name in files:
+        with open(file_name, 'r') as file:
+
+            data_list = [json.loads(line) for line in file]
+            result_dict[file_name.replace("jsonl","")] = data_list
+
+    return result_dict
 if __name__ == "__main__":
     from pprint import pprint
     # print("hi")
     # oracle = LLMOAssistant()
     #
     #
-    #create_data()
-    tagged_galenus = read_jsonl_to_list("galenus_tagged_data.jsonl")
+    # create_data()
+    # tagged_galenus = read_jsonl_to_list("galenus_tagged_data.jsonl")
+    library = read_jsonl_files()
+    # pprint(library)
     #
     # oracle.ask_about_data("")
     interactive_test()
