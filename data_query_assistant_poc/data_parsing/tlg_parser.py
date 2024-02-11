@@ -71,12 +71,31 @@ def read_jsonl_to_list(file_path):
     with open(file_path, 'r') as file:
         data_list = [json.loads(line) for line in file]
     return data_list
+
+def fix_words_that_carry_over_next_line(text):
+    # pattern = r'(\S+)-\s*<tlg_ref>.*?</tlg_ref>\s*((\w+))'
+    # match = re.search(pattern, text)
+    # if match:
+    #     # word_to_move = match.group(1)
+    #     a = match.group(0)
+    #     b = match.group(1)
+    #     c = match.group(2)
+    #     d = match.group(3)
+    #     e = match.group(3)
+    #     # modified_text = re.sub(pattern, r'\1 <tlg_ref>', text)
+    #     # return modified_text.replace(word_to_move + '-', word_to_move)
+    pattern = r'(\S+)-\s*<tlg_ref>.*?</tlg_ref>\s*(\w+)'
+    def replace_function(match):
+        return match.group(1) + match.group(2) + match.group(0)[len(match.group(1)) + 1:-len(match.group(2))]
+
+    # Perform the substitution
+    text = re.sub(pattern, replace_function, text)
+    return text
 def create_data():
     tlgu_text = ''
-    with open("TLG0057_galen.txt-001.txt", 'r') as file:
+    with open("TLG0627_hippocrates.txt-001.txt", 'r') as file:
         tlgu_text = file.read()
     # text = "[0057] [001] [] [] some text here [0058] [002] [] [] more text [0059] [003] [] [] final text"
-
     # pattern = r'\[\d*\] +\[\d*\] +\[\d*\] +\[\d*\]'
     pattern = r'(\[\d*\] +\[\d*\] +\[\d*\] +\[\d*\])'
     result = re.split(pattern, tlgu_text)
@@ -96,8 +115,9 @@ def create_data():
 
     tlgu_text = " ".join(final)
     tlgu_text = clean_text(tlgu_text)
-    galenus_sentences = sentencizer(tlgu_text)
-    tagged = create_text_tagging_object(galenus_sentences)
-    write_to_jsonl(tagged, "galenus_tagged_data.jsonl")
+    tlgu_text = fix_words_that_carry_over_next_line(tlgu_text)
+    sentences = sentencizer(tlgu_text)
+    tagged = create_text_tagging_object(sentences)
+    write_to_jsonl(tagged, "hippocrates_tagged_data.jsonl")
 if __name__ == "__main__":
     create_data()

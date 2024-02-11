@@ -5,6 +5,7 @@ import os
 # from langchain.embeddings import OpenAIEmbeddings
 # from langchain.llms import OpenAI
 from langchain.chat_models import ChatOpenAI, ChatAnthropic
+from pprint import pprint
 
 # from langchain.chains import LLMChain
 from langchain.prompts import PromptTemplate
@@ -12,7 +13,10 @@ from langchain.schema import HumanMessage, SystemMessage
 # from langchain.chains import SimpleSequentialChain
 # import numpy as np
 import spacy
-api_key = os.environ.get("OPENAI_API_KEY_ATLOMY")
+# api_key = os.environ.get("OPENAI_API_KEY_ATLOMY")
+from LOCAL_SETTINGS import OPENAI_API_KEY as api_key
+from LOCAL_SETTINGS import OPENAI_ORGANIZATION as openai_organization
+
 from tqdm import tqdm
 
 
@@ -20,7 +24,7 @@ from tqdm import tqdm
 
 class LLMAssistant:
     data_query_template = """
-    given a python dictionary names "library" with 2 keys, the first key is "galenus_tagged_data", the second key is "hippocrates_sacred_disease_tagged_data"
+    given a python dictionary names "library" with 2 keys, the first key is "galenus_tagged_data", the second key is "hippocrates_tagged_data"
     each value is a list of dicts that looks like this:\n"
 {'text': ' τῶν μὲν οὖν ἐκτὸς μυῶν συναφαιρεῖν σε χρὴ '
                                    'καὶ τοὺς τένοντας ἅπαντας ἄχρι τῶν περάτων '
@@ -275,30 +279,54 @@ class LLMAssistant:
                                        'tag': 'Pp__Case=Acc|Gender=Fem|Number=Plur|Person=3|PronType=Prs',
                                        'text': 'αὐτούς'}]},
               
-              output a python code that can get the answer to the following question and put it into a variable named 'result'.
-              output only the code, don't include the object itself in the code.\n
+              output a python code that can get the answer to the following question and put it into a variable named 'result', without printing anything.
+              output only the code, don't include the object itself in the code. when outputting code, wrap it in ```python``` marker\n
               Question: 
     """
-    def __init__(self, chat_model_name="gpt-3.5-turbo", temperature=.5):
+
+    def __init__(self, library_object, chat_model_name="gpt-3.5-turbo", temperature=.5):
         self.chat_model_name = chat_model_name
         self.temperature = temperature
+        self.library = library
 
     def query_llm(self, query):
-        llm = ChatOpenAI(openai_api_key=api_key, model=self.chat_model_name, temperature=self.temperature, request_timeout=120)
+        llm = ChatOpenAI(openai_api_key=api_key, model=self.chat_model_name, temperature=self.temperature, request_timeout=120, openai_organization=openai_organization)
         user_prompt = PromptTemplate.from_template("# Input\n{text}")
         human_message = HumanMessage(content=user_prompt.format(text=query))
         answer = llm([human_message])
 
         return answer.content
-    def the_universal_function(self, python_code, *args, **kwargs):
-        exec(python_code)
+    def the_universal_function(self, python_code, variables_dict):
+        exec(python_code, variables_dict)
 
     def _extract_code(self, input_string):
         pattern = r'```python(.*?)```'
-
         #re.DOTALL to match across newlines and extract the code part
         match = re.search(pattern, input_string, re.DOTALL)
         return match.group(1) if match else None
+
+    def _bibliography_filter(self, text):
+        if isinstance(text, str):  # If text is a string
+            text = [text]  # Convert to a list to handle it uniformly
+
+        result_texts = []
+        for t in text:
+            pattern = r'<tlg_ref>.*?</tlg_ref>'
+            matches = re.findall(pattern, t)
+            if matches:
+                first_match = matches[0]
+                cleaned_string = re.sub(pattern, '', t)
+                t = first_match + ':\n' + cleaned_string
+                t = t.replace("<tlg_ref>", "(TLG Reference:")
+                result_string = t.replace("</tlg_ref>", ")")
+            else:
+                result_string = t
+            result_texts.append(result_string)
+
+        if isinstance(text, str):  # If input was a string, return a string
+            return result_texts[0]
+        else:  # If input was a list, return a list
+            return result_texts
     def ask_about_data(self, data_query):
         question = self.data_query_template + data_query
 
@@ -309,8 +337,12 @@ class LLMAssistant:
                 answer = self.query_llm(question)
                 code_from_answer = self._extract_code(answer)
                 result = 'ERROR'
-                self.the_universal_function(code_from_answer)
-                print(result)
+                vars_dict = {"result": result, "library": self.library}
+                self.the_universal_function(code_from_answer, vars_dict)
+                result = vars_dict['result']
+                result = self._bibliography_filter(result)
+                return result
+                # print(result)
 
                 break
             except Exception as e:
@@ -355,7 +387,7 @@ def interactive_test():
 
         # Call the ask_about_data method and print the answer
         answer = oracle.ask_about_data(user_question)
-        # print("Answer:", answer)
+        print("Answer:", answer)
 
     # End of the interactive loop
     print("Exiting the program.")
@@ -368,22 +400,28 @@ def read_jsonl_files():
         with open(file_name, 'r') as file:
 
             data_list = [json.loads(line) for line in file]
-            result_dict[file_name.replace("jsonl","")] = data_list
+            result_dict[file_name.replace(".jsonl","")] = data_list
 
     return result_dict
+
+
+
 if __name__ == "__main__":
     from pprint import pprint
     # print("hi")
-    # oracle = LLMOAssistant()
     #
     #
     # create_data()
     # tagged_galenus = read_jsonl_to_list("galenus_tagged_data.jsonl")
+    result = ""
     library = read_jsonl_files()
+    oracle = LLMAssistant(library)
     # pprint(library)
     #
     # oracle.ask_about_data("")
-    interactive_test()
+    # interactive_test()
+    answer = oracle.ask_about_data("show all sentences from library that have the lemma ὅλως ")
+    pprint(answer)
 
 
-    print("bye")
+    # print("bye")
