@@ -13,7 +13,7 @@ from langchain.schema import HumanMessage, SystemMessage
 # from langchain.chains import SimpleSequentialChain
 # import numpy as np
 import spacy
-# api_key = os.environ.get("OPENAI_API_KEY_ATLOMY")
+#api_key = os.environ.get("OPENAI_API_KEY_ATLOMY")
 from LOCAL_SETTINGS import OPENAI_API_KEY as api_key
 from LOCAL_SETTINGS import OPENAI_ORGANIZATION as openai_organization
 
@@ -24,7 +24,7 @@ from tqdm import tqdm
 
 class LLMAssistant:
     data_query_template = """
-    given a python dictionary names "library" with 2 keys, the first key is "galenus_tagged_data", the second key is "hippocrates_tagged_data"
+    given a python dictionary names "library" with 2 keys, the first key is "galen_tagged_data", the second key is "hippocrates_tagged_data"
     each value is a list of dicts that looks like this:\n"
 {'text': ' τῶν μὲν οὖν ἐκτὸς μυῶν συναφαιρεῖν σε χρὴ '
                                    'καὶ τοὺς τένοντας ἅπαντας ἄχρι τῶν περάτων '
@@ -284,7 +284,7 @@ class LLMAssistant:
               Question: 
     """
 
-    def __init__(self, library_object, chat_model_name="gpt-3.5-turbo", temperature=.5):
+    def __init__(self, library, chat_model_name="gpt-3.5-turbo", temperature=.5):
         self.chat_model_name = chat_model_name
         self.temperature = temperature
         self.library = library
@@ -325,8 +325,10 @@ class LLMAssistant:
 
         if isinstance(text, str):  # If input was a string, return a string
             return result_texts[0]
+            
         else:  # If input was a list, return a list
             return result_texts
+            
     def ask_about_data(self, data_query):
         question = self.data_query_template + data_query
 
@@ -375,7 +377,7 @@ def read_jsonl_to_list(file_path):
 
 def interactive_test():
     # Create an instance of LLMOAssistant
-    oracle = LLMAssistant()
+    oracle = LLMAssistant(library)
 
 
 
@@ -393,11 +395,13 @@ def interactive_test():
     print("Exiting the program.")
 def read_jsonl_files():
     result_dict = {}
-
-    files = [f for f in os.listdir() if f.endswith(".jsonl")]
+    print(os.getcwd())  # Prints the current working directory
+    files = [f for f in os.listdir('assets/texts/annotated_texts') if f.endswith(".jsonl")]
+    directory = 'assets/texts/annotated_texts'  # Replace with the path to your directory
 
     for file_name in files:
-        with open(file_name, 'r') as file:
+        print(file_name)
+        with open(os.path.join(directory, file_name), 'r') as file:
 
             data_list = [json.loads(line) for line in file]
             result_dict[file_name.replace(".jsonl","")] = data_list
@@ -415,13 +419,14 @@ if __name__ == "__main__":
     # tagged_galenus = read_jsonl_to_list("galenus_tagged_data.jsonl")
     result = ""
     library = read_jsonl_files()
-    oracle = LLMAssistant(library)
-    # pprint(library)
+    #oracle = LLMAssistant(library)
+    #pprint(library)
     #
     # oracle.ask_about_data("")
-    # interactive_test()
-    answer = oracle.ask_about_data("show all sentences from library that have the lemma ὅλως ")
-    pprint(answer)
+    interactive_test()
+    #answer = oracle.ask_about_data("show all sentences from library that have the lemma ὅλως ")
+    #example: print all lines containing the lemma φλέψ
+    #pprint(answer)
 
 
     # print("bye")
