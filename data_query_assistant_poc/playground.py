@@ -24,7 +24,7 @@ from tqdm import tqdm
 
 class LLMAssistant:
     data_query_template = """
-    given a python dictionary names "library" with 2 keys, the first key is "galen_tagged_data", the second key is "hippocrates_tagged_data"
+    given a python dictionary names "library" with keys, each key is a title of a text
     each value is a list of dicts that looks like this:\n"
 {'text': ' τῶν μὲν οὖν ἐκτὸς μυῶν συναφαιρεῖν σε χρὴ '
                                    'καὶ τοὺς τένοντας ἅπαντας ἄχρι τῶν περάτων '
@@ -39,6 +39,7 @@ class LLMAssistant:
                                        'tag': 'Df',
                                        'text': ' '},
                                       {'category': '',
+                                       "dep": "det",
                                        'lemma': 'ὁ',
                                        'pos': 'DET',
                                        'tag': 'S-__Case=Gen|Definite=Def|Gender=Masc|Number=Plur|PronType=Dem',
@@ -94,6 +95,7 @@ class LLMAssistant:
                                        'tag': 'Nb',
                                        'text': 'τένοντας'},
                                       {'category': 'Adjectives/Qualities',
+                                       "dep": "advmod",
                                        'lemma': 'ἅπας',
                                        'pos': 'ADJ',
                                        'tag': 'A-__Case=Acc|Degree=Pos|Gender=Fem|Number=Plur',
@@ -311,6 +313,10 @@ class LLMAssistant:
 
         result_texts = []
         for t in text:
+            # Convert t to string if it's a dictionary or a tuple
+            if isinstance(t, dict) or isinstance(t, tuple):
+                t = str(t)
+
             pattern = r'<tlg_ref>.*?</tlg_ref>'
             matches = re.findall(pattern, t)
             if matches:
@@ -324,9 +330,11 @@ class LLMAssistant:
             result_texts.append(result_string)
 
         if isinstance(text, str):  # If input was a string, return a string
+            #print("isinstance(text, str):  ", isinstance(text, str))
             return result_texts[0]
-            
+
         else:  # If input was a list, return a list
+            #print("ELSE result_texts: ", result_texts)
             return result_texts
             
     def ask_about_data(self, data_query):
@@ -426,6 +434,10 @@ if __name__ == "__main__":
     interactive_test()
     #answer = oracle.ask_about_data("show all sentences from library that have the lemma ὅλως ")
     #example: print all lines containing the lemma φλέψ
+    #result: "\nresult = []\nfor key in library:\n    for sentence in library[key]:\n        for token in sentence['tokens']:\n            if token['lemma'] == 'ἅπας':\n                result.append(sentence['text'])\n"
+    #example: find all lines containing the lemma ἅπας. Print each found sentence, and list the adjectives that are used to describe the word of the lemma.
+    #example: find all lines containing the word μακρόν. Print each found sentence, and list the adjectives that are used to describe the word of the lemma. 
+    #result:"\nresult = [item['text'] for item in library.values() for token in item['tokens'] if token['lemma'] == 'ἅπας' and token['pos'] == 'ADJ']\n"
     #pprint(answer)
 
 
