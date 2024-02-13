@@ -106,6 +106,7 @@ def create_data():
         if os.path.isfile(file_path):
             output_file_path = os.path.join(folder_path, "annotated_texts", f"{os.path.splitext(file_name)[0]}.txt_tagged.jsonl")
             if not os.path.exists(output_file_path):
+                print(f"Processing file: {file_name}")
                 # Process the file and write the output to output_file_path
                 tlgu_text = ''
                 with open(file_path, 'r') as file:
