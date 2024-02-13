@@ -113,7 +113,7 @@ def create_data():
                     tlgu_text = file.read()
                 # text = "[0057] [001] [] [] some text here [0058] [002] [] [] more text [0059] [003] [] [] final text"
                 # pattern = r'\[\d*\] +\[\d*\] +\[\d*\] +\[\d*\]'
-                pattern = r'(\[\d*\] +\[\d*\] +\[\d*\] +\[\d*\])'
+                pattern = r'(\[\w*\] +\[\w*\] +\[\w*\] +\[\w*\])'
                 result = re.split(pattern, tlgu_text)
 
                 # Remove empty strings from the result
