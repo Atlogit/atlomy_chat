@@ -2,7 +2,7 @@ import json
 import re
 import importlib.util
 from pathlib import Path
-from logging_config import logger
+from .logging_config import logger
 
 class TLGParser:
     def __init__(self, tlg_index_path, work_numbers_path):

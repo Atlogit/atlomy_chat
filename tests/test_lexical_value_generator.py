@@ -1,5 +1,11 @@
+import os
+import sys
 import unittest
 from unittest.mock import Mock, patch
+
+# Add the parent directory to sys.path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 from src.lexical_value_generator import LexicalValueGenerator, LexicalValueGeneratorError
 from src.lexical_value import LexicalValue
 from src.corpus_manager import CorpusManager
@@ -18,7 +24,7 @@ class TestLexicalValueGenerator(unittest.TestCase):
 
     def test_get_citations(self):
         self.mock_corpus_manager.search_texts.return_value = ["Sample citation"]
-        self.generator.tlg_parser.process_texts.return_value = [{"text": "Processed citation"}]
+        self.generator.tlg_parser.process_texts = Mock(return_value=[{"text": "Processed citation"}])
         
         citations = self.generator.get_citations("test_word")
         
@@ -27,7 +33,7 @@ class TestLexicalValueGenerator(unittest.TestCase):
 
     @patch('src.lexical_value_generator.LexicalValueGenerator.query_llm')
     def test_generate_lexical_term(self, mock_query_llm):
-        mock_query_llm.return_value = '{"lemma": "test", "translation": "test", "short_description": "test", "long_description": "test", "related_terms": ["test"], "references": ["test"]}'
+        mock_query_llm.return_value = '{"lemma": "test", "translation": "test", "short_description": "test", "long_description": "test", "related_terms": ["test"], "references": [{"author": "test", "work": "test", "passage": "test"}]}'
         
         result = self.generator.generate_lexical_term("test", ["Sample citation"])
         
@@ -36,7 +42,14 @@ class TestLexicalValueGenerator(unittest.TestCase):
 
     def test_create_lexical_entry(self):
         self.generator.get_citations = Mock(return_value=[{"text": "Sample citation"}])
-        self.generator.generate_lexical_term = Mock(return_value=LexicalValue(lemma="test", translation="test", short_description="test", long_description="test", related_terms=["test"], references=["test"]))
+        self.generator.generate_lexical_term = Mock(return_value=LexicalValue(
+            lemma="test",
+            translation="test",
+            short_description="test",
+            long_description="test",
+            related_terms=["test"],
+            references=[{"author": "test", "work": "test", "passage": "test"}]
+        ))
         self.generator.storage.store = Mock()
 
         result = self.generator.create_lexical_entry("test")

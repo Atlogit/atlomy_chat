@@ -1,8 +1,8 @@
 import json
 import os
 from typing import List, Dict, Optional
-from lexical_value import LexicalValue
-from logging_config import logger
+from .lexical_value import LexicalValue
+from .logging_config import logger
 
 class LexicalValueStorageError(Exception):
     """Custom exception for LexicalValueStorage errors."""
