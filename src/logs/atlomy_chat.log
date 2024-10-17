@@ -1,0 +1,18 @@
+2024-10-17 12:39:04,629 - atlomy_chat - INFO - corpus_manager:__init__:16 - CorpusManager initialized with corpus directory: /root/Projects/Atlomy/git/atlomy_chat/assets/texts/annotated
+2024-10-17 12:39:04,629 - atlomy_chat - ERROR - corpus_manager:import_text:43 - Error importing text ../assets/texts/original/TLG_file.txt: File not found: ../assets/texts/original/TLG_file.txt
+2024-10-17 12:39:04,629 - atlomy_chat - ERROR - corpus_manager:<module>:228 - An error occurred in the main execution: File not found: ../assets/texts/original/TLG_file.txt
+2024-10-17 12:42:11,873 - atlomy_chat - INFO - corpus_manager:__init__:16 - CorpusManager initialized with corpus directory: /root/Projects/Atlomy/git/atlomy_chat/assets/texts/annotated
+2024-10-17 12:42:17,054 - atlomy_chat - ERROR - corpus_manager:import_text:43 - Error importing text ../assets/texts/original/TLG_sample.txt: name 'nlp' is not defined
+2024-10-17 12:42:17,054 - atlomy_chat - ERROR - corpus_manager:<module>:228 - An error occurred in the main execution: name 'nlp' is not defined
+2024-10-17 12:45:34,376 - atlomy_chat - INFO - corpus_manager:__init__:16 - CorpusManager initialized with corpus directory: /root/Projects/Atlomy/git/atlomy_chat/assets/texts/annotated
+2024-10-17 12:45:38,538 - atlomy_chat - ERROR - corpus_manager:import_text:43 - Error importing text ../assets/texts/original/TLG_sample.txt: name 'nlp' is not defined
+2024-10-17 12:45:38,538 - atlomy_chat - ERROR - corpus_manager:<module>:228 - An error occurred in the main execution: name 'nlp' is not defined
+2024-10-17 18:23:35,777 - atlomy_chat - INFO - corpus_manager:__init__:16 - CorpusManager initialized with corpus directory: /root/Projects/Atlomy/git/atlomy_chat/assets/texts/annotated
+2024-10-17 18:23:40,600 - atlomy_chat - ERROR - corpus_manager:import_text:43 - Error importing text ../assets/texts/original/TLG_sample.txt: create_data() missing 1 required positional argument: 'nlp'
+2024-10-17 18:23:40,600 - atlomy_chat - ERROR - corpus_manager:<module>:228 - An error occurred in the main execution: create_data() missing 1 required positional argument: 'nlp'
+2024-10-17 18:25:19,348 - atlomy_chat - INFO - corpus_manager:__init__:16 - CorpusManager initialized with corpus directory: /root/Projects/Atlomy/git/atlomy_chat/assets/texts/annotated
+2024-10-17 18:25:21,837 - atlomy_chat - ERROR - corpus_manager:import_text:43 - Error importing text ../assets/texts/original/TLG_sample.txt: create_data() missing 1 required positional argument: 'nlp'
+2024-10-17 18:25:21,838 - atlomy_chat - ERROR - corpus_manager:<module>:228 - An error occurred in the main execution: create_data() missing 1 required positional argument: 'nlp'
+2024-10-17 18:26:14,189 - atlomy_chat - INFO - corpus_manager:__init__:16 - CorpusManager initialized with corpus directory: /root/Projects/Atlomy/git/atlomy_chat/assets/texts/annotated
+2024-10-17 18:26:16,742 - atlomy_chat - ERROR - corpus_manager:import_text:43 - Error importing text ../assets/texts/original/TLG_sample.txt: create_data() missing 1 required positional argument: 'nlp'
+2024-10-17 18:26:16,742 - atlomy_chat - ERROR - corpus_manager:<module>:228 - An error occurred in the main execution: create_data() missing 1 required positional argument: 'nlp'

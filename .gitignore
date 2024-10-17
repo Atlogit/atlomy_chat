@@ -8,3 +8,4 @@ vectors
 wandb
 .DS_Store
 project.lock
+atlomy_chat.code-workspace

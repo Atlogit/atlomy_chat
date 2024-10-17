@@ -1,0 +1,97 @@
+2024-10-16 18:18:01,591 - atlomy_chat - INFO - corpus_manager:__init__:15 - CorpusManager initialized with corpus directory: /root/Projects/Atlomy/git/atlomy_chat/assets/texts/annotated
+2024-10-16 18:18:01,591 - atlomy_chat - ERROR - corpus_manager:import_text:42 - Error importing text ../assets/texts/original/TLG_file.txt: File not found: ../assets/texts/original/TLG_file.txt
+2024-10-16 18:18:01,591 - atlomy_chat - ERROR - corpus_manager:<module>:226 - An error occurred in the main execution: File not found: ../assets/texts/original/TLG_file.txt
+2024-10-16 18:48:12,858 - atlomy_chat - INFO - logging_config:<module>:99 - This is an info message
+2024-10-16 18:48:12,858 - atlomy_chat - WARNING - logging_config:<module>:100 - This is a warning message
+2024-10-16 18:48:12,858 - atlomy_chat - ERROR - logging_config:<module>:101 - This is an error message
+2024-10-16 18:48:12,858 - atlomy_chat - CRITICAL - logging_config:<module>:102 - This is a critical message
+2024-10-16 18:48:12,858 - atlomy_chat - INFO - logging_config:change_log_level:94 - Log level changed to DEBUG
+2024-10-16 18:48:12,858 - atlomy_chat - DEBUG - logging_config:<module>:106 - This debug message should now appear
+2024-10-16 18:49:26,675 - atlomy_chat - INFO - <string>:<module>:1 - Test log message
+2024-10-16 19:39:03,086 - atlomy_chat - INFO - test_logging:test_corpus_manager_logging:6 - Starting corpus manager logging test
+2024-10-16 19:39:03,086 - atlomy_chat - INFO - corpus_manager:__init__:15 - CorpusManager initialized with corpus directory: /root/Projects/Atlomy/git/atlomy_chat/assets/texts/annotated
+2024-10-16 19:39:03,086 - atlomy_chat - ERROR - corpus_manager:import_text:42 - Error importing text ../assets/texts/original/sample_text.txt: File not found: ../assets/texts/original/sample_text.txt
+2024-10-16 19:39:03,086 - atlomy_chat - ERROR - test_logging:test_corpus_manager_logging:17 - Failed to import ../assets/texts/original/sample_text.txt: File not found: ../assets/texts/original/sample_text.txt
+2024-10-16 19:39:03,087 - atlomy_chat - INFO - corpus_manager:list_texts:85 - Listed 0 texts in the corpus
+2024-10-16 19:39:03,087 - atlomy_chat - INFO - test_logging:test_corpus_manager_logging:21 - Listed 0 texts
+2024-10-16 19:39:03,087 - atlomy_chat - INFO - corpus_manager:search_texts:193 - Found 0 matches for query: sample
+2024-10-16 19:39:03,087 - atlomy_chat - INFO - test_logging:test_corpus_manager_logging:33 - Search returned 0 results
+2024-10-16 19:39:03,087 - atlomy_chat - INFO - test_logging:test_corpus_manager_logging:35 - Corpus manager logging test completed
+2024-10-16 19:47:47,553 - atlomy_chat - INFO - corpus_manager:__init__:15 - CorpusManager initialized with corpus directory: /root/Projects/Atlomy/git/atlomy_chat/assets/texts/annotated
+2024-10-16 19:47:47,554 - atlomy_chat - ERROR - corpus_manager:import_text:42 - Error importing text ../assets/texts/original/TLG_file.txt: File not found: ../assets/texts/original/TLG_file.txt
+2024-10-16 19:47:47,554 - atlomy_chat - ERROR - corpus_manager:<module>:226 - An error occurred in the main execution: File not found: ../assets/texts/original/TLG_file.txt
+2024-10-16 19:47:48,858 - atlomy_chat - INFO - corpus_manager:__init__:15 - CorpusManager initialized with corpus directory: /root/Projects/Atlomy/git/atlomy_chat/assets/texts/annotated
+2024-10-16 19:47:48,858 - atlomy_chat - ERROR - corpus_manager:import_text:42 - Error importing text ../assets/texts/original/TLG_file.txt: File not found: ../assets/texts/original/TLG_file.txt
+2024-10-16 19:47:48,858 - atlomy_chat - ERROR - corpus_manager:<module>:226 - An error occurred in the main execution: File not found: ../assets/texts/original/TLG_file.txt
+2024-10-16 20:03:35,823 - atlomy_chat - INFO - test_logging:test_corpus_manager_logging:26 - Starting corpus manager logging test
+2024-10-16 20:03:35,824 - atlomy_chat - INFO - corpus_manager:__init__:16 - CorpusManager initialized with corpus directory: /root/Projects/Atlomy/git/atlomy_chat/assets/texts/annotated
+2024-10-16 20:03:35,824 - atlomy_chat - ERROR - corpus_manager:import_text:43 - Error importing text ../assets/examples/jsonl_example.jsonl: File not found: ../assets/examples/jsonl_example.jsonl
+2024-10-16 20:03:35,824 - atlomy_chat - ERROR - test_logging:test_corpus_manager_logging:37 - Failed to import example file ../assets/examples/jsonl_example.jsonl: File not found: ../assets/examples/jsonl_example.jsonl
+2024-10-16 20:03:35,824 - atlomy_chat - INFO - corpus_manager:list_texts:86 - Listed 0 texts in the corpus
+2024-10-16 20:03:35,824 - atlomy_chat - INFO - test_logging:test_corpus_manager_logging:41 - Listed 0 texts
+2024-10-16 20:03:35,824 - atlomy_chat - INFO - corpus_manager:search_texts:195 - Found 0 matches for query: example
+2024-10-16 20:03:35,824 - atlomy_chat - INFO - test_logging:test_corpus_manager_logging:53 - Search returned 0 results
+2024-10-16 20:03:35,824 - atlomy_chat - INFO - test_logging:test_corpus_manager_logging:55 - Corpus manager logging test completed
+2024-10-16 20:04:50,120 - atlomy_chat - INFO - test_logging:test_corpus_manager_logging:26 - Starting corpus manager logging test
+2024-10-16 20:04:50,120 - atlomy_chat - INFO - corpus_manager:__init__:16 - CorpusManager initialized with corpus directory: /root/Projects/Atlomy/git/atlomy_chat/assets/texts/annotated
+2024-10-16 20:04:50,121 - atlomy_chat - ERROR - corpus_manager:import_text:43 - Error importing text ../assets/examples/jsonl_example.jsonl: File not found: ../assets/examples/jsonl_example.jsonl
+2024-10-16 20:04:50,121 - atlomy_chat - ERROR - test_logging:test_corpus_manager_logging:37 - Failed to import example file ../assets/examples/jsonl_example.jsonl: File not found: ../assets/examples/jsonl_example.jsonl
+2024-10-16 20:04:50,121 - atlomy_chat - INFO - corpus_manager:list_texts:86 - Listed 0 texts in the corpus
+2024-10-16 20:04:50,121 - atlomy_chat - INFO - test_logging:test_corpus_manager_logging:41 - Listed 0 texts
+2024-10-16 20:04:50,121 - atlomy_chat - INFO - corpus_manager:search_texts:195 - Found 0 matches for query: example
+2024-10-16 20:04:50,121 - atlomy_chat - INFO - test_logging:test_corpus_manager_logging:53 - Search returned 0 results
+2024-10-16 20:04:50,121 - atlomy_chat - INFO - test_logging:test_corpus_manager_logging:55 - Corpus manager logging test completed
+2024-10-16 20:05:16,302 - atlomy_chat - INFO - test_logging:test_corpus_manager_logging:26 - Starting corpus manager logging test
+2024-10-16 20:05:16,303 - atlomy_chat - INFO - corpus_manager:__init__:16 - CorpusManager initialized with corpus directory: /root/Projects/Atlomy/git/atlomy_chat/assets/texts/annotated
+2024-10-16 20:05:21,486 - atlomy_chat - ERROR - corpus_manager:import_text:43 - Error importing text /root/Projects/Atlomy/git/atlomy_chat/assets/examples/jsonl_example.jsonl: [E050] Can't find model '../../assets/models/atlomy_full_pipeline_annotation_131024/model-best'. It doesn't seem to be a Python package or a valid path to a data directory.
+2024-10-16 20:05:21,486 - atlomy_chat - ERROR - test_logging:test_corpus_manager_logging:37 - Failed to import example file /root/Projects/Atlomy/git/atlomy_chat/assets/examples/jsonl_example.jsonl: [E050] Can't find model '../../assets/models/atlomy_full_pipeline_annotation_131024/model-best'. It doesn't seem to be a Python package or a valid path to a data directory.
+2024-10-16 20:05:21,486 - atlomy_chat - INFO - corpus_manager:list_texts:86 - Listed 0 texts in the corpus
+2024-10-16 20:05:21,486 - atlomy_chat - INFO - test_logging:test_corpus_manager_logging:41 - Listed 0 texts
+2024-10-16 20:05:21,486 - atlomy_chat - INFO - corpus_manager:search_texts:195 - Found 0 matches for query: example
+2024-10-16 20:05:21,486 - atlomy_chat - INFO - test_logging:test_corpus_manager_logging:53 - Search returned 0 results
+2024-10-16 20:05:21,487 - atlomy_chat - INFO - test_logging:test_corpus_manager_logging:55 - Corpus manager logging test completed
+2024-10-16 20:07:32,247 - atlomy_chat - INFO - test_logging:test_corpus_manager_logging:26 - Starting corpus manager logging test
+2024-10-16 20:07:32,247 - atlomy_chat - INFO - corpus_manager:__init__:16 - CorpusManager initialized with corpus directory: /root/Projects/Atlomy/git/atlomy_chat/assets/texts/annotated
+2024-10-16 20:10:28,414 - atlomy_chat - INFO - test_logging:test_corpus_manager_logging:26 - Starting corpus manager logging test
+2024-10-16 20:10:28,414 - atlomy_chat - INFO - corpus_manager:__init__:16 - CorpusManager initialized with corpus directory: /root/Projects/Atlomy/git/atlomy_chat/assets/texts/annotated
+2024-10-16 20:10:44,741 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: jsonl_example
+2024-10-16 20:10:44,751 - atlomy_chat - INFO - corpus_manager:import_text:41 - Successfully imported text: jsonl_example.jsonl
+2024-10-16 20:10:44,751 - atlomy_chat - INFO - test_logging:test_corpus_manager_logging:35 - Successfully imported example file: /root/Projects/Atlomy/git/atlomy_chat/assets/examples/jsonl_example.jsonl
+2024-10-16 20:10:44,751 - atlomy_chat - INFO - corpus_manager:list_texts:86 - Listed 2 texts in the corpus
+2024-10-16 20:10:44,751 - atlomy_chat - INFO - test_logging:test_corpus_manager_logging:41 - Listed 2 texts
+2024-10-16 20:10:44,751 - atlomy_chat - INFO - corpus_manager:get_text:75 - Retrieved text: jsonl_example
+2024-10-16 20:10:44,751 - atlomy_chat - INFO - test_logging:test_corpus_manager_logging:47 - Successfully retrieved text: jsonl_example
+2024-10-16 20:10:44,752 - atlomy_chat - INFO - corpus_manager:search_texts:195 - Found 0 matches for query: example
+2024-10-16 20:10:44,752 - atlomy_chat - INFO - test_logging:test_corpus_manager_logging:53 - Search returned 0 results
+2024-10-16 20:10:44,752 - atlomy_chat - INFO - test_logging:test_corpus_manager_logging:55 - Corpus manager logging test completed
+2024-10-16 20:50:10,126 - atlomy_chat - INFO - playground:<module>:132 - Starting the playground
+2024-10-16 20:50:10,126 - atlomy_chat - INFO - corpus_manager:__init__:16 - CorpusManager initialized with corpus directory: /root/Projects/Atlomy/git/atlomy_chat/assets/texts/annotated
+2024-10-16 20:50:10,387 - atlomy_chat - INFO - playground:__init__:56 - LLMAssistant initialized with model_id: anthropic.claude-3-haiku-20240307-v1:0
+2024-10-16 20:50:10,387 - atlomy_chat - INFO - playground:interactive_test:117 - Starting interactive test
+2024-10-16 20:51:54,265 - atlomy_chat - INFO - playground:<module>:132 - Starting the playground
+2024-10-16 20:51:54,266 - atlomy_chat - INFO - corpus_manager:__init__:16 - CorpusManager initialized with corpus directory: /root/Projects/Atlomy/git/atlomy_chat/assets/texts/annotated
+2024-10-16 20:51:54,310 - atlomy_chat - INFO - playground:__init__:56 - LLMAssistant initialized with model_id: anthropic.claude-3-haiku-20240307-v1:0
+2024-10-16 20:51:54,310 - atlomy_chat - INFO - playground:interactive_test:117 - Starting interactive test
+2024-10-16 20:58:53,150 - atlomy_chat - INFO - playground:<module>:135 - Starting the playground
+2024-10-16 20:58:53,150 - atlomy_chat - INFO - corpus_manager:__init__:16 - CorpusManager initialized with corpus directory: /root/Projects/Atlomy/git/atlomy_chat/assets/texts/annotated
+2024-10-16 20:58:53,190 - atlomy_chat - INFO - playground:__init__:56 - LLMAssistant initialized with model_id: anthropic.claude-3-haiku-20240307-v1:0
+2024-10-16 20:58:53,190 - atlomy_chat - INFO - playground:interactive_test:120 - Starting interactive test
+2024-10-16 20:58:59,128 - atlomy_chat - INFO - index_utils:_load_index:18 - Loaded index: TLG_INDEX
+2024-10-16 20:59:41,544 - atlomy_chat - INFO - playground:<module>:135 - Starting the playground
+2024-10-16 20:59:41,544 - atlomy_chat - INFO - corpus_manager:__init__:16 - CorpusManager initialized with corpus directory: /root/Projects/Atlomy/git/atlomy_chat/assets/texts/annotated
+2024-10-16 20:59:41,581 - atlomy_chat - INFO - playground:__init__:56 - LLMAssistant initialized with model_id: anthropic.claude-3-haiku-20240307-v1:0
+2024-10-16 20:59:41,581 - atlomy_chat - INFO - playground:interactive_test:120 - Starting interactive test
+2024-10-16 20:59:46,722 - atlomy_chat - INFO - index_utils:_load_index:18 - Loaded index: TLG_INDEX
+2024-10-16 21:00:43,589 - atlomy_chat - INFO - playground:<module>:135 - Starting the playground
+2024-10-16 21:00:43,589 - atlomy_chat - INFO - corpus_manager:__init__:16 - CorpusManager initialized with corpus directory: /root/Projects/Atlomy/git/atlomy_chat/assets/texts/annotated
+2024-10-16 21:00:43,638 - atlomy_chat - INFO - playground:__init__:56 - LLMAssistant initialized with model_id: anthropic.claude-3-haiku-20240307-v1:0
+2024-10-16 21:00:43,638 - atlomy_chat - INFO - playground:interactive_test:120 - Starting interactive test
+2024-10-16 21:00:44,319 - atlomy_chat - INFO - index_utils:_load_index:19 - Loaded index: TLG_INDEX
+2024-10-16 21:02:48,813 - atlomy_chat - INFO - playground:<module>:135 - Starting the playground
+2024-10-16 21:02:48,813 - atlomy_chat - INFO - corpus_manager:__init__:16 - CorpusManager initialized with corpus directory: /root/Projects/Atlomy/git/atlomy_chat/assets/texts/annotated
+2024-10-16 21:02:48,872 - atlomy_chat - INFO - playground:__init__:56 - LLMAssistant initialized with model_id: anthropic.claude-3-haiku-20240307-v1:0
+2024-10-16 21:02:48,872 - atlomy_chat - INFO - playground:interactive_test:120 - Starting interactive test
+2024-10-16 21:05:31,259 - atlomy_chat - INFO - playground:<module>:135 - Starting the playground
+2024-10-16 21:05:31,259 - atlomy_chat - INFO - corpus_manager:__init__:16 - CorpusManager initialized with corpus directory: /root/Projects/Atlomy/git/atlomy_chat/assets/texts/annotated
+2024-10-16 21:05:31,303 - atlomy_chat - INFO - playground:__init__:56 - LLMAssistant initialized with model_id: anthropic.claude-3-haiku-20240307-v1:0
+2024-10-16 21:05:31,303 - atlomy_chat - INFO - playground:interactive_test:120 - Starting interactive test
