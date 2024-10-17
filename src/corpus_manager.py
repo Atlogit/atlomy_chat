@@ -1,7 +1,7 @@
 import os
 import json
-from lexical_value_storage import LexicalValueStorage
-from logging_config import setup_logging, logger
+from .lexical_value_storage import LexicalValueStorage
+from .logging_config import setup_logging, logger
 import re
 from typing import List, Dict, Any
 

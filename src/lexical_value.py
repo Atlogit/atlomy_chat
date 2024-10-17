@@ -1,7 +1,7 @@
 import json
 from typing import List, Dict
 from dataclasses import dataclass, field, asdict
-from logging_config import logger
+from .logging_config import logger
 
 @dataclass
 class LexicalValue:

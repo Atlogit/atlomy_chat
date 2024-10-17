@@ -7,12 +7,10 @@ import sys
 from functools import wraps
 from tqdm import tqdm
 
-
-# Add the parent directory to the Python path to import CorpusManager and logging_config
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from corpus_manager import CorpusManager
-from logging_config import get_logger, setup_logging
-from utils import (
+# Use relative imports for local modules
+from ..corpus_manager import CorpusManager
+from ..logging_config import get_logger, setup_logging
+from .utils import (
     log_exceptions, sentencizer, clean_text, read_file_with_fallback,
     create_text_tagging_object
 )
