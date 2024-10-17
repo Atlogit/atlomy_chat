@@ -1,0 +1,72 @@
+2024-10-17 12:50:48,739 - atlomy_chat - INFO - corpus_manager:__init__:16 - CorpusManager initialized with corpus directory: /root/Projects/Atlomy/git/atlomy_chat/assets/texts/annotated
+2024-10-17 12:50:48,739 - atlomy_chat - ERROR - corpus_manager:import_text:43 - Error importing text ../assets/texts/original/TLG_sample.txt: File not found: ../assets/texts/original/TLG_sample.txt
+2024-10-17 12:50:48,740 - atlomy_chat - ERROR - corpus_manager:<module>:228 - An error occurred in the main execution: File not found: ../assets/texts/original/TLG_sample.txt
+2024-10-17 13:45:03,391 - atlomy_chat - ERROR - tlg_parser:wrapper:26 - Exception in create_text_tagging_object: name 'nlp' is not defined
+Traceback (most recent call last):
+  File "/root/Projects/Atlomy/git/atlomy_chat/src/data_parsing/tlg_parser.py", line 24, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/root/Projects/Atlomy/git/atlomy_chat/src/data_parsing/tlg_parser.py", line 59, in create_text_tagging_object
+    docs = list(tqdm(nlp.pipe(cleaned_sentences, batch_size=batch_size), desc="Processing texts", unit="text", total=len(cleaned_sentences)))
+                     ^^^
+NameError: name 'nlp' is not defined
+2024-10-17 13:45:03,394 - atlomy_chat - ERROR - tlg_parser:wrapper:26 - Exception in process_tlg_file: name 'nlp' is not defined
+Traceback (most recent call last):
+  File "/root/Projects/Atlomy/git/atlomy_chat/src/data_parsing/tlg_parser.py", line 24, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/root/Projects/Atlomy/git/atlomy_chat/src/data_parsing/tlg_parser.py", line 151, in process_tlg_file
+    tagged = create_text_tagging_object(sentences)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/Projects/Atlomy/git/atlomy_chat/src/data_parsing/tlg_parser.py", line 24, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/root/Projects/Atlomy/git/atlomy_chat/src/data_parsing/tlg_parser.py", line 59, in create_text_tagging_object
+    docs = list(tqdm(nlp.pipe(cleaned_sentences, batch_size=batch_size), desc="Processing texts", unit="text", total=len(cleaned_sentences)))
+                     ^^^
+NameError: name 'nlp' is not defined
+2024-10-17 13:54:04,024 - atlomy_chat - ERROR - tlg_parser:wrapper:29 - Exception in process_tlg_file: process_tlg_file() takes 1 positional argument but 2 were given
+Traceback (most recent call last):
+  File "/root/Projects/Atlomy/git/atlomy_chat/src/data_parsing/tlg_parser.py", line 27, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+TypeError: process_tlg_file() takes 1 positional argument but 2 were given
+2024-10-17 13:55:27,980 - atlomy_chat - ERROR - tlg_parser:wrapper:29 - Exception in create_text_tagging_object: name 'nlp' is not defined
+Traceback (most recent call last):
+  File "/root/Projects/Atlomy/git/atlomy_chat/src/data_parsing/tlg_parser.py", line 27, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/root/Projects/Atlomy/git/atlomy_chat/src/data_parsing/tlg_parser.py", line 62, in create_text_tagging_object
+    docs = list(tqdm(nlp.pipe(cleaned_sentences, batch_size=batch_size), desc="Processing texts", unit="text", total=len(cleaned_sentences)))
+                     ^^^
+NameError: name 'nlp' is not defined
+2024-10-17 13:55:27,982 - atlomy_chat - ERROR - tlg_parser:wrapper:29 - Exception in process_tlg_file: name 'nlp' is not defined
+Traceback (most recent call last):
+  File "/root/Projects/Atlomy/git/atlomy_chat/src/data_parsing/tlg_parser.py", line 27, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/root/Projects/Atlomy/git/atlomy_chat/src/data_parsing/tlg_parser.py", line 154, in process_tlg_file
+    tagged = create_text_tagging_object(sentences)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/Projects/Atlomy/git/atlomy_chat/src/data_parsing/tlg_parser.py", line 27, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/root/Projects/Atlomy/git/atlomy_chat/src/data_parsing/tlg_parser.py", line 62, in create_text_tagging_object
+    docs = list(tqdm(nlp.pipe(cleaned_sentences, batch_size=batch_size), desc="Processing texts", unit="text", total=len(cleaned_sentences)))
+                     ^^^
+NameError: name 'nlp' is not defined
+2024-10-17 17:08:36,576 - atlomy_chat - INFO - corpus_manager:__init__:16 - CorpusManager initialized with corpus directory: /tmp/tmphq2xgyfp/test_corpus
+2024-10-17 17:08:36,582 - atlomy_chat - INFO - tlg_parser:create_data:197 - Processing file: /tmp/tmpx0hei9_c.txt
+2024-10-17 17:08:36,582 - atlomy_chat - INFO - tlg_parser:process_tlg_file:158 - Processing TLG file: /tmp/tmpx0hei9_c.txt
+2024-10-17 17:08:37,343 - atlomy_chat - INFO - tlg_parser:process_tlg_file:178 - TLG file processed successfully: /tmp/tmpx0hei9_c.txt
+2024-10-17 17:08:37,344 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: tmpx0hei9_c
+2024-10-17 17:08:37,344 - atlomy_chat - INFO - corpus_manager:get_text:75 - Retrieved text: tmpx0hei9_c
+2024-10-17 17:08:37,346 - atlomy_chat - INFO - corpus_manager:__init__:16 - CorpusManager initialized with corpus directory: /tmp/tmphq2xgyfp/test_corpus
+2024-10-17 17:08:37,347 - atlomy_chat - INFO - corpus_manager:__init__:16 - CorpusManager initialized with corpus directory: /tmp/tmphq2xgyfp/test_corpus
+2024-10-17 17:08:37,348 - atlomy_chat - INFO - corpus_manager:__init__:16 - CorpusManager initialized with corpus directory: /tmp/tmphq2xgyfp/test_corpus
+2024-10-17 17:08:37,349 - atlomy_chat - INFO - tlg_parser:process_tlg_file:158 - Processing TLG file: /tmp/tmp9rr0eh7d.txt
+2024-10-17 17:08:37,446 - atlomy_chat - INFO - tlg_parser:process_tlg_file:178 - TLG file processed successfully: /tmp/tmp9rr0eh7d.txt
+2024-10-17 17:08:37,448 - atlomy_chat - INFO - corpus_manager:__init__:16 - CorpusManager initialized with corpus directory: /tmp/tmphq2xgyfp/test_corpus
+2024-10-17 17:08:37,449 - atlomy_chat - INFO - corpus_manager:__init__:16 - CorpusManager initialized with corpus directory: /tmp/tmphq2xgyfp/test_corpus
+2024-10-17 17:08:37,450 - atlomy_chat - INFO - corpus_manager:__init__:16 - CorpusManager initialized with corpus directory: /tmp/tmphq2xgyfp/test_corpus
+2024-10-17 17:08:37,451 - atlomy_chat - INFO - corpus_manager:__init__:16 - CorpusManager initialized with corpus directory: /tmp/tmphq2xgyfp/test_corpus

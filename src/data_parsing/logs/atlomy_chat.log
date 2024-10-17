@@ -1,0 +1,1076 @@
+2024-10-17 18:35:21,235 - atlomy_chat - ERROR - tlg_parser:<module>:250 - An error occurred during script execution: setup_logging() got an unexpected keyword argument 'log_level'
+Traceback (most recent call last):
+  File "/root/Projects/Atlomy/git/atlomy_chat/src/data_parsing/tlg_parser.py", line 242, in <module>
+    setup_logging(log_level=args.log_level)
+TypeError: setup_logging() got an unexpected keyword argument 'log_level'
+2024-10-17 18:39:25,345 - atlomy_chat - ERROR - tlg_parser:<module>:250 - An error occurred during script execution: setup_logging() got an unexpected keyword argument 'log_level'
+Traceback (most recent call last):
+  File "/root/Projects/Atlomy/git/atlomy_chat/src/data_parsing/tlg_parser.py", line 242, in <module>
+    setup_logging(log_level=args.log_level)
+TypeError: setup_logging() got an unexpected keyword argument 'log_level'
+2024-10-17 18:40:12,657 - atlomy_chat - ERROR - tlg_parser:<module>:250 - An error occurred during script execution: setup_logging() got an unexpected keyword argument 'log_level'
+Traceback (most recent call last):
+  File "/root/Projects/Atlomy/git/atlomy_chat/src/data_parsing/tlg_parser.py", line 242, in <module>
+    setup_logging(log_level=args.log_level)
+TypeError: setup_logging() got an unexpected keyword argument 'log_level'
+2024-10-17 18:44:39,266 - atlomy_chat - ERROR - tlg_parser:<module>:250 - An error occurred during script execution: setup_logging() got an unexpected keyword argument 'LOG_LEVEL'
+Traceback (most recent call last):
+  File "/root/Projects/Atlomy/git/atlomy_chat/src/data_parsing/tlg_parser.py", line 242, in <module>
+    setup_logging(LOG_LEVEL=args.log_level)
+TypeError: setup_logging() got an unexpected keyword argument 'LOG_LEVEL'
+2024-10-17 18:46:39,156 - atlomy_chat - ERROR - tlg_parser:<module>:250 - An error occurred during script execution: setup_logging() got an unexpected keyword argument 'LOG_LEVEL'
+Traceback (most recent call last):
+  File "/root/Projects/Atlomy/git/atlomy_chat/src/data_parsing/tlg_parser.py", line 242, in <module>
+    setup_logging(LOG_LEVEL=args.log_level)
+TypeError: setup_logging() got an unexpected keyword argument 'LOG_LEVEL'
+2024-10-17 18:48:06,264 - atlomy_chat - ERROR - tlg_parser:<module>:251 - An error occurred during script execution: setup_logging() got an unexpected keyword argument 'log_level'
+Traceback (most recent call last):
+  File "/root/Projects/Atlomy/git/atlomy_chat/src/data_parsing/tlg_parser.py", line 242, in <module>
+    setup_logging(log_level=args.log_level)
+TypeError: setup_logging() got an unexpected keyword argument 'log_level'
+2024-10-17 18:48:36,628 - atlomy_chat - INFO - tlg_parser:<module>:241 - log level set to INFO
+2024-10-17 18:48:36,628 - atlomy_chat - ERROR - tlg_parser:<module>:252 - An error occurred during script execution: setup_logging() got an unexpected keyword argument 'log_level'
+Traceback (most recent call last):
+  File "/root/Projects/Atlomy/git/atlomy_chat/src/data_parsing/tlg_parser.py", line 243, in <module>
+    setup_logging(log_level=args.log_level)
+TypeError: setup_logging() got an unexpected keyword argument 'log_level'
+2024-10-17 18:54:30,246 - atlomy_chat - ERROR - tlg_parser:<module>:250 - An error occurred during script execution: setup_logging() got an unexpected keyword argument 'log_level'
+Traceback (most recent call last):
+  File "/root/Projects/Atlomy/git/atlomy_chat/src/data_parsing/tlg_parser.py", line 242, in <module>
+    setup_logging(log_level=args.log_level)
+TypeError: setup_logging() got an unexpected keyword argument 'log_level'
+2024-10-17 19:05:39,811 - atlomy_chat - INFO - tlg_parser:<module>:244 - Starting TLG parsing process with input path: assets/texts/original/TLG
+2024-10-17 19:05:39,812 - atlomy_chat - INFO - corpus_manager:__init__:16 - CorpusManager initialized with corpus directory: /root/Projects/Atlomy/git/atlomy_chat/assets/texts/annotated
+2024-10-17 19:05:39,813 - atlomy_chat - ERROR - tlg_parser:<module>:250 - An error occurred during script execution: Invalid input path: assets/texts/original/TLG
+Traceback (most recent call last):
+  File "/root/Projects/Atlomy/git/atlomy_chat/src/data_parsing/tlg_parser.py", line 246, in <module>
+    create_data(args.input_path, corpus_manager, nlp, skip_existing=args.skip_existing)
+  File "/root/Projects/Atlomy/git/atlomy_chat/src/data_parsing/utils.py", line 25, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/root/Projects/Atlomy/git/atlomy_chat/src/data_parsing/tlg_parser.py", line 218, in create_data
+    raise ValueError(f"Invalid input path: {input_path}")
+ValueError: Invalid input path: assets/texts/original/TLG
+2024-10-17 19:05:55,696 - atlomy_chat - INFO - tlg_parser:<module>:244 - Starting TLG parsing process with input path: assets/texts/original/TLG
+2024-10-17 19:05:55,696 - atlomy_chat - INFO - corpus_manager:__init__:16 - CorpusManager initialized with corpus directory: /root/Projects/Atlomy/git/atlomy_chat/assets/texts/annotated
+2024-10-17 19:05:55,697 - atlomy_chat - ERROR - tlg_parser:<module>:250 - An error occurred during script execution: Invalid input path: assets/texts/original/TLG
+Traceback (most recent call last):
+  File "/root/Projects/Atlomy/git/atlomy_chat/src/data_parsing/tlg_parser.py", line 246, in <module>
+    create_data(args.input_path, corpus_manager, nlp, skip_existing=args.skip_existing)
+  File "/root/Projects/Atlomy/git/atlomy_chat/src/data_parsing/utils.py", line 25, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/root/Projects/Atlomy/git/atlomy_chat/src/data_parsing/tlg_parser.py", line 218, in create_data
+    raise ValueError(f"Invalid input path: {input_path}")
+ValueError: Invalid input path: assets/texts/original/TLG
+2024-10-17 19:06:41,777 - atlomy_chat - INFO - tlg_parser:<module>:244 - Starting TLG parsing process with input path: ../assets/texts/original/TLG
+2024-10-17 19:06:41,777 - atlomy_chat - INFO - corpus_manager:__init__:16 - CorpusManager initialized with corpus directory: /root/Projects/Atlomy/git/atlomy_chat/assets/texts/annotated
+2024-10-17 19:06:41,778 - atlomy_chat - ERROR - tlg_parser:<module>:250 - An error occurred during script execution: Invalid input path: ../assets/texts/original/TLG
+Traceback (most recent call last):
+  File "/root/Projects/Atlomy/git/atlomy_chat/src/data_parsing/tlg_parser.py", line 246, in <module>
+    create_data(args.input_path, corpus_manager, nlp, skip_existing=args.skip_existing)
+  File "/root/Projects/Atlomy/git/atlomy_chat/src/data_parsing/utils.py", line 25, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/root/Projects/Atlomy/git/atlomy_chat/src/data_parsing/tlg_parser.py", line 218, in create_data
+    raise ValueError(f"Invalid input path: {input_path}")
+ValueError: Invalid input path: ../assets/texts/original/TLG
+2024-10-17 19:06:59,089 - atlomy_chat - INFO - tlg_parser:<module>:244 - Starting TLG parsing process with input path: ../../assets/texts/original/TLG
+2024-10-17 19:06:59,089 - atlomy_chat - INFO - corpus_manager:__init__:16 - CorpusManager initialized with corpus directory: /root/Projects/Atlomy/git/atlomy_chat/assets/texts/annotated
+2024-10-17 19:06:59,092 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-050.txt
+2024-10-17 19:06:59,092 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-050.txt
+2024-10-17 19:07:10,305 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-050.txt
+2024-10-17 19:07:10,334 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-050
+2024-10-17 19:07:10,334 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-013.txt
+2024-10-17 19:07:10,334 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-013.txt
+2024-10-17 19:07:12,887 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-013.txt
+2024-10-17 19:07:12,891 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-013
+2024-10-17 19:07:12,892 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-023.txt
+2024-10-17 19:07:12,892 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-023.txt
+2024-10-17 19:08:05,950 - atlomy_chat - INFO - tlg_parser:<module>:244 - Starting TLG parsing process with input path: ../../assets/texts/original/TLG
+2024-10-17 19:08:05,951 - atlomy_chat - INFO - corpus_manager:__init__:16 - CorpusManager initialized with corpus directory: /root/Projects/Atlomy/git/atlomy_chat/assets/texts/annotated
+2024-10-17 19:08:05,953 - atlomy_chat - INFO - tlg_parser:create_data:207 - Skipping TLG0627_hippocrates-050.txt as it already exists in the corpus.
+2024-10-17 19:08:05,953 - atlomy_chat - INFO - tlg_parser:create_data:207 - Skipping TLG0627_hippocrates-013.txt as it already exists in the corpus.
+2024-10-17 19:08:05,953 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-023.txt
+2024-10-17 19:08:05,953 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-023.txt
+2024-10-17 19:09:09,422 - atlomy_chat - INFO - tlg_parser:<module>:244 - Starting TLG parsing process with input path: ../../assets/texts/original/TLG
+2024-10-17 19:09:09,422 - atlomy_chat - INFO - corpus_manager:__init__:16 - CorpusManager initialized with corpus directory: /root/Projects/Atlomy/git/atlomy_chat/assets/texts/annotated
+2024-10-17 19:09:09,424 - atlomy_chat - INFO - tlg_parser:create_data:207 - Skipping TLG0627_hippocrates-050.txt as it already exists in the corpus.
+2024-10-17 19:09:09,424 - atlomy_chat - INFO - tlg_parser:create_data:207 - Skipping TLG0627_hippocrates-013.txt as it already exists in the corpus.
+2024-10-17 19:09:09,424 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-023.txt
+2024-10-17 19:09:09,424 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-023.txt
+2024-10-17 19:09:55,032 - atlomy_chat - INFO - tlg_parser:<module>:244 - Starting TLG parsing process with input path: ../../assets/texts/original/TLG
+2024-10-17 19:09:55,033 - atlomy_chat - INFO - corpus_manager:__init__:16 - CorpusManager initialized with corpus directory: /root/Projects/Atlomy/git/atlomy_chat/assets/texts/annotated
+2024-10-17 19:09:55,034 - atlomy_chat - INFO - tlg_parser:create_data:207 - Skipping TLG0627_hippocrates-050.txt as it already exists in the corpus.
+2024-10-17 19:09:55,034 - atlomy_chat - INFO - tlg_parser:create_data:207 - Skipping TLG0627_hippocrates-013.txt as it already exists in the corpus.
+2024-10-17 19:09:55,035 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-023.txt
+2024-10-17 19:09:55,035 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-023.txt
+2024-10-17 19:10:45,640 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-023.txt
+2024-10-17 19:10:45,802 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-023
+2024-10-17 19:10:45,802 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-011.txt
+2024-10-17 19:10:45,802 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-011.txt
+2024-10-17 19:11:17,648 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-011.txt
+2024-10-17 19:11:17,743 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-011
+2024-10-17 19:11:17,743 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-040.txt
+2024-10-17 19:11:17,743 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-040.txt
+2024-10-17 19:11:19,642 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-040.txt
+2024-10-17 19:11:19,647 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-040
+2024-10-17 19:11:19,647 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-055.txt
+2024-10-17 19:11:19,647 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-055.txt
+2024-10-17 19:11:27,201 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-055.txt
+2024-10-17 19:11:27,212 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-055
+2024-10-17 19:11:27,212 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-029.txt
+2024-10-17 19:11:27,212 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-029.txt
+2024-10-17 19:11:33,773 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-029.txt
+2024-10-17 19:11:33,792 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-029
+2024-10-17 19:11:33,792 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-019.txt
+2024-10-17 19:11:33,792 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-019.txt
+2024-10-17 19:11:51,776 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-019.txt
+2024-10-17 19:11:51,835 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-019
+2024-10-17 19:11:51,836 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-107.txt
+2024-10-17 19:11:51,836 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-107.txt
+2024-10-17 19:12:00,285 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-107.txt
+2024-10-17 19:12:00,300 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-107
+2024-10-17 19:12:00,300 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-027.txt
+2024-10-17 19:12:00,301 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-027.txt
+2024-10-17 19:13:48,547 - atlomy_chat - INFO - tlg_parser:<module>:244 - Starting TLG parsing process with input path: ../../assets/texts/original/TLG
+2024-10-17 19:13:48,547 - atlomy_chat - INFO - corpus_manager:__init__:16 - CorpusManager initialized with corpus directory: /root/Projects/Atlomy/git/atlomy_chat/assets/texts/annotated
+2024-10-17 19:13:48,549 - atlomy_chat - INFO - tlg_parser:create_data:207 - Skipping TLG0627_hippocrates-050.txt as it already exists in the corpus.
+2024-10-17 19:13:48,549 - atlomy_chat - INFO - tlg_parser:create_data:207 - Skipping TLG0627_hippocrates-013.txt as it already exists in the corpus.
+2024-10-17 19:13:48,549 - atlomy_chat - INFO - tlg_parser:create_data:207 - Skipping TLG0086_aristotle-023.txt as it already exists in the corpus.
+2024-10-17 19:13:48,549 - atlomy_chat - INFO - tlg_parser:create_data:207 - Skipping TLG0627_hippocrates-011.txt as it already exists in the corpus.
+2024-10-17 19:13:48,549 - atlomy_chat - INFO - tlg_parser:create_data:207 - Skipping TLG0627_hippocrates-040.txt as it already exists in the corpus.
+2024-10-17 19:13:48,549 - atlomy_chat - INFO - tlg_parser:create_data:207 - Skipping TLG0086_aristotle-055.txt as it already exists in the corpus.
+2024-10-17 19:13:48,549 - atlomy_chat - INFO - tlg_parser:create_data:207 - Skipping TLG0627_hippocrates-029.txt as it already exists in the corpus.
+2024-10-17 19:13:48,549 - atlomy_chat - INFO - tlg_parser:create_data:207 - Skipping TLG0086_aristotle-019.txt as it already exists in the corpus.
+2024-10-17 19:13:48,549 - atlomy_chat - INFO - tlg_parser:create_data:207 - Skipping TLG0057_galen-107.txt as it already exists in the corpus.
+2024-10-17 19:13:48,549 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-027.txt
+2024-10-17 19:13:48,550 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-027.txt
+2024-10-17 19:14:53,546 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-027.txt
+2024-10-17 19:14:53,696 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-027
+2024-10-17 19:14:53,696 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-037.txt
+2024-10-17 19:14:53,696 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-037.txt
+2024-10-17 19:14:57,303 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-037.txt
+2024-10-17 19:14:57,313 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-037
+2024-10-17 19:14:57,313 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-026.txt
+2024-10-17 19:14:57,313 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-026.txt
+2024-10-17 19:15:48,725 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-026.txt
+2024-10-17 19:15:48,879 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-026
+2024-10-17 19:15:48,879 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-060.txt
+2024-10-17 19:15:48,879 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-060.txt
+2024-10-17 19:19:24,559 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-060.txt
+2024-10-17 19:19:25,090 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-060
+2024-10-17 19:19:25,090 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-047.txt
+2024-10-17 19:19:25,090 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-047.txt
+2024-10-17 19:20:01,186 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-047.txt
+2024-10-17 19:20:01,297 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-047
+2024-10-17 19:20:01,297 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-048.txt
+2024-10-17 19:20:01,297 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-048.txt
+2024-10-17 19:20:17,063 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-048.txt
+2024-10-17 19:20:17,095 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-048
+2024-10-17 19:20:17,096 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-042.txt
+2024-10-17 19:20:17,096 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-042.txt
+2024-10-17 19:20:37,517 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-042.txt
+2024-10-17 19:20:37,584 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-042
+2024-10-17 19:20:37,584 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-012.txt
+2024-10-17 19:20:37,584 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-012.txt
+2024-10-17 19:21:35,810 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-012.txt
+2024-10-17 19:21:35,955 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-012
+2024-10-17 19:21:35,956 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-084.txt
+2024-10-17 19:21:35,956 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-084.txt
+2024-10-17 19:21:48,437 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-084.txt
+2024-10-17 19:21:48,462 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-084
+2024-10-17 19:21:48,462 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-092.txt
+2024-10-17 19:21:48,462 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-092.txt
+2024-10-17 19:44:28,006 - atlomy_chat - INFO - tlg_parser:<module>:244 - Starting TLG parsing process with input path: ../../assets/texts/original/TLG
+2024-10-17 19:44:28,007 - atlomy_chat - INFO - corpus_manager:__init__:16 - CorpusManager initialized with corpus directory: /root/Projects/Atlomy/git/atlomy_chat/assets/texts/annotated
+2024-10-17 19:44:28,014 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-050.txt
+2024-10-17 19:44:28,014 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-050.txt
+2024-10-17 19:44:38,915 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-050.txt
+2024-10-17 19:44:38,945 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-050
+2024-10-17 19:44:38,945 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-013.txt
+2024-10-17 19:44:38,945 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-013.txt
+2024-10-17 19:44:39,869 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-013.txt
+2024-10-17 19:44:39,872 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-013
+2024-10-17 19:44:39,872 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-023.txt
+2024-10-17 19:44:39,872 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-023.txt
+2024-10-17 19:45:30,207 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-023.txt
+2024-10-17 19:45:30,368 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-023
+2024-10-17 19:45:30,369 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-011.txt
+2024-10-17 19:45:30,369 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-011.txt
+2024-10-17 19:46:02,359 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-011.txt
+2024-10-17 19:46:02,454 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-011
+2024-10-17 19:46:02,455 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-040.txt
+2024-10-17 19:46:02,455 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-040.txt
+2024-10-17 19:46:04,541 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-040.txt
+2024-10-17 19:46:04,547 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-040
+2024-10-17 19:46:04,547 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-055.txt
+2024-10-17 19:46:04,547 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-055.txt
+2024-10-17 19:46:08,172 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-055.txt
+2024-10-17 19:46:08,179 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-055
+2024-10-17 19:46:08,179 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-029.txt
+2024-10-17 19:46:08,179 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-029.txt
+2024-10-17 19:46:15,094 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-029.txt
+2024-10-17 19:46:15,113 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-029
+2024-10-17 19:46:15,113 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-019.txt
+2024-10-17 19:46:15,113 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-019.txt
+2024-10-17 19:46:33,394 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-019.txt
+2024-10-17 19:46:33,453 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-019
+2024-10-17 19:46:33,453 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-107.txt
+2024-10-17 19:46:33,453 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-107.txt
+2024-10-17 19:46:36,640 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-107.txt
+2024-10-17 19:46:36,650 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-107
+2024-10-17 19:46:36,650 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-027.txt
+2024-10-17 19:46:36,650 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-027.txt
+2024-10-17 19:46:54,648 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-027.txt
+2024-10-17 19:46:54,721 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-027
+2024-10-17 19:46:54,721 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-037.txt
+2024-10-17 19:46:54,721 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-037.txt
+2024-10-17 19:46:57,858 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-037.txt
+2024-10-17 19:46:57,867 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-037
+2024-10-17 19:46:57,867 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-026.txt
+2024-10-17 19:46:57,867 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-026.txt
+2024-10-17 19:47:46,160 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-026.txt
+2024-10-17 19:47:46,313 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-026
+2024-10-17 19:47:46,313 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-060.txt
+2024-10-17 19:47:46,313 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-060.txt
+2024-10-17 19:48:49,220 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-060.txt
+2024-10-17 19:48:49,492 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-060
+2024-10-17 19:48:49,493 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-047.txt
+2024-10-17 19:48:49,493 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-047.txt
+2024-10-17 19:49:24,624 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-047.txt
+2024-10-17 19:49:24,729 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-047
+2024-10-17 19:49:24,730 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-048.txt
+2024-10-17 19:49:24,730 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-048.txt
+2024-10-17 19:49:29,581 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-048.txt
+2024-10-17 19:49:29,595 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-048
+2024-10-17 19:49:29,596 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-042.txt
+2024-10-17 19:49:29,596 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-042.txt
+2024-10-17 19:49:49,845 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-042.txt
+2024-10-17 19:49:49,907 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-042
+2024-10-17 19:49:49,908 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-012.txt
+2024-10-17 19:49:49,908 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-012.txt
+2024-10-17 19:50:09,068 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-012.txt
+2024-10-17 19:50:09,136 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-012
+2024-10-17 19:50:09,137 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-084.txt
+2024-10-17 19:50:09,137 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-084.txt
+2024-10-17 19:50:12,929 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-084.txt
+2024-10-17 19:50:12,941 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-084
+2024-10-17 19:50:12,941 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-092.txt
+2024-10-17 19:50:12,941 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-092.txt
+2024-10-17 19:53:38,549 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-092.txt
+2024-10-17 19:53:39,382 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-092
+2024-10-17 19:53:39,383 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-018.txt
+2024-10-17 19:53:39,383 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-018.txt
+2024-10-17 19:54:11,100 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-018.txt
+2024-10-17 19:54:11,224 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-018
+2024-10-17 19:54:11,224 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-010.txt
+2024-10-17 19:54:11,224 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-010.txt
+2024-10-17 19:56:17,642 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-010.txt
+2024-10-17 19:56:18,041 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-010
+2024-10-17 19:56:18,041 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-030.txt
+2024-10-17 19:56:18,041 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-030.txt
+2024-10-17 20:00:57,419 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-030.txt
+2024-10-17 20:00:58,359 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-030
+2024-10-17 20:00:58,360 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-072.txt
+2024-10-17 20:00:58,360 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-072.txt
+2024-10-17 20:01:07,763 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-072.txt
+2024-10-17 20:01:07,791 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-072
+2024-10-17 20:01:07,791 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-010.txt
+2024-10-17 20:01:07,792 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-010.txt
+2024-10-17 20:07:15,260 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-010.txt
+2024-10-17 20:07:16,404 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-010
+2024-10-17 20:07:16,404 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-058.txt
+2024-10-17 20:07:16,404 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-058.txt
+2024-10-17 20:07:28,873 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-058.txt
+2024-10-17 20:07:28,925 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-058
+2024-10-17 20:07:28,925 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-040.txt
+2024-10-17 20:07:28,925 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-040.txt
+2024-10-17 20:08:54,404 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-040.txt
+2024-10-17 20:08:54,697 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-040
+2024-10-17 20:08:54,697 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-015.txt
+2024-10-17 20:08:54,697 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-015.txt
+2024-10-17 20:09:04,538 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-015.txt
+2024-10-17 20:09:04,577 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-015
+2024-10-17 20:09:04,577 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-001.txt
+2024-10-17 20:09:04,577 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-001.txt
+2024-10-17 20:09:36,337 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-001.txt
+2024-10-17 20:09:36,442 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-001
+2024-10-17 20:09:36,443 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-024.txt
+2024-10-17 20:09:36,443 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-024.txt
+2024-10-17 20:09:52,102 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-024.txt
+2024-10-17 20:09:52,155 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-024
+2024-10-17 20:09:52,155 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-099.txt
+2024-10-17 20:09:52,155 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-099.txt
+2024-10-17 20:11:32,346 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-099.txt
+2024-10-17 20:11:32,708 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-099
+2024-10-17 20:11:32,708 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-009.txt
+2024-10-17 20:11:32,708 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-009.txt
+2024-10-17 20:14:09,796 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-009.txt
+2024-10-17 20:14:10,313 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-009
+2024-10-17 20:14:10,314 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-033.txt
+2024-10-17 20:14:10,314 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-033.txt
+2024-10-17 20:14:38,122 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-033.txt
+2024-10-17 20:14:38,244 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-033
+2024-10-17 20:14:38,244 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-039.txt
+2024-10-17 20:14:38,245 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-039.txt
+2024-10-17 20:14:41,676 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-039.txt
+2024-10-17 20:14:41,686 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-039
+2024-10-17 20:14:41,687 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-096.txt
+2024-10-17 20:14:41,687 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-096.txt
+2024-10-17 20:15:03,959 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-096.txt
+2024-10-17 20:15:04,049 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-096
+2024-10-17 20:15:04,049 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-046.txt
+2024-10-17 20:15:04,049 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-046.txt
+2024-10-17 20:15:55,402 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-046.txt
+2024-10-17 20:15:55,564 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-046
+2024-10-17 20:15:55,564 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-044.txt
+2024-10-17 20:15:55,564 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-044.txt
+2024-10-17 20:16:56,203 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-044.txt
+2024-10-17 20:16:56,448 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-044
+2024-10-17 20:16:56,449 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-032.txt
+2024-10-17 20:16:56,449 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-032.txt
+2024-10-17 20:18:31,686 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-032.txt
+2024-10-17 20:18:32,003 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-032
+2024-10-17 20:18:32,004 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-056.txt
+2024-10-17 20:18:32,004 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-056.txt
+2024-10-17 20:19:41,484 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-056.txt
+2024-10-17 20:19:41,762 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-056
+2024-10-17 20:19:41,762 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-101.txt
+2024-10-17 20:19:41,762 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-101.txt
+2024-10-17 20:21:13,634 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-101.txt
+2024-10-17 20:21:13,986 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-101
+2024-10-17 20:21:13,986 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-082.txt
+2024-10-17 20:21:13,986 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-082.txt
+2024-10-17 20:21:20,041 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-082.txt
+2024-10-17 20:21:20,064 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-082
+2024-10-17 20:21:20,065 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-054.txt
+2024-10-17 20:21:20,065 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-054.txt
+2024-10-17 20:21:28,861 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-054.txt
+2024-10-17 20:21:28,895 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-054
+2024-10-17 20:21:28,896 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-012.txt
+2024-10-17 20:21:28,896 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-012.txt
+2024-10-17 20:26:51,806 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-012.txt
+2024-10-17 20:26:52,832 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-012
+2024-10-17 20:26:52,832 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-054.txt
+2024-10-17 20:26:52,832 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-054.txt
+2024-10-17 20:27:11,085 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-054.txt
+2024-10-17 20:27:11,148 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-054
+2024-10-17 20:27:11,148 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-029.txt
+2024-10-17 20:27:11,148 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-029.txt
+2024-10-17 20:27:57,185 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-029.txt
+2024-10-17 20:27:57,327 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-029
+2024-10-17 20:27:57,327 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-031.txt
+2024-10-17 20:27:57,327 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-031.txt
+2024-10-17 20:29:55,210 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-031.txt
+2024-10-17 20:29:55,587 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-031
+2024-10-17 20:29:55,588 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-025.txt
+2024-10-17 20:29:55,588 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-025.txt
+2024-10-17 20:29:58,028 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-025.txt
+2024-10-17 20:29:58,035 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-025
+2024-10-17 20:29:58,036 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-045.txt
+2024-10-17 20:29:58,036 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-045.txt
+2024-10-17 20:30:05,476 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-045.txt
+2024-10-17 20:30:05,497 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-045
+2024-10-17 20:30:05,497 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-045.txt
+2024-10-17 20:30:05,497 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-045.txt
+2024-10-17 20:30:49,421 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-045.txt
+2024-10-17 20:30:49,614 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-045
+2024-10-17 20:30:49,614 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-049.txt
+2024-10-17 20:30:49,614 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-049.txt
+2024-10-17 20:31:03,804 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-049.txt
+2024-10-17 20:31:03,851 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-049
+2024-10-17 20:31:03,852 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-090.txt
+2024-10-17 20:31:03,852 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-090.txt
+2024-10-17 20:32:52,083 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-090.txt
+2024-10-17 20:32:52,488 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-090
+2024-10-17 20:32:52,488 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-074.txt
+2024-10-17 20:32:52,488 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-074.txt
+2024-10-17 20:33:00,581 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-074.txt
+2024-10-17 20:33:00,609 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-074
+2024-10-17 20:33:00,609 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-062.txt
+2024-10-17 20:33:00,609 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-062.txt
+2024-10-17 20:34:12,035 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-062.txt
+2024-10-17 20:34:12,346 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-062
+2024-10-17 20:34:12,347 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-075.txt
+2024-10-17 20:34:12,347 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-075.txt
+2024-10-17 20:38:57,343 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-075.txt
+2024-10-17 20:38:58,508 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-075
+2024-10-17 20:38:58,508 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-004.txt
+2024-10-17 20:38:58,508 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-004.txt
+2024-10-17 20:39:36,816 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-004.txt
+2024-10-17 20:39:36,942 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-004
+2024-10-17 20:39:36,942 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-085.txt
+2024-10-17 20:39:36,942 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-085.txt
+2024-10-17 20:40:34,233 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-085.txt
+2024-10-17 20:40:34,452 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-085
+2024-10-17 20:40:34,452 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-031.txt
+2024-10-17 20:40:34,452 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-031.txt
+2024-10-17 20:46:15,167 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-031.txt
+2024-10-17 20:46:16,262 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-031
+2024-10-17 20:46:16,262 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-055.txt
+2024-10-17 20:46:16,263 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-055.txt
+2024-10-17 20:46:23,591 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-055.txt
+2024-10-17 20:46:23,619 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-055
+2024-10-17 20:46:23,620 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-042.txt
+2024-10-17 20:46:23,620 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-042.txt
+2024-10-17 20:46:33,468 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-042.txt
+2024-10-17 20:46:33,507 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-042
+2024-10-17 20:46:33,507 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-035.txt
+2024-10-17 20:46:33,507 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-035.txt
+2024-10-17 20:46:38,528 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-035.txt
+2024-10-17 20:46:38,544 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-035
+2024-10-17 20:46:38,545 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-033.txt
+2024-10-17 20:46:38,545 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-033.txt
+2024-10-17 20:47:55,786 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-033.txt
+2024-10-17 20:47:56,033 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-033
+2024-10-17 20:47:56,033 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-038.txt
+2024-10-17 20:47:56,033 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-038.txt
+2024-10-17 20:48:20,235 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-038.txt
+2024-10-17 20:48:20,328 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-038
+2024-10-17 20:48:20,328 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-005.txt
+2024-10-17 20:48:20,328 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-005.txt
+2024-10-17 20:51:44,333 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-005.txt
+2024-10-17 20:51:44,971 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-005
+2024-10-17 20:51:44,972 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-053.txt
+2024-10-17 20:51:44,972 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-053.txt
+2024-10-17 20:51:48,751 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-053.txt
+2024-10-17 20:51:48,765 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-053
+2024-10-17 20:51:48,765 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-034.txt
+2024-10-17 20:51:48,765 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-034.txt
+2024-10-17 20:52:00,108 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-034.txt
+2024-10-17 20:52:00,144 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-034
+2024-10-17 20:52:00,144 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-036.txt
+2024-10-17 20:52:00,144 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-036.txt
+2024-10-17 20:54:51,291 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-036.txt
+2024-10-17 20:54:51,903 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-036
+2024-10-17 20:54:51,904 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-002.txt
+2024-10-17 20:54:51,904 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-002.txt
+2024-10-17 20:54:56,598 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-002.txt
+2024-10-17 20:54:56,615 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-002
+2024-10-17 20:54:56,616 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-015.txt
+2024-10-17 20:54:56,616 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-015.txt
+2024-10-17 20:55:35,642 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-015.txt
+2024-10-17 20:55:35,779 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-015
+2024-10-17 20:55:35,780 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-103.txt
+2024-10-17 20:55:35,780 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-103.txt
+2024-10-17 20:56:03,353 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-103.txt
+2024-10-17 20:56:03,438 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-103
+2024-10-17 20:56:03,439 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-102.txt
+2024-10-17 20:56:03,439 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-102.txt
+2024-10-17 20:56:33,913 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-102.txt
+2024-10-17 20:56:34,037 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-102
+2024-10-17 20:56:34,037 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-013.txt
+2024-10-17 20:56:34,037 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-013.txt
+2024-10-17 20:56:49,672 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-013.txt
+2024-10-17 20:56:49,738 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-013
+2024-10-17 20:56:49,739 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-013.txt
+2024-10-17 20:56:49,739 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-013.txt
+2024-10-17 20:58:34,915 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-013.txt
+2024-10-17 20:58:35,250 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-013
+2024-10-17 20:58:35,251 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-016.txt
+2024-10-17 20:58:35,251 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-016.txt
+2024-10-17 20:58:43,292 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-016.txt
+2024-10-17 20:58:43,321 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-016
+2024-10-17 20:58:43,321 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-054.txt
+2024-10-17 20:58:43,322 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-054.txt
+2024-10-17 20:58:44,647 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-054.txt
+2024-10-17 20:58:44,652 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-054
+2024-10-17 20:58:44,653 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-007.txt
+2024-10-17 20:58:44,653 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-007.txt
+2024-10-17 20:59:21,719 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-007.txt
+2024-10-17 20:59:21,826 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-007
+2024-10-17 20:59:21,826 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-104.txt
+2024-10-17 20:59:21,827 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-104.txt
+2024-10-17 20:59:36,012 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-104.txt
+2024-10-17 20:59:36,066 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-104
+2024-10-17 20:59:36,067 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-053.txt
+2024-10-17 20:59:36,067 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-053.txt
+2024-10-17 20:59:44,946 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-053.txt
+2024-10-17 20:59:44,971 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-053
+2024-10-17 20:59:44,971 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-006.txt
+2024-10-17 20:59:44,971 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-006.txt
+2024-10-17 21:00:10,321 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-006.txt
+2024-10-17 21:00:10,424 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-006
+2024-10-17 21:00:10,425 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-070.txt
+2024-10-17 21:00:10,425 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-070.txt
+2024-10-17 21:00:30,805 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-070.txt
+2024-10-17 21:00:30,891 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-070
+2024-10-17 21:00:30,891 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-091.txt
+2024-10-17 21:00:30,891 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-091.txt
+2024-10-17 21:03:50,396 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-091.txt
+2024-10-17 21:03:51,095 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-091
+2024-10-17 21:03:51,096 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-044.txt
+2024-10-17 21:03:51,096 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-044.txt
+2024-10-17 21:08:50,982 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-044.txt
+2024-10-17 21:08:51,912 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-044
+2024-10-17 21:08:51,912 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-030.txt
+2024-10-17 21:08:51,912 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-030.txt
+2024-10-17 21:09:08,218 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-030.txt
+2024-10-17 21:09:08,273 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-030
+2024-10-17 21:09:08,274 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-002.txt
+2024-10-17 21:09:08,274 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-002.txt
+2024-10-17 21:11:23,999 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-002.txt
+2024-10-17 21:11:24,438 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-002
+2024-10-17 21:11:24,438 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-026.txt
+2024-10-17 21:11:24,438 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-026.txt
+2024-10-17 21:15:29,926 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-026.txt
+2024-10-17 21:15:30,662 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-026
+2024-10-17 21:15:30,662 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-011.txt
+2024-10-17 21:15:30,662 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-011.txt
+2024-10-17 21:18:23,922 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-011.txt
+2024-10-17 21:18:24,593 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-011
+2024-10-17 21:18:24,594 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-034.txt
+2024-10-17 21:18:24,594 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-034.txt
+2024-10-17 21:18:28,827 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-034.txt
+2024-10-17 21:18:28,843 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-034
+2024-10-17 21:18:28,843 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-008.txt
+2024-10-17 21:18:28,843 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-008.txt
+2024-10-17 21:19:01,325 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-008.txt
+2024-10-17 21:19:01,445 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-008
+2024-10-17 21:19:01,446 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-001.txt
+2024-10-17 21:19:01,446 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-001.txt
+2024-10-17 21:19:39,814 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-001.txt
+2024-10-17 21:19:39,906 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-001
+2024-10-17 21:19:39,906 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-079.txt
+2024-10-17 21:19:39,906 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-079.txt
+2024-10-17 21:20:13,194 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-079.txt
+2024-10-17 21:20:13,310 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-079
+2024-10-17 21:20:13,310 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-027.txt
+2024-10-17 21:20:13,310 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-027.txt
+2024-10-17 21:21:23,909 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-027.txt
+2024-10-17 21:21:24,112 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-027
+2024-10-17 21:21:24,112 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-033.txt
+2024-10-17 21:21:24,112 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-033.txt
+2024-10-17 21:21:58,315 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-033.txt
+2024-10-17 21:21:58,434 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-033
+2024-10-17 21:21:58,435 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-038.txt
+2024-10-17 21:21:58,435 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-038.txt
+2024-10-17 21:22:21,227 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-038.txt
+2024-10-17 21:22:21,295 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-038
+2024-10-17 21:22:21,296 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-009.txt
+2024-10-17 21:22:21,296 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-009.txt
+2024-10-17 21:23:32,751 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-009.txt
+2024-10-17 21:23:32,962 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-009
+2024-10-17 21:23:32,962 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-002.txt
+2024-10-17 21:23:32,962 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-002.txt
+2024-10-17 21:24:21,397 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-002.txt
+2024-10-17 21:24:21,544 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-002
+2024-10-17 21:24:21,544 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-051.txt
+2024-10-17 21:24:21,544 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-051.txt
+2024-10-17 21:24:32,254 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-051.txt
+2024-10-17 21:24:32,287 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-051
+2024-10-17 21:24:32,288 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-088.txt
+2024-10-17 21:24:32,288 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-088.txt
+2024-10-17 21:26:34,712 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-088.txt
+2024-10-17 21:26:35,126 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-088
+2024-10-17 21:26:35,126 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-001.txt
+2024-10-17 21:26:35,126 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-001.txt
+2024-10-17 21:32:47,301 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-001.txt
+2024-10-17 21:32:48,494 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-001
+2024-10-17 21:32:48,495 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-043.txt
+2024-10-17 21:32:48,495 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-043.txt
+2024-10-17 21:33:04,533 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-043.txt
+2024-10-17 21:33:04,592 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-043
+2024-10-17 21:33:04,593 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-019.txt
+2024-10-17 21:33:04,593 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-019.txt
+2024-10-17 21:33:44,824 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-019.txt
+2024-10-17 21:33:44,939 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-019
+2024-10-17 21:33:44,939 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-045.txt
+2024-10-17 21:33:44,940 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-045.txt
+2024-10-17 21:33:56,493 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-045.txt
+2024-10-17 21:33:56,526 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-045
+2024-10-17 21:33:56,526 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-008.txt
+2024-10-17 21:33:56,526 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-008.txt
+2024-10-17 21:34:06,338 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-008.txt
+2024-10-17 21:34:06,365 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-008
+2024-10-17 21:34:06,365 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-023.txt
+2024-10-17 21:34:06,365 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-023.txt
+2024-10-17 21:35:05,750 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-023.txt
+2024-10-17 21:35:05,979 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-023
+2024-10-17 21:35:05,980 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-059.txt
+2024-10-17 21:35:05,980 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-059.txt
+2024-10-17 21:36:31,489 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-059.txt
+2024-10-17 21:36:31,852 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-059
+2024-10-17 21:36:31,852 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-046.txt
+2024-10-17 21:36:31,852 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-046.txt
+2024-10-17 21:36:35,898 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-046.txt
+2024-10-17 21:36:35,908 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-046
+2024-10-17 21:36:35,908 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-061.txt
+2024-10-17 21:36:35,909 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-061.txt
+2024-10-17 21:37:44,471 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-061.txt
+2024-10-17 21:37:44,760 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-061
+2024-10-17 21:37:44,760 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-020.txt
+2024-10-17 21:37:44,760 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-020.txt
+2024-10-17 21:37:59,626 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-020.txt
+2024-10-17 21:37:59,685 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-020
+2024-10-17 21:37:59,686 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-028.txt
+2024-10-17 21:37:59,686 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-028.txt
+2024-10-17 21:38:44,015 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-028.txt
+2024-10-17 21:38:44,151 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-028
+2024-10-17 21:38:44,152 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-057.txt
+2024-10-17 21:38:44,152 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-057.txt
+2024-10-17 21:41:10,962 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-057.txt
+2024-10-17 21:41:11,555 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-057
+2024-10-17 21:41:11,555 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-041.txt
+2024-10-17 21:41:11,555 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-041.txt
+2024-10-17 21:41:15,465 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-041.txt
+2024-10-17 21:41:15,477 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-041
+2024-10-17 21:41:15,477 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-040.txt
+2024-10-17 21:41:15,478 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-040.txt
+2024-10-17 21:41:16,693 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-040.txt
+2024-10-17 21:41:16,697 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-040
+2024-10-17 21:41:16,698 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-037.txt
+2024-10-17 21:41:16,698 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-037.txt
+2024-10-17 21:41:56,421 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-037.txt
+2024-10-17 21:41:56,547 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-037
+2024-10-17 21:41:56,548 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-066.txt
+2024-10-17 21:41:56,548 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-066.txt
+2024-10-17 21:47:14,989 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-066.txt
+2024-10-17 21:47:16,319 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-066
+2024-10-17 21:47:16,319 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-018.txt
+2024-10-17 21:47:16,319 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-018.txt
+2024-10-17 21:47:28,262 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-018.txt
+2024-10-17 21:47:28,300 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-018
+2024-10-17 21:47:28,300 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-008.txt
+2024-10-17 21:47:28,300 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-008.txt
+2024-10-17 21:47:43,250 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-008.txt
+2024-10-17 21:47:43,297 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-008
+2024-10-17 21:47:43,297 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-049.txt
+2024-10-17 21:47:43,297 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-049.txt
+2024-10-17 21:47:51,868 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-049.txt
+2024-10-17 21:47:51,899 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-049
+2024-10-17 21:47:51,899 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-009.txt
+2024-10-17 21:47:51,899 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-009.txt
+2024-10-17 21:48:47,086 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-009.txt
+2024-10-17 21:48:47,318 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-009
+2024-10-17 21:48:47,319 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-063.txt
+2024-10-17 21:48:47,319 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-063.txt
+2024-10-17 21:49:18,599 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-063.txt
+2024-10-17 21:49:18,733 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-063
+2024-10-17 21:49:18,733 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-014.txt
+2024-10-17 21:49:18,733 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-014.txt
+2024-10-17 22:00:01,015 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-014.txt
+2024-10-17 22:00:02,995 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-014
+2024-10-17 22:00:02,995 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-097.txt
+2024-10-17 22:00:02,995 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-097.txt
+2024-10-17 22:00:22,277 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-097.txt
+2024-10-17 22:00:22,336 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-097
+2024-10-17 22:00:22,336 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-071.txt
+2024-10-17 22:00:22,336 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-071.txt
+2024-10-17 22:00:24,642 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-071.txt
+2024-10-17 22:00:24,649 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-071
+2024-10-17 22:00:24,650 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-021.txt
+2024-10-17 22:00:24,650 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-021.txt
+2024-10-17 22:01:08,101 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-021.txt
+2024-10-17 22:01:08,290 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-021
+2024-10-17 22:01:08,291 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-020.txt
+2024-10-17 22:01:08,291 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-020.txt
+2024-10-17 22:01:18,488 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-020.txt
+2024-10-17 22:01:18,519 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-020
+2024-10-17 22:01:18,519 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-037.txt
+2024-10-17 22:01:18,520 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-037.txt
+2024-10-17 22:03:06,877 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-037.txt
+2024-10-17 22:03:07,268 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-037
+2024-10-17 22:03:07,269 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-035.txt
+2024-10-17 22:03:07,269 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-035.txt
+2024-10-17 22:10:19,517 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-035.txt
+2024-10-17 22:10:21,019 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-035
+2024-10-17 22:10:21,020 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-047.txt
+2024-10-17 22:10:21,020 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-047.txt
+2024-10-17 22:10:27,037 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-047.txt
+2024-10-17 22:10:27,054 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-047
+2024-10-17 22:10:27,055 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-023.txt
+2024-10-17 22:10:27,055 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-023.txt
+2024-10-17 22:10:37,487 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-023.txt
+2024-10-17 22:10:37,527 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-023
+2024-10-17 22:10:37,527 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-055.txt
+2024-10-17 22:10:37,527 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-055.txt
+2024-10-17 22:11:46,955 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-055.txt
+2024-10-17 22:11:47,192 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-055
+2024-10-17 22:11:47,193 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-030.txt
+2024-10-17 22:11:47,193 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-030.txt
+2024-10-17 22:11:57,780 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-030.txt
+2024-10-17 22:11:57,813 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-030
+2024-10-17 22:11:57,813 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-051.txt
+2024-10-17 22:11:57,813 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-051.txt
+2024-10-17 22:16:36,785 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-051.txt
+2024-10-17 22:16:37,611 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-051
+2024-10-17 22:16:37,611 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-044.txt
+2024-10-17 22:16:37,612 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-044.txt
+2024-10-17 22:17:07,209 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-044.txt
+2024-10-17 22:17:07,297 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-044
+2024-10-17 22:17:07,298 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-105.txt
+2024-10-17 22:17:07,298 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-105.txt
+2024-10-17 22:17:11,676 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-105.txt
+2024-10-17 22:17:11,694 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-105
+2024-10-17 22:17:11,694 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-007.txt
+2024-10-17 22:17:11,695 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-007.txt
+2024-10-17 22:17:45,242 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-007.txt
+2024-10-17 22:17:45,383 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-007
+2024-10-17 22:17:45,384 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-050.txt
+2024-10-17 22:17:45,384 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-050.txt
+2024-10-17 22:18:09,565 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-050.txt
+2024-10-17 22:18:09,662 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-050
+2024-10-17 22:18:09,662 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-004.txt
+2024-10-17 22:18:09,662 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-004.txt
+2024-10-17 22:18:31,671 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-004.txt
+2024-10-17 22:18:31,747 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-004
+2024-10-17 22:18:31,748 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-017.txt
+2024-10-17 22:18:31,748 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-017.txt
+2024-10-17 22:19:06,421 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-017.txt
+2024-10-17 22:19:06,541 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-017
+2024-10-17 22:19:06,542 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-024.txt
+2024-10-17 22:19:06,542 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-024.txt
+2024-10-17 22:19:10,283 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-024.txt
+2024-10-17 22:19:10,299 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-024
+2024-10-17 22:19:10,299 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-077.txt
+2024-10-17 22:19:10,299 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-077.txt
+2024-10-17 22:23:28,782 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-077.txt
+2024-10-17 22:23:29,712 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-077
+2024-10-17 22:23:29,712 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-053.txt
+2024-10-17 22:23:29,712 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-053.txt
+2024-10-17 22:23:41,238 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-053.txt
+2024-10-17 22:23:41,288 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-053
+2024-10-17 22:23:41,288 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-095.txt
+2024-10-17 22:23:41,288 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-095.txt
+2024-10-17 22:25:34,527 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-095.txt
+2024-10-17 22:25:34,988 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-095
+2024-10-17 22:25:34,989 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-005.txt
+2024-10-17 22:25:34,989 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-005.txt
+2024-10-17 22:26:07,140 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-005.txt
+2024-10-17 22:26:07,245 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-005
+2024-10-17 22:26:07,245 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-094.txt
+2024-10-17 22:26:07,245 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-094.txt
+2024-10-17 22:26:23,243 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-094.txt
+2024-10-17 22:26:23,312 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-094
+2024-10-17 22:26:23,312 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-003.txt
+2024-10-17 22:26:23,313 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-003.txt
+2024-10-17 22:27:03,042 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-003.txt
+2024-10-17 22:27:03,188 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-003
+2024-10-17 22:27:03,188 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-115.txt
+2024-10-17 22:27:03,188 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-115.txt
+2024-10-17 22:27:06,013 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-115.txt
+2024-10-17 22:27:06,021 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-115
+2024-10-17 22:27:06,021 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-016.txt
+2024-10-17 22:27:06,022 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-016.txt
+2024-10-17 22:27:21,766 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-016.txt
+2024-10-17 22:27:21,819 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-016
+2024-10-17 22:27:21,819 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-051.txt
+2024-10-17 22:27:21,819 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-051.txt
+2024-10-17 22:27:39,154 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-051.txt
+2024-10-17 22:27:39,231 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-051
+2024-10-17 22:27:39,232 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-038.txt
+2024-10-17 22:27:39,232 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-038.txt
+2024-10-17 22:32:27,531 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-038.txt
+2024-10-17 22:32:28,481 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-038
+2024-10-17 22:32:28,482 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-017.txt
+2024-10-17 22:32:28,482 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-017.txt
+2024-10-17 22:34:08,033 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-017.txt
+2024-10-17 22:34:08,350 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-017
+2024-10-17 22:34:08,350 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-021.txt
+2024-10-17 22:34:08,350 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-021.txt
+2024-10-17 22:34:31,893 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-021.txt
+2024-10-17 22:34:31,974 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-021
+2024-10-17 22:34:31,974 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-083.txt
+2024-10-17 22:34:31,974 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-083.txt
+2024-10-17 22:34:53,417 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-083.txt
+2024-10-17 22:34:53,511 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-083
+2024-10-17 22:34:53,511 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-106.txt
+2024-10-17 22:34:53,512 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-106.txt
+2024-10-17 22:35:19,022 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-106.txt
+2024-10-17 22:35:19,119 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-106
+2024-10-17 22:35:19,119 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-006.txt
+2024-10-17 22:35:19,119 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-006.txt
+2024-10-17 22:37:54,572 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-006.txt
+2024-10-17 22:37:55,040 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-006
+2024-10-17 22:37:55,040 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-017.txt
+2024-10-17 22:37:55,040 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-017.txt
+2024-10-17 22:44:19,046 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-017.txt
+2024-10-17 22:44:20,660 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-017
+2024-10-17 22:44:20,661 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-035.txt
+2024-10-17 22:44:20,661 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-035.txt
+2024-10-17 22:44:21,877 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-035.txt
+2024-10-17 22:44:21,881 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-035
+2024-10-17 22:44:21,882 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-036.txt
+2024-10-17 22:44:21,882 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-036.txt
+2024-10-17 22:49:06,657 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-036.txt
+2024-10-17 22:49:07,609 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-036
+2024-10-17 22:49:07,610 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-089.txt
+2024-10-17 22:49:07,610 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-089.txt
+2024-10-17 22:50:48,627 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-089.txt
+2024-10-17 22:50:48,994 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-089
+2024-10-17 22:50:48,994 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-056.txt
+2024-10-17 22:50:48,994 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-056.txt
+2024-10-17 22:50:54,911 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-056.txt
+2024-10-17 22:50:54,927 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-056
+2024-10-17 22:50:54,927 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-012.txt
+2024-10-17 22:50:54,927 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-012.txt
+2024-10-17 22:51:09,046 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-012.txt
+2024-10-17 22:51:09,109 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-012
+2024-10-17 22:51:09,109 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-007.txt
+2024-10-17 22:51:09,109 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-007.txt
+2024-10-17 22:51:36,961 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-007.txt
+2024-10-17 22:51:37,054 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-007
+2024-10-17 22:51:37,054 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-052.txt
+2024-10-17 22:51:37,054 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-052.txt
+2024-10-17 22:51:42,478 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-052.txt
+2024-10-17 22:51:42,496 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-052
+2024-10-17 22:51:42,496 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-014.txt
+2024-10-17 22:51:42,497 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-014.txt
+2024-10-17 22:51:49,530 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-014.txt
+2024-10-17 22:51:49,561 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-014
+2024-10-17 22:51:49,561 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-014.txt
+2024-10-17 22:51:49,561 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-014.txt
+2024-10-17 22:51:52,308 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-014.txt
+2024-10-17 22:51:52,316 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-014
+2024-10-17 22:51:52,316 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-047.txt
+2024-10-17 22:51:52,316 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-047.txt
+2024-10-17 22:52:20,814 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-047.txt
+2024-10-17 22:52:20,908 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-047
+2024-10-17 22:52:20,909 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-036.txt
+2024-10-17 22:52:20,909 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-036.txt
+2024-10-17 22:59:45,849 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-036.txt
+2024-10-17 22:59:47,375 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-036
+2024-10-17 22:59:47,375 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-021.txt
+2024-10-17 22:59:47,375 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-021.txt
+2024-10-17 23:00:03,597 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-021.txt
+2024-10-17 23:00:03,652 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-021
+2024-10-17 23:00:03,652 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-039.txt
+2024-10-17 23:00:03,652 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-039.txt
+2024-10-17 23:00:09,480 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-039.txt
+2024-10-17 23:00:09,500 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-039
+2024-10-17 23:00:09,500 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-006.txt
+2024-10-17 23:00:09,500 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-006.txt
+2024-10-17 23:01:10,166 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-006.txt
+2024-10-17 23:01:10,375 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-006
+2024-10-17 23:01:10,376 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-041.txt
+2024-10-17 23:01:10,376 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-041.txt
+2024-10-17 23:01:58,852 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-041.txt
+2024-10-17 23:01:59,013 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-041
+2024-10-17 23:01:59,014 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-086.txt
+2024-10-17 23:01:59,014 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-086.txt
+2024-10-17 23:02:14,334 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-086.txt
+2024-10-17 23:02:14,392 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-086
+2024-10-17 23:02:14,392 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-041.txt
+2024-10-17 23:02:14,392 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-041.txt
+2024-10-17 23:02:28,324 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-041.txt
+2024-10-17 23:02:28,381 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-041
+2024-10-17 23:02:28,382 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-031.txt
+2024-10-17 23:02:28,382 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-031.txt
+2024-10-17 23:02:37,141 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-031.txt
+2024-10-17 23:02:37,180 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-031
+2024-10-17 23:02:37,181 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-029.txt
+2024-10-17 23:02:37,181 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-029.txt
+2024-10-17 23:02:53,008 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-029.txt
+2024-10-17 23:02:53,066 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-029
+2024-10-17 23:02:53,066 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-032.txt
+2024-10-17 23:02:53,066 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-032.txt
+2024-10-17 23:03:32,712 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-032.txt
+2024-10-17 23:03:32,838 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-032
+2024-10-17 23:03:32,838 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-022.txt
+2024-10-17 23:03:32,839 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-022.txt
+2024-10-17 23:04:17,763 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-022.txt
+2024-10-17 23:04:17,962 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-022
+2024-10-17 23:04:17,963 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-073.txt
+2024-10-17 23:04:17,963 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-073.txt
+2024-10-17 23:04:22,937 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-073.txt
+2024-10-17 23:04:22,972 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-073
+2024-10-17 23:04:22,973 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-010.txt
+2024-10-17 23:04:22,973 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-010.txt
+2024-10-17 23:05:23,564 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-010.txt
+2024-10-17 23:05:23,824 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-010
+2024-10-17 23:05:23,824 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-078.txt
+2024-10-17 23:05:23,824 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-078.txt
+2024-10-17 23:06:37,459 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-078.txt
+2024-10-17 23:06:37,720 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-078
+2024-10-17 23:06:37,720 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-093.txt
+2024-10-17 23:06:37,720 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-093.txt
+2024-10-17 23:06:52,588 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-093.txt
+2024-10-17 23:06:52,652 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-093
+2024-10-17 23:06:52,652 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-052.txt
+2024-10-17 23:06:52,652 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-052.txt
+2024-10-17 23:06:57,560 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-052.txt
+2024-10-17 23:06:57,581 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-052
+2024-10-17 23:06:57,581 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-049.txt
+2024-10-17 23:06:57,581 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-049.txt
+2024-10-17 23:06:58,037 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-049.txt
+2024-10-17 23:06:58,038 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-049
+2024-10-17 23:06:58,039 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-121.txt
+2024-10-17 23:06:58,039 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-121.txt
+2024-10-17 23:07:01,178 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-121.txt
+2024-10-17 23:07:01,187 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-121
+2024-10-17 23:07:01,188 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-018.txt
+2024-10-17 23:07:01,188 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-018.txt
+2024-10-17 23:07:16,745 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-018.txt
+2024-10-17 23:07:16,795 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-018
+2024-10-17 23:07:16,796 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-050.txt
+2024-10-17 23:07:16,796 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-050.txt
+2024-10-17 23:07:17,071 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-050.txt
+2024-10-17 23:07:17,073 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-050
+2024-10-17 23:07:17,073 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-111.txt
+2024-10-17 23:07:17,073 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-111.txt
+2024-10-17 23:07:24,163 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-111.txt
+2024-10-17 23:07:24,191 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-111
+2024-10-17 23:07:24,191 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-043.txt
+2024-10-17 23:07:24,191 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-043.txt
+2024-10-17 23:07:42,846 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-043.txt
+2024-10-17 23:07:42,907 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-043
+2024-10-17 23:07:42,908 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-100.txt
+2024-10-17 23:07:42,908 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-100.txt
+2024-10-17 23:09:11,960 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-100.txt
+2024-10-17 23:09:12,326 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-100
+2024-10-17 23:09:12,327 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-048.txt
+2024-10-17 23:09:12,327 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-048.txt
+2024-10-17 23:10:42,086 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-048.txt
+2024-10-17 23:10:42,356 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-048
+2024-10-17 23:10:42,357 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-016.txt
+2024-10-17 23:10:42,357 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-016.txt
+2024-10-17 23:11:04,961 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-016.txt
+2024-10-17 23:11:05,053 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-016
+2024-10-17 23:11:05,053 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-069.txt
+2024-10-17 23:11:05,053 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-069.txt
+2024-10-17 23:11:22,980 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-069.txt
+2024-10-17 23:11:23,055 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-069
+2024-10-17 23:11:23,055 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-046.txt
+2024-10-17 23:11:23,055 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-046.txt
+2024-10-17 23:11:31,736 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-046.txt
+2024-10-17 23:11:31,765 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-046
+2024-10-17 23:11:31,765 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-043.txt
+2024-10-17 23:11:31,765 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-043.txt
+2024-10-17 23:11:52,771 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-043.txt
+2024-10-17 23:11:52,847 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-043
+2024-10-17 23:11:52,847 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-024.txt
+2024-10-17 23:11:52,847 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-024.txt
+2024-10-17 23:13:30,485 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-024.txt
+2024-10-17 23:13:30,811 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-024
+2024-10-17 23:13:30,811 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-015.txt
+2024-10-17 23:13:30,811 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-015.txt
+2024-10-17 23:13:44,530 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-015.txt
+2024-10-17 23:13:44,577 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-015
+2024-10-17 23:13:44,577 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-011.txt
+2024-10-17 23:13:44,577 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-011.txt
+2024-10-17 23:13:50,375 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-011.txt
+2024-10-17 23:13:50,395 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-011
+2024-10-17 23:13:50,395 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-067.txt
+2024-10-17 23:13:50,395 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-067.txt
+2024-10-17 23:14:34,943 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-067.txt
+2024-10-17 23:14:35,130 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-067
+2024-10-17 23:14:35,130 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-057.txt
+2024-10-17 23:14:35,130 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-057.txt
+2024-10-17 23:14:35,339 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-057.txt
+2024-10-17 23:14:35,341 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-057
+2024-10-17 23:14:35,341 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-065.txt
+2024-10-17 23:14:35,341 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-065.txt
+2024-10-17 23:15:27,308 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-065.txt
+2024-10-17 23:15:27,539 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-065
+2024-10-17 23:15:27,539 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-076.txt
+2024-10-17 23:15:27,539 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-076.txt
+2024-10-17 23:21:24,536 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-076.txt
+2024-10-17 23:21:25,835 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-076
+2024-10-17 23:21:25,836 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-042.txt
+2024-10-17 23:21:25,836 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-042.txt
+2024-10-17 23:21:38,350 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-042.txt
+2024-10-17 23:21:38,402 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-042
+2024-10-17 23:21:38,403 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-022.txt
+2024-10-17 23:21:38,403 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-022.txt
+2024-10-17 23:21:53,251 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-022.txt
+2024-10-17 23:21:53,316 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-022
+2024-10-17 23:21:53,317 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-068.txt
+2024-10-17 23:21:53,317 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-068.txt
+2024-10-17 23:22:07,014 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-068.txt
+2024-10-17 23:22:07,066 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-068
+2024-10-17 23:22:07,067 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-005.txt
+2024-10-17 23:22:07,067 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-005.txt
+2024-10-17 23:22:44,948 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-005.txt
+2024-10-17 23:22:45,068 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-005
+2024-10-17 23:22:45,068 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-080.txt
+2024-10-17 23:22:45,068 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-080.txt
+2024-10-17 23:22:48,311 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-080.txt
+2024-10-17 23:22:48,324 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-080
+2024-10-17 23:22:48,324 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-026.txt
+2024-10-17 23:22:48,324 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-026.txt
+2024-10-17 23:22:54,793 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-026.txt
+2024-10-17 23:22:54,815 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-026
+2024-10-17 23:22:54,815 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-003.txt
+2024-10-17 23:22:54,815 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-003.txt
+2024-10-17 23:22:58,193 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-003.txt
+2024-10-17 23:22:58,206 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-003
+2024-10-17 23:22:58,207 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-028.txt
+2024-10-17 23:22:58,207 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-028.txt
+2024-10-17 23:23:18,440 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-028.txt
+2024-10-17 23:23:18,510 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-028
+2024-10-17 23:23:18,511 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-022.txt
+2024-10-17 23:23:18,511 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-022.txt
+2024-10-17 23:23:29,158 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-022.txt
+2024-10-17 23:23:29,188 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-022
+2024-10-17 23:23:29,189 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-025.txt
+2024-10-17 23:23:29,189 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-025.txt
+2024-10-17 23:31:14,004 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-025.txt
+2024-10-17 23:31:15,556 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-025
+2024-10-17 23:31:15,556 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-048.txt
+2024-10-17 23:31:15,556 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-048.txt
+2024-10-17 23:31:34,602 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-048.txt
+2024-10-17 23:31:34,666 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-048
+2024-10-17 23:31:34,666 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-114.txt
+2024-10-17 23:31:34,666 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-114.txt
+2024-10-17 23:31:36,533 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-114.txt
+2024-10-17 23:31:36,540 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-114
+2024-10-17 23:31:36,540 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-052.txt
+2024-10-17 23:31:36,540 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-052.txt
+2024-10-17 23:31:49,363 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-052.txt
+2024-10-17 23:31:49,405 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-052
+2024-10-17 23:31:49,406 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-032.txt
+2024-10-17 23:31:49,406 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-032.txt
+2024-10-17 23:35:02,335 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-032.txt
+2024-10-17 23:35:03,125 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-032
+2024-10-17 23:35:03,126 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-027.txt
+2024-10-17 23:35:03,126 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-027.txt
+2024-10-17 23:35:29,097 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-027.txt
+2024-10-17 23:35:29,185 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-027
+2024-10-17 23:35:29,185 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-004.txt
+2024-10-17 23:35:29,185 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-004.txt
+2024-10-17 23:35:42,036 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-004.txt
+2024-10-17 23:35:42,089 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-004
+2024-10-17 23:35:42,089 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-025.txt
+2024-10-17 23:35:42,090 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-025.txt
+2024-10-17 23:36:26,844 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-025.txt
+2024-10-17 23:36:26,987 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-025
+2024-10-17 23:36:26,987 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-020.txt
+2024-10-17 23:36:26,987 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-020.txt
+2024-10-17 23:36:39,266 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-020.txt
+2024-10-17 23:36:39,303 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-020
+2024-10-17 23:36:39,303 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0086_aristotle-034.txt
+2024-10-17 23:36:39,303 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0086_aristotle-034.txt
+2024-10-17 23:37:48,136 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0086_aristotle-034.txt
+2024-10-17 23:37:48,349 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0086_aristotle-034
+2024-10-17 23:37:48,349 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-087.txt
+2024-10-17 23:37:48,349 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-087.txt
+2024-10-17 23:40:33,561 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-087.txt
+2024-10-17 23:40:34,158 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-087
+2024-10-17 23:40:34,158 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-064.txt
+2024-10-17 23:40:34,158 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-064.txt
+2024-10-17 23:42:16,617 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-064.txt
+2024-10-17 23:42:16,941 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-064
+2024-10-17 23:42:16,941 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-019.txt
+2024-10-17 23:42:16,941 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-019.txt
+2024-10-17 23:42:44,165 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-019.txt
+2024-10-17 23:42:44,279 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-019
+2024-10-17 23:42:44,279 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-003.txt
+2024-10-17 23:42:44,279 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-003.txt
+2024-10-17 23:43:23,847 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-003.txt
+2024-10-17 23:43:23,968 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-003
+2024-10-17 23:43:23,969 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-081.txt
+2024-10-17 23:43:23,969 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-081.txt
+2024-10-17 23:43:53,011 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-081.txt
+2024-10-17 23:43:53,123 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-081
+2024-10-17 23:43:53,124 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0057_galen-028.txt
+2024-10-17 23:43:53,124 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0057_galen-028.txt
+2024-10-17 23:44:18,646 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0057_galen-028.txt
+2024-10-17 23:44:18,726 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0057_galen-028
+2024-10-17 23:44:18,727 - atlomy_chat - INFO - tlg_parser:create_data:209 - Processing file: TLG0627_hippocrates-056.txt
+2024-10-17 23:44:18,727 - atlomy_chat - INFO - tlg_parser:process_tlg_file:159 - Processing TLG file: ../../assets/texts/original/TLG/TLG0627_hippocrates-056.txt
+2024-10-17 23:44:21,781 - atlomy_chat - INFO - tlg_parser:process_tlg_file:179 - TLG file processed successfully: ../../assets/texts/original/TLG/TLG0627_hippocrates-056.txt
+2024-10-17 23:44:21,790 - atlomy_chat - INFO - corpus_manager:add_text:100 - Added new text: TLG0627_hippocrates-056
+2024-10-17 23:45:30,542 - atlomy_chat - INFO - corpus_manager:save_texts:167 - Saved all 222 texts to JSONL files
+2024-10-17 23:45:30,542 - atlomy_chat - INFO - tlg_parser:<module>:248 - TLG parsing process completed successfully
