@@ -43,6 +43,7 @@ def sentencizer(text):
     delimiters_pattern = r'[.|·]'
     sentences = re.split(delimiters_pattern, text)
     sentences = [sentence.strip() for sentence in sentences if sentence.strip()]
+    #print("sentences stripeddd:", sentences)
     logger.debug(f"Split text into {len(sentences)} sentences")
     return sentences
 
@@ -58,12 +59,14 @@ def clean_text(text):
         str: The cleaned text.
     """
     logger.debug("Starting text cleaning")
+    print("text:", text)
     text = text.replace("{", "").replace("}", "")
     apostrophes = [' ̓', "᾿", "᾽", "'", "'", "'"]  # all possible apostrophes
     for apostrophe in apostrophes:
         text = text.replace(apostrophe, "ʼ")
     clean = ' '.join(text.replace('-\n', '').replace('\r', ' ').replace('\n', ' ').split())
     logger.debug("Text cleaning completed")
+    print("clean:", clean)
     return clean
 
 @log_exceptions
@@ -210,7 +213,6 @@ def create_text_tagging_object(sentences, nlp, batch_size=500):
     try:
         # Clean the sentences by removing TLG reference tags
         cleaned_sentences = [remove_tlg_ref_tags(sentence) for sentence in sentences]
-        
         # Process the cleaned sentences with spaCy
         docs = process_sentences(cleaned_sentences, nlp, batch_size)
         

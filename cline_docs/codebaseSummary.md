@@ -96,6 +96,18 @@ This document provides an overview of the project structure and key components o
 - Addition of JSON logging capability for improved log analysis
 - Integration of logging across all major components of the application
 - Fixed import issues in TLG Parser (tlg_parser.py) by using relative imports for better module organization
+- Finalized and optimized the lexical value generation system
+- Enhanced integration between LexicalValueGenerator and other components
+
+## Upcoming Developments
+
+- Implementation of advanced caching mechanisms for frequently accessed lexical values
+- Exploration of parallel processing for handling multiple lexical value generations
+- Development of a feedback mechanism to improve generated lexical values over time
+- Expansion of unit test coverage for LexicalValueGenerator and related components
+- Creation of a comprehensive user guide for the LexicalValueGenerator
+- Planning and design for the chatbot interface
+- Research and planning for the implementation of a fact-based response system
 
 ## Recent Updates to Logging Configuration
 
@@ -200,7 +212,7 @@ This structure reflects the current state of the project, with core functionalit
 15. Log levels can be dynamically changed at runtime, providing flexibility in adjusting the verbosity of logs as needed during development or production.
 16. The TLG Parser now uses relative imports, improving module organization and reducing potential import issues.
 
-This comprehensive structure allows for specialized processing of different ancient medical texts while maintaining a flexible and extensible architecture for future developments. The recent optimizations and additions to the Lexical Value Generation system and the new centralized logging system further enhance the project's functionality, accuracy, performance, and maintainability.
+This comprehensive structure allows for specialized processing of different ancient medical texts while maintaining a flexible and extensible architecture for future developments. The recent optimizations and additions to the Lexical Value Generation system and the new centralized logging system further enhance the project's functionality, accuracy, performance, and maintainability. The upcoming developments will focus on further performance improvements, user interaction, and preparing for the next phase of the project.
 
 ## Logging Configuration
 

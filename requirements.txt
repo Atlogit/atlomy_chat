@@ -1,0 +1,10 @@
+spacy
+spacy-transformers
+langchain
+langchain-aws
+typing-extensions
+pathlib
+boto3
+pytest
+playwright
+git

@@ -1,10 +1,10 @@
 import argparse
 import json
 from typing import List, Optional
-from .lexical_value_generator import LexicalValueGenerator
-from .lexical_value import LexicalValue
-from .corpus_manager import CorpusManager
-from .logging_config import logger
+from lexical_value_generator import LexicalValueGenerator
+from lexical_value import LexicalValue
+from corpus_manager import CorpusManager
+from logging_config import logger
 
 class LexicalValueCLI:
     def __init__(self, generator: LexicalValueGenerator):

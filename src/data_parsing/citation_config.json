@@ -1,0 +1,24 @@
+{
+  "citation_patterns": [
+    {
+      "pattern": "\\[(\\d{4})\\]\\s+\\[(\\d{3})\\]\\s+\\[(.*?)\\]\\s+\\[(.*?)\\]",
+      "groups": ["author_id", "work_id", "division", "subdivision"],
+      "format": "{author_name}, {work_name} ({division}{subdivision})"
+    },
+    {
+      "pattern": "([a-zA-Z\\d]+)?\\.([a-zA-Z\\d]+)?\\.([a-zA-Z\\d]+)?",
+      "groups": ["Volume", "chapter", "line"],
+      "format": "Volume {volume}, Chapter {chapter}, Line {line}"
+    },
+    {
+      "pattern": "\\.([a-zA-Z])\\.([a-zA-Z\\d]+)",
+      "groups": ["Volume", "line"],
+      "format": "Volume {volume}, Line {line}"
+    },
+    {
+      "pattern": "^(\\.[t]\\.[1-9]\\d*)",
+      "groups": ["title_number"],
+      "format": "Title {title_number}"
+    }
+  ]
+}

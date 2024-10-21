@@ -1,7 +1,10 @@
 import json
 from typing import List, Dict
 from dataclasses import dataclass, field, asdict
-from .logging_config import logger
+from .logging_config import get_logger
+
+def get_index_logger():
+    return get_logger()
 
 @dataclass
 class LexicalValue:
@@ -14,36 +17,36 @@ class LexicalValue:
     references: List[Dict[str, str]] = field(default_factory=list)
 
     def __post_init__(self):
-        logger.debug(f"LexicalValue created for lemma: {self.lemma}")
+        self.logger.debug(f"LexicalValue created for lemma: {self.lemma}")
 
     def to_json(self) -> str:
         """Serialize the LexicalValue object to JSON."""
         json_str = json.dumps(asdict(self), ensure_ascii=False, indent=2)
-        logger.debug(f"LexicalValue serialized to JSON for lemma: {self.lemma}")
+        self.logger.debug(f"LexicalValue serialized to JSON for lemma: {self.lemma}")
         return json_str
 
     @classmethod
     def from_json(cls, json_str: str) -> 'LexicalValue':
         """Deserialize a JSON string to a LexicalValue object."""
         data = json.loads(json_str)
-        logger.debug(f"LexicalValue deserialized from JSON for lemma: {data.get('lemma', 'Unknown')}")
+        self.logger.debug(f"LexicalValue deserialized from JSON for lemma: {data.get('lemma', 'Unknown')}")
         return cls(**data)
 
     def add_related_term(self, term: str) -> None:
         """Add a related term to the lexical value."""
         if term not in self.related_terms:
             self.related_terms.append(term)
-            logger.debug(f"Related term '{term}' added to lemma: {self.lemma}")
+            self.logger.debug(f"Related term '{term}' added to lemma: {self.lemma}")
 
     def add_timeline_event(self, period: str, description: str) -> None:
         """Add a historical timeline event to the lexical value."""
         self.historical_timeline.append({"period": period, "description": description})
-        logger.debug(f"Timeline event added to lemma: {self.lemma}")
+        self.logger.debug(f"Timeline event added to lemma: {self.lemma}")
 
     def add_reference(self, author: str, work: str, passage: str) -> None:
         """Add a reference to the lexical value."""
         self.references.append({"author": author, "work": work, "passage": passage})
-        logger.debug(f"Reference added to lemma: {self.lemma}")
+        self.logger.debug(f"Reference added to lemma: {self.lemma}")
 
 # Example usage and test
 if __name__ == "__main__":
@@ -74,4 +77,4 @@ if __name__ == "__main__":
     # Verify that the deserialized object matches the original
     assert sample_value == deserialized_value, "Serialization/deserialization failed"
     print("\nSerialization/deserialization test passed!")
-    logger.info("LexicalValue test completed successfully")
+    self.logger.info("LexicalValue test completed successfully")

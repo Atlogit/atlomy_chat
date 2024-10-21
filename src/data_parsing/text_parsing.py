@@ -1,7 +1,5 @@
 import re
-import json
 import spacy
-import spacy_transformers
 from tqdm import tqdm
 import os
 import sys
