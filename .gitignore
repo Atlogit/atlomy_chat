@@ -72,7 +72,7 @@ venv.bak/
 
 # Project-specific
 lexical_values/
-assets/texts/
+assets/
 
 # Python cache
 __pycache__/

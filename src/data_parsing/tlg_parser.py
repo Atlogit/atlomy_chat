@@ -33,50 +33,167 @@ class DefaultDict(dict):
     """Dictionary that returns a default value for missing keys."""
     def __missing__(self, key):
         return f''
-    
-@log_exceptions
-def apply_citation_patterns(text, citation_config):
-    """Apply citation patterns from the configuration to the text."""
+
+def clean_line(line, citation_config):
+    """
+    Removes line details and returns them separately based on patterns in the citation config.
+    """
     for pattern in citation_config['citation_patterns']:
         regex = re.compile(pattern['pattern'])
-        def replace(match):
-            groups = match.groups()
-            group_dict = {name: value for name, value in zip(pattern['groups'], groups) if value}
-            # Dynamically construct the output string based on non-empty groups
-            parts = []
-            for key in pattern['groups']:
-                if key in group_dict:
-                    parts.append(f"{key.capitalize()} {group_dict[key]}")
-            return ', '.join(parts) + ': '  # Add colon after reference details
-        text = regex.sub(replace, text)
-    return text
+        #print("regex:", regex)
+        match = regex.match(line)
+        #print("match:", match)
+        if match:
+            # Return the remaining line and the matched citation details
+            remaining_line = line[match.end():].strip()
+            #print("remaining_line:", remaining_line)
+            # Extract the citation details from the matched pattern
+            citation_details = match.group(0)
+            #print("citation_details:", citation_details)
+            return remaining_line, citation_details
+    # Return the line as is if no pattern matches
+    return line, None
+
+def merge_lines(lines, citation_config):
+    """
+    Merges lines while handling split words and preserving line references.
+    Returns a list of sentences with associated citation and line number data.
+    """
+    merged_sentences = []
+    current_sentence = ""
+    current_line_numbers = []  # Tracks line numbers for the current sentence
+    sentence_in_progress = False  # To track whether we are in a sentence that spans lines
+
+    for line in lines:
+        # Clean the line and extract line number details
+        cleaned_line, line_number = clean_line(line, citation_config)
+
+        # Handle split words
+        if current_sentence.endswith('-'):
+            current_sentence = current_sentence.rstrip('-') + cleaned_line.lstrip()
+        else:
+            current_sentence += " " + cleaned_line
+        get_parser_logger().debug(f"Current sentence: {current_sentence}")
+        current_sentence = current_sentence.strip()
+        
+        # Accumulate line numbers
+        if line_number and (not current_line_numbers or line_number != current_line_numbers[-1]):
+            current_line_numbers.append(line_number)
+            get_parser_logger().debug(f"Current line numbersas long as sentence is incomplete: {current_line_numbers}")
+        else:
+            get_parser_logger().debug(f"Line number not added: {line_number}. Must be the sentence end")
+        # Check if the sentence ends (e.g., ".","·")
+        if re.search(r'[.·](?:\s|$)', cleaned_line):
+            # We encountered a sentence-ending punctuation mark
+            
+            # Split the sentence based on delimiters and process it
+            sentences = re.split(r'([.·](?:\s|$))', current_sentence)
+            
+            for i in range(0, len(sentences) - 1, 2):
+                sentence = (sentences[i] + sentences[i + 1]).strip()
+                get_parser_logger().debug(f"Sentence after split: {sentence}")
+                if sentence:
+                    # Save the sentence along with its line numbers
+                    merged_sentences.append((sentence, list(current_line_numbers)))
+
+            # Handle remaining part after last delimiter
+            current_sentence = sentences[-1].strip() if len(sentences) % 2 == 1 else ""
+            get_parser_logger().debug(f"Current sentence remaining part after last delimiter: {current_sentence}")
+            get_parser_logger().debug(f"Current line numbers after processing the full sentence: {current_line_numbers}")
+            # Reset line numbers and sentence tracking after processing the full sentence
+            if not current_sentence:
+                current_line_numbers = []  # Reset line numbers after full sentence
+                sentence_in_progress = False
+                get_parser_logger().debug(f"Sentence in progress after processing the full sentence if not current sentence: {sentence_in_progress}")
+                get_parser_logger().debug(f"Current line numbers after processing the full sentence and resetting the line numbers if not current sentence: {current_line_numbers}")
+            else:
+                current_line_numbers = [current_line_numbers[-1]] if current_line_numbers else []
+                sentence_in_progress = True
+                get_parser_logger().debug(f"Sentence in progress after processing the full sentence if current sentence: {sentence_in_progress}")
+                get_parser_logger().debug(f"Current line numbers after processing the full sentence and resetting the line numbers if current sentence: {current_line_numbers}")
+
+        else:
+            # If we haven't encountered a sentence-ending punctuation mark, the sentence continues
+            get_parser_logger().debug(f"Current sentence if no sentence-ending punctuation mark: {current_sentence}")
+            sentence_in_progress = True
+            get_parser_logger().debug(f"Sentence in progress if no sentence-ending punctuation mark: {sentence_in_progress}")
+            get_parser_logger().debug(f"current_line_numbers if no sentence-ending punctuation mark:", current_line_numbers)
+            
+    # Add any remaining sentence after the loop
+    if current_sentence.strip():
+        merged_sentences.append((current_sentence.strip(), list(current_line_numbers)))
+        get_parser_logger().debug(f"current_line_numbers after adding remaining sentence after the loop:", current_line_numbers)
+    get_parser_logger().debug(f"merged_sentences after adding remaining sentence after the loop:", merged_sentences)
+    return merged_sentences
 
 @log_exceptions
-def split_text_into_sections(tlgu_text):
+def apply_citation_patterns(citations, citation_config):
     """
-    Split the TLG text into sections based on a specific pattern.
+    Applies the citation patterns to the collected citations and formats them.
+    
+    Args:
+        citations (list): A list of line number strings.
+        citation_config (dict): The citation pattern configuration.
+    
+    Returns:
+        str: A formatted citation string.
+    """
+    formatted_citations = []
+    for citation in citations:
+        formatted_citation = citation  # Default to the raw citation if no pattern matches
+        
+        # Apply each pattern from the citation config
+        for pattern in citation_config['citation_patterns']:
+            regex = re.compile(pattern['pattern'])
+            match = regex.match(citation)
+            if match:
+                groups = match.groups()
+                group_dict = {name: value for name, value in zip(pattern['groups'], groups) if value}
+                
+                # Dynamically format the citation based on the matched groups
+                parts = []
+                for key in pattern['groups']:
+                    if key in group_dict:
+                        parts.append(f"{key.capitalize()} {group_dict[key]}")
+                formatted_citation = ', '.join(parts) + ': '  # Add colon after reference details
+                break  # Stop after the first match
+        formatted_citations.append(formatted_citation)
+    return ', '.join(formatted_citations)  # Combine multiple citations with commas
 
+@log_exceptions
+def split_text_into_sections(tlgu_text, citation_config):
+    """
+    Split the TLG text into sections, merge lines, and apply citation patterns.
+    
     Args:
         tlgu_text (str): The input TLG text.
-
+        citation_config (dict): Configuration for formatting citation data.
+    
     Returns:
-        list: A list of tuples containing (citation, text) pairs.
-
-    Raises:
-        TLGParsingError: If no sections are found in the text.
+        list: A list of tuples containing (formatted citation, text) pairs.
     """
     pattern = r'(\[\w*\] +\[\w*\] +\[\w*\] +\[\w*\])'
     sections = re.split(pattern, tlgu_text)
     if len(sections) < 2:
         raise TLGParsingError("No sections found in the text")
-    
-    # Group citations with their corresponding text
     grouped_sections = []
     for i in range(1, len(sections), 2):
         citation = sections[i].strip()
         text = sections[i+1].strip() if i+1 < len(sections) else ""
-        grouped_sections.append((citation, text))
-    
+        #print ("citation:", citation, "text: ", text)
+        # Split the text into lines and merge them into full sentences
+        lines = text.splitlines()
+        merged_sentences = merge_lines(lines, citation_config)
+        processed_sentences = []
+        # Apply citation patterns to format the line metadata
+        for sentence, line_numbers in merged_sentences:
+            formatted_citation = apply_citation_patterns(line_numbers, citation_config)
+            processed_sentence = f"<tlg_ref>{citation}, {formatted_citation}</tlg_ref>{sentence}"
+            processed_sentences.append(processed_sentence)
+        # Join processed sentences and add to grouped_sections
+        processed_text = " ".join(processed_sentences)
+        grouped_sections.append((citation, processed_text))
+
     return grouped_sections
 
 @log_exceptions
@@ -84,20 +201,9 @@ def process_text_sections(sections, citation_config):
     """Process the text sections by applying citation patterns."""
     final = []
     
-    for citation, text in sections:
-        processed_text = apply_citation_patterns(text, citation_config)
-        lines = processed_text.split("\n")
-        lines = [line.strip() for line in lines if line.strip()]
+    for citation, processed_text in sections:
+        final.append(processed_text)
         
-        for line in lines:
-            # Split the line into reference details and main text using the colon
-            parts = line.split(":", 1)
-            if len(parts) > 1:
-                ref_details, main_text = parts
-                processed_line = f"<tlg_ref>{citation}, {ref_details.strip()}</tlg_ref>{main_text.strip()}"
-            else:
-                processed_line = f"<tlg_ref>{citation}</tlg_ref>{line}"
-            final.append(processed_line)
     
     return " ".join(final)
 
@@ -108,7 +214,7 @@ def process_tlg_file(file_path, nlp, citation_config):
     tlgu_text = read_file_with_fallback(file_path)
     get_parser_logger().debug(f"File read successfully: {file_path}")
     
-    sections = split_text_into_sections(tlgu_text)
+    sections = split_text_into_sections(tlgu_text, citation_config)
     get_parser_logger().debug(f"Text split into {len(sections)} sections")
     
     processed_text = process_text_sections(sections, citation_config)

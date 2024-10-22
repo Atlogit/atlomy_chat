@@ -59,14 +59,14 @@ def clean_text(text):
         str: The cleaned text.
     """
     logger.debug("Starting text cleaning")
-    print("text:", text)
+    #print("text:", text)
     text = text.replace("{", "").replace("}", "")
     apostrophes = [' ̓', "᾿", "᾽", "'", "'", "'"]  # all possible apostrophes
     for apostrophe in apostrophes:
         text = text.replace(apostrophe, "ʼ")
     clean = ' '.join(text.replace('-\n', '').replace('\r', ' ').replace('\n', ' ').split())
     logger.debug("Text cleaning completed")
-    print("clean:", clean)
+    #print("clean:", clean)
     return clean
 
 @log_exceptions
