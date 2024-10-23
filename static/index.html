@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ancient Medical Texts Analysis</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Ancient Medical Texts Analysis</h1>
+            <nav>
+                <button class="nav-btn active" data-mode="llm">LLM Assistant</button>
+                <button class="nav-btn" data-mode="lexical">Lexical Values</button>
+                <button class="nav-btn" data-mode="corpus">Corpus Manager</button>
+            </nav>
+        </header>
+
+        <main>
+            <!-- LLM Assistant Section -->
+            <section id="llm-section" class="mode-section active">
+                <h2>LLM Assistant</h2>
+                <div class="input-group">
+                    <textarea id="llm-query" placeholder="Ask a question about the texts..."></textarea>
+                    <button id="llm-submit">Ask Question</button>
+                </div>
+                <div id="llm-results" class="results-area">
+                    <h3>Results</h3>
+                    <div class="results-content"></div>
+                </div>
+            </section>
+
+            <!-- Lexical Values Section -->
+            <section id="lexical-section" class="mode-section">
+                <h2>Lexical Values</h2>
+                <div class="actions">
+                    <button class="action-btn" data-action="create">Create</button>
+                    <button class="action-btn" data-action="get">Get</button>
+                    <button class="action-btn" data-action="list">List All</button>
+                    <button class="action-btn" data-action="update">Update</button>
+                    <button class="action-btn" data-action="delete">Delete</button>
+                </div>
+                
+                <!-- Create Form -->
+                <div class="action-form" id="create-form">
+                    <input type="text" id="create-word" placeholder="Enter word">
+                    <label>
+                        <input type="checkbox" id="create-lemma">
+                        Search by lemma
+                    </label>
+                    <button class="submit-btn">Create Entry</button>
+                </div>
+
+                <!-- Get Form -->
+                <div class="action-form" id="get-form">
+                    <input type="text" id="get-lemma" placeholder="Enter lemma">
+                    <button class="submit-btn">Get Entry</button>
+                </div>
+
+                <!-- Update Form -->
+                <div class="action-form" id="update-form">
+                    <input type="text" id="update-lemma" placeholder="Enter lemma">
+                    <textarea id="update-translation" placeholder="Enter new translation"></textarea>
+                    <button class="submit-btn">Update Entry</button>
+                </div>
+
+                <!-- Delete Form -->
+                <div class="action-form" id="delete-form">
+                    <input type="text" id="delete-lemma" placeholder="Enter lemma">
+                    <button class="submit-btn">Delete Entry</button>
+                </div>
+
+                <div id="lexical-results" class="results-area">
+                    <h3>Results</h3>
+                    <div class="results-content"></div>
+                </div>
+            </section>
+
+            <!-- Corpus Manager Section -->
+            <section id="corpus-section" class="mode-section">
+                <h2>Corpus Manager</h2>
+                <div class="actions">
+                    <button class="action-btn" data-action="list-texts">List Texts</button>
+                    <button class="action-btn" data-action="search-texts">Search Texts</button>
+                    <button class="action-btn" data-action="get-all">Get All Texts</button>
+                </div>
+
+                <!-- Search Form -->
+                <div class="action-form" id="search-form">
+                    <input type="text" id="search-query" placeholder="Enter search query">
+                    <label>
+                        <input type="checkbox" id="search-lemma">
+                        Search in lemmas
+                    </label>
+                    <button class="submit-btn">Search</button>
+                </div>
+
+                <div id="corpus-results" class="results-area">
+                    <h3>Results</h3>
+                    <div class="results-content"></div>
+                </div>
+            </section>
+        </main>
+    </div>
+    <script src="/static/app.js"></script>
+</body>
+</html>

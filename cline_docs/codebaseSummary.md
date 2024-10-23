@@ -4,150 +4,112 @@ This document provides an overview of the project structure and key components o
 
 ## Key Components and Their Interactions
 
-1. Corpus Manager (corpus_manager.py)
+1. Web Interface (`static/`)
+   - Frontend for user interactions with the system
+   - Three main sections matching core functionality
+   - Components:
+     - `index.html`: Main interface structure with proper static file references
+     - `styles.css`: Modern, responsive styling
+     - `app.js`: Client-side logic and API integration
+   - Features:
+     - Interactive query interface
+     - CRUD operations for lexical values
+     - Corpus management tools
+     - Real-time API communication
+
+2. Backend API (`app/api.py`)
+   - FastAPI application serving the web interface
+   - RESTful endpoints for all core functionality
+   - Integrates with LLMAssistant, LexicalValueGenerator, and CorpusManager
+   - Proper error handling and logging
+   - Static file serving configuration
+   - Endpoint categories:
+     - LLM queries
+     - Lexical value operations
+     - Corpus management
+
+3. Corpus Manager (`src/corpus_manager.py`)
    - Main interface for managing the corpus of ancient medical texts
    - Handles importing, processing, and retrieving texts
    - Interacts with TLG Parser and Text Parsing components
    - Manages storage of processed texts in JSONL format
+   - Implements search functionality with lemma support
+   - Initialized with correct corpus directory path
 
-2. LLM Assistant (playground.py)
+4. LLM Assistant (`src/playground.py`)
    - Main interface for querying the processed text data
-   - Uses AWS Bedrock for LLM integration
+   - Uses AWS Bedrock for LLM integration (Claude-3-sonnet)
    - Interacts with TLGParser for reference processing
-   - Implements a query system that generates Python code to answer user questions about the library of texts
+   - Implements a query system that generates Python code to answer user questions
+   - Supports interactive testing and development
+   - Configured for optimal response generation
 
-3. TLG Parser (tlg_parser.py)
+5. TLG Parser (`src/tlg_parser.py`)
    - Processes TLG references in texts
    - Loads and uses TLG indexes for author and work information
    - Replaces TLG references with human-readable citations
    - Converts TLG files into annotated JSONL format
    - Uses relative imports for better module organization
+   - Properly initialized with citation configuration
 
-4. Text Parsing (text_parsing.py)
+6. Text Parsing (`src/text_parsing.py`)
    - Uses spaCy for NLP tasks on ancient Greek texts
    - Processes raw text files into annotated JSONL format
    - Implements sentence splitting, text cleaning, and token-level annotation
+   - Integrated with corpus management system
 
-5. Specialized Parsing Scripts
-   - Galenus parsing (galenus_parsing.py)
-   - Hippocrates parsing (hippocrates_parsing.py)
+7. Specialized Parsing Scripts
+   - Galenus parsing (`src/data_parsing/galenus/galenus_parsing.py`)
+   - Hippocrates parsing (`src/data_parsing/hipocrates_sacred_disease/hippocrates_parsing.py`)
 
-6. Lexical Value Generation (lexical_value_generator.py)
-   - Generates comprehensive lexical entries for medical terms found in ancient Greek texts
-   - Uses an optimized prompt structure for accurate and context-rich generation
-   - Implements batch processing for efficient generation of multiple lexical values
+8. Lexical Value Generation (`src/lexical_value_generator.py`)
+   - Generates comprehensive lexical entries for medical terms
+   - Uses Claude-3-haiku for efficient and accurate generation
+   - Implements caching for improved performance
+   - Supports batch processing and version history
    - Integrates with Corpus Manager and reference systems
-   - Provides structured lexical entries for important medical terms and concepts
-   - Supports versioning and suggestion of updates based on new information
-   - Implements a caching mechanism to reduce API calls and improve performance
-   - Configurable cache size and expiration time for optimized resource usage
+   - Provides structured lexical entries with rich metadata
+   - Implements error handling and comprehensive logging
+   - Configurable cache size and expiration time
 
-7. Lexical Value Storage (lexical_value_storage.py)
-   - Manages the storage and retrieval of lexical values
+9. Lexical Value Storage (`src/lexical_value_storage.py`)
+   - Manages persistent storage of lexical values
+   - Implements version history tracking
    - Supports CRUD operations for lexical entries
+   - Handles file-based storage with JSON format
+   - Implements caching for frequently accessed values
+   - Provides backup and recovery mechanisms
+   - Ensures data consistency and integrity
 
-8. Lexical Value CLI (lexical_value_cli.py)
-   - Provides a command-line interface for interacting with lexical values
-   - Supports listing, viewing, editing, and suggesting updates for lexical entries
-   - Allows viewing version history of lexical values
-
-9. Logging System (logging_config.py)
-   - Implements a centralized logging system for the entire application
-   - Supports both console and file output
-   - Configurable log levels, formats, and output destinations
-   - Provides JSON logging option for easier log parsing and analysis
-   - Includes functions for dynamically changing log levels at runtime
+10. Server Configuration (`app/run_server.py`)
+    - Configures and runs the FastAPI development server
+    - Uses uvicorn ASGI server
+    - Supports hot reloading for development
+    - Configurable host and port settings
+    - Proper Python path configuration
 
 ## Data Flow
 
-1. Raw TLG files / Raw text files → Corpus Manager → TLG Parser / Text Parsing → Annotated JSONL files
-2. Annotated JSONL files → Corpus Manager → LLM Assistant for querying
-3. User queries → LLM Assistant → Corpus Manager → Processed results
-4. Annotated JSONL files → Lexical Value Generation → Structured lexical entries and analyses
-5. User input → Lexical Value CLI → Lexical Value Generator / Storage → Updated lexical entries
-6. Application-wide → Logging System → Console/File outputs
+1. Web Interface Flow:
+   - User interacts with frontend components
+   - Frontend makes API calls to backend endpoints
+   - Backend processes requests through core components
+   - Results are returned and displayed in the UI
 
-## External Dependencies
+2. Text Processing Flow:
+   - Raw text files → TLG Parser → Annotated JSONL files
+   - Annotated JSONL files → Corpus Manager → LLM Assistant for querying
+   - User queries → LLM Assistant → Corpus Manager → Processed results
 
-- spaCy and spaCy-transformers: For NLP tasks
-- Custom spaCy models:
-  - "models/atlomy_full_pipeline_annotation_131024/model-best"
-  - "models/model-best"
-  - "grc_proiel_trf" (used in tlg_parser.py)
-- AWS Bedrock: For LLM integration (ChatBedrock)
-- LangChain: For building LLM-powered applications
-- Python's built-in logging module: For centralized logging system
+3. Lexical Value Flow:
+   - User input → Lexical Value CLI/Web Interface → Lexical Value Generator/Storage
+   - Lexical value requests → Cache check → LLM generation if needed → Storage
+   - Updates and deletions → Storage → Version history tracking
 
-## Recent Significant Changes
-
-- Implementation of Corpus Manager for centralized text management
-- Integration of flexible LLM choices (AWS Bedrock, OpenAI, Anthropic, OpenRouter)
-- Implementation of TLG parsing and reference processing
-- Creation of a custom NLP pipeline for ancient Greek text analysis
-- Addition of specialized parsing scripts for specific ancient medical texts
-- Implementation of Lexical Value Generation system
-- Creation of Lexical Value Storage system
-- Development of Lexical Value CLI for user interaction
-- Implementation of a caching mechanism in the Lexical Value Generator to improve performance and reduce API calls
-- Optimization of prompt structure for more accurate and context-rich lexical value generation
-- Implementation of batch processing for efficient generation of multiple lexical values
-- Update of unit tests to cover new functionality and optimized prompt structure
-- Implementation of a centralized logging system with configurable options
-- Addition of JSON logging capability for improved log analysis
-- Integration of logging across all major components of the application
-- Fixed import issues in TLG Parser (tlg_parser.py) by using relative imports for better module organization
-- Finalized and optimized the lexical value generation system
-- Enhanced integration between LexicalValueGenerator and other components
-
-## Upcoming Developments
-
-- Implementation of advanced caching mechanisms for frequently accessed lexical values
-- Exploration of parallel processing for handling multiple lexical value generations
-- Development of a feedback mechanism to improve generated lexical values over time
-- Expansion of unit test coverage for LexicalValueGenerator and related components
-- Creation of a comprehensive user guide for the LexicalValueGenerator
-- Planning and design for the chatbot interface
-- Research and planning for the implementation of a fact-based response system
-
-## Recent Updates to Logging Configuration
-
-The logging system has been further enhanced with the following updates:
-
-1. Environment Variable Configuration: The logging configuration now uses environment variables to determine log levels, formats, and output destinations. This allows for easier configuration changes without modifying the code.
-
-2. Flexible Output Options: Users can now configure whether logs should be output to the console, file, or both using environment variables.
-
-3. JSON Logging Option: A new option for JSON-formatted logs has been added, which can be enabled via an environment variable. This feature facilitates easier log parsing and analysis, especially in production environments.
-
-4. Dynamic Log Level Changes: A new function `change_log_level()` has been added to allow dynamic changes to the log level at runtime. This is particularly useful for debugging purposes.
-
-5. Consistent Usage Across Components: All major components of the application have been updated to use the centralized logger instance, ensuring consistent logging practices throughout the codebase.
-
-These updates improve the flexibility and maintainability of the logging system, allowing for better debugging and monitoring of the application in various environments.
-
-## Example Files and Data Structures
-
-1. annotation_categories.txt
-   - Contains a list of categories used for text annotation, including Body Part, Adjectives/Qualities, Topography, etc.
-
-2. jsonl_example.jsonl
-   - Demonstrates the structure of annotated text data
-   - Each line is a JSON object representing a sentence or text fragment
-   - Contains detailed token-level information including lemma, POS, morphology, and custom categories
-
-3. lexical_entry_examples.json
-   - Provides examples of lexical entries for medical terms
-   - Each entry includes lemma, translation, short description, and long description
-   - Offers detailed etymological and historical information for each term
-
-4. LOGGING.md
-   - Documentation on the centralized logging system implemented in the project
-
-5. atlomy_chat.log
-   - Contains application-wide logs with configurable level of detail
-   - Supports both standard and JSON log formats
-
-These example files showcase the depth and complexity of the data being processed and analyzed by the application. They highlight the need for sophisticated NLP techniques and domain-specific knowledge in ancient Greek medical terminology.
+4. Application-wide Logging:
+   - All components → Logging System → Console/File outputs
+   - Centralized configuration
+   - Comprehensive error tracking
 
 ## Project Structure
 
@@ -167,12 +129,18 @@ These example files showcase the depth and complexity of the data being processe
 │   └── LOGGING.md
 ├── logs/
 │   └── atlomy_chat.log
+├── static/
+│   ├── index.html
+│   ├── styles.css
+│   └── app.js
+├── app/
+│   ├── __init__.py
+│   ├── api.py
+│   └── run_server.py
 ├── src/
 │   ├── corpus_manager.py
 │   ├── index_utils.py
 │   ├── playground.py
-│   ├── test_corpus_manager.py
-│   ├── tlg_index.py
 │   ├── lexical_value.py
 │   ├── lexical_value_generator.py
 │   ├── lexical_value_storage.py
@@ -182,8 +150,7 @@ These example files showcase the depth and complexity of the data being processe
 │       ├── text_parsing.py
 │       ├── tlg_parser.py
 │       ├── galenus/
-│       │   ├── galenus_parsing.py
-│       │   └── Untitled-1.ipynb
+│       │   └── galenus_parsing.py
 │       └── hipocrates_sacred_disease/
 │           └── hippocrates_parsing.py
 ├── tests/
@@ -191,29 +158,22 @@ These example files showcase the depth and complexity of the data being processe
 │   └── test_lexical_value_generator.py
 ```
 
-This structure reflects the current state of the project, with core functionality in the src directory, documentation in the cline_docs directory, and test files in the tests directory. The logs directory now includes the centralized log file.
-
 ## Additional Notes
 
-1. The project includes multiple spaCy models, which may be used for different aspects of text processing or represent different versions of the model.
-2. There are specialized parsing scripts for specific ancient medical texts (Galenus and Hippocrates), indicating a focus on these particular authors.
-3. The presence of Jupyter notebooks (Untitled-1.ipynb) suggests that some exploratory data analysis or development is being done interactively.
-4. The project uses version control (presence of .gitignore file) and has a license file, indicating it's being managed as a formal software project.
-5. The cline_docs directory contains important project documentation, including requirements and the tech stack overview.
-6. The corpus_manager.py provides a centralized interface for managing the corpus of ancient medical texts, improving the overall organization and efficiency of text processing.
-7. The logs directory now includes the centralized log file `atlomy_chat.log`.
-8. The lexical value generation system enhances the project's capabilities in summarizing and analyzing key concepts from the ancient medical texts.
-9. The Lexical Value CLI provides an easy-to-use interface for researchers and scholars to interact with the lexical entries, supporting manual updates and version tracking.
-10. The caching mechanism in the Lexical Value Generator improves performance by reducing API calls to external services, with configurable cache size and expiration time.
-11. The optimized prompt structure for lexical value generation ensures more accurate and context-rich entries, considering the nuances of ancient Greek medical terminology.
-12. Batch processing functionality allows for efficient generation of multiple lexical values, improving overall system performance when dealing with large corpora.
-13. The centralized logging system enhances debugging capabilities and provides consistent logging across all components of the application.
-14. The new logging system supports both standard and JSON log formats, allowing for easier integration with log analysis tools.
-15. Log levels can be dynamically changed at runtime, providing flexibility in adjusting the verbosity of logs as needed during development or production.
-16. The TLG Parser now uses relative imports, improving module organization and reducing potential import issues.
+1. The project uses multiple spaCy models for different aspects of text processing
+2. Specialized parsing scripts exist for specific ancient medical texts
+3. The project maintains comprehensive documentation in the cline_docs directory
+4. The logging system provides flexible configuration through environment variables
+5. The lexical value generation system includes caching and version history
+6. Both CLI and web interfaces provide user-friendly access to system functionality
+7. Test coverage is being continuously expanded
+8. Performance optimizations are being implemented across the system
+9. Documentation is regularly updated to reflect system changes
+10. The project follows best practices for code organization and modularity
+11. Error handling and logging are implemented consistently across components
+12. The system is designed for extensibility and future enhancements
+13. Caching mechanisms improve performance for frequently accessed data
+14. Version history tracking maintains data integrity and allows for rollbacks
+15. The web interface provides modern, responsive access to all core functionality
 
-This comprehensive structure allows for specialized processing of different ancient medical texts while maintaining a flexible and extensible architecture for future developments. The recent optimizations and additions to the Lexical Value Generation system and the new centralized logging system further enhance the project's functionality, accuracy, performance, and maintainability. The upcoming developments will focus on further performance improvements, user interaction, and preparing for the next phase of the project.
-
-## Logging Configuration
-
-The logging configuration is set up in `src/logging_config.py` using environment variables. It supports both console and file output with configurable log levels, formats, and JSON logging for easier analysis. The logger instance is used across all components to ensure consistent logging throughout the application.
+This comprehensive structure allows for specialized processing of different ancient medical texts while maintaining a flexible and extensible architecture for future developments. The web interface and API layer provide easy access to all functionality, with proper error handling and logging throughout the system.
