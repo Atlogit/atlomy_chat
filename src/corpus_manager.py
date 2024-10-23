@@ -4,6 +4,7 @@ from .lexical_value_storage import LexicalValueStorage
 from .logging_config import get_logger
 import re
 from typing import List, Dict, Any
+import unicodedata
 
 def get_corpus_logger():
     return get_logger()
@@ -17,6 +18,8 @@ class CorpusManager:
             self.corpus_dir = corpus_dir
         self.processed_texts: Dict[str, Any] = {}
         get_corpus_logger().info(f"CorpusManager initialized with corpus directory: {self.corpus_dir}")
+        # Load all texts during initialization
+        #self.get_all_texts()
 
     def import_text(self, file_path: str) -> None:
         """
@@ -196,33 +199,45 @@ class CorpusManager:
         get_corpus_logger().debug(f"Checked existence of text {text_id}: {'exists' if exists else 'does not exist'}")
         return exists
 
-    def search_texts(self, query: str, search_lemma: bool = False) -> List[Dict[str, Any]]:
+    def search_texts(self, word: str = None, search_lemma: bool = False) -> List[Dict[str, Any]]:
         """
         Search across multiple texts in the corpus and return a list of sentences matching the given query.
         If search_lemma is True, search for the query in the lemmas instead of the text.
         """
         try:
             results = []
+            logger = get_corpus_logger()
+            logger.debug(f"Searching texts with query: {word}")
+            
+            if not self.processed_texts:
+                logger.warning("No texts loaded in the corpus. Loading all available texts.")
+                self.get_all_texts()
+            
+            normalized_word = unicodedata.normalize('NFD', word.lower())
+            
             for text_id, sentences in self.processed_texts.items():
+                logger.debug(f"Searching in text: {text_id}")
                 for sentence in sentences:
                     if search_lemma:
-                        if any(token['lemma'] == query for token in sentence['tokens']):
+                        if any(unicodedata.normalize('NFD', token.get('lemma', '').lower()) == normalized_word for token in sentence.get('tokens', [])):
                             results.append({
                                 'text_id': text_id,
                                 'sentence': sentence['text'],
                                 'tokens': sentence['tokens']
                             })
                     else:
-                        if re.search(query, sentence['text'], re.IGNORECASE):
+                        normalized_sentence = unicodedata.normalize('NFD', sentence['text'].lower())
+                        if normalized_word in normalized_sentence:
                             results.append({
                                 'text_id': text_id,
                                 'sentence': sentence['text'],
                                 'tokens': sentence['tokens']
                             })
-            get_corpus_logger().info(f"Found {len(results)} matches for query: {query}")
+            logger.info(f"Found {len(results)} matches for query: {word}")
+            print("type resulkts is: ", type(results))
             return results
         except Exception as e:
-            get_corpus_logger().error(f"Error searching texts with query '{query}': {str(e)}")
+            logger.error(f"Error searching texts with query '{word}': {str(e)}")
             raise
 
 # Example usage

@@ -203,7 +203,6 @@ def process_text_sections(sections, citation_config):
     
     for citation, processed_text in sections:
         final.append(processed_text)
-        
     
     return " ".join(final)
 
