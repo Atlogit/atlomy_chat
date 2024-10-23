@@ -5,126 +5,258 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ancient Medical Texts Analysis</title>
     <link rel="stylesheet" href="/static/styles.css">
+    <script src="/static/app.js" defer></script>
 </head>
-<body>
+<body class="min-h-screen bg-base-200">
     <div class="container mx-auto p-4">
-        <header class="text-center mb-8">
+        <header class="text-center mb-8 animate-fade-in">
             <h1 class="text-4xl font-bold mb-6 text-primary">Ancient Medical Texts Analysis</h1>
-            <div class="tabs tabs-boxed justify-center">
-                <button class="tab tab-active" data-mode="llm">LLM Assistant</button>
-                <button class="tab" data-mode="lexical">Lexical Values</button>
-                <button class="tab" data-mode="corpus">Corpus Manager</button>
+            <div class="tabs tabs-boxed justify-center bg-base-100 p-2 rounded-lg shadow-md">
+                <button class="tab tab-lg tab-active gap-2" data-mode="llm">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" />
+                    </svg>
+                    LLM Assistant
+                </button>
+                <button class="tab tab-lg gap-2" data-mode="lexical">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M7 4a1 1 0 011-1h4a1 1 0 011 1v1h3a1 1 0 011 1v10a1 1 0 01-1 1H4a1 1 0 01-1-1V6a1 1 0 011-1h3V4z" />
+                    </svg>
+                    Lexical Values
+                </button>
+                <button class="tab tab-lg gap-2" data-mode="corpus">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z" />
+                    </svg>
+                    Corpus Manager
+                </button>
             </div>
         </header>
 
-        <main class="max-w-4xl mx-auto">
+        <main class="max-w-4xl mx-auto space-y-6">
             <!-- LLM Assistant Section -->
-            <section id="llm-section" class="mode-section active">
+            <section id="llm-section" class="mode-section animate-fade-in">
                 <div class="card bg-base-100 shadow-xl">
                     <div class="card-body">
                         <h2 class="card-title">LLM Assistant</h2>
                         <div class="form-control">
-                            <textarea id="llm-query" class="textarea textarea-bordered h-32" placeholder="Ask a question about the texts..."></textarea>
-                            <button id="llm-submit" class="btn btn-primary mt-4">Ask Question</button>
+                            <textarea id="llm-query" class="textarea textarea-bordered h-32 w-full" placeholder="Ask a question about the texts..."></textarea>
+                            <div class="flex gap-2 mt-4">
+                                <button id="llm-submit" class="btn btn-primary flex-1">
+                                    <span class="loading loading-spinner loading-xs hidden"></span>
+                                    <span class="button-text">Ask Question</span>
+                                </button>
+                                <button id="llm-cancel" class="btn btn-error hidden">Cancel</button>
+                            </div>
                         </div>
                         <div id="llm-results" class="mt-6">
                             <h3 class="font-bold mb-2">Results</h3>
-                            <div class="results-content mockup-code bg-base-200"></div>
+                            <div class="results-content mockup-code"></div>
                         </div>
                     </div>
                 </div>
             </section>
 
             <!-- Lexical Values Section -->
-            <section id="lexical-section" class="mode-section">
+            <section id="lexical-section" class="mode-section hidden animate-fade-in">
                 <div class="card bg-base-100 shadow-xl">
                     <div class="card-body">
                         <h2 class="card-title">Lexical Values</h2>
-                        <div class="join join-horizontal flex-wrap gap-2 mb-6">
-                            <button class="btn join-item" data-action="create">Create</button>
-                            <button class="btn join-item" data-action="get">Get</button>
-                            <button class="btn join-item" data-action="list">List All</button>
-                            <button class="btn join-item" data-action="update">Update</button>
-                            <button class="btn join-item" data-action="delete">Delete</button>
+                        <div class="join">
+                            <button class="join-item btn" data-action="create">Create</button>
+                            <button class="join-item btn" data-action="batch-create">Batch Create</button>
+                            <button class="join-item btn" data-action="get">Get</button>
+                            <button class="join-item btn" data-action="list">
+                                <span class="loading loading-spinner loading-xs hidden"></span>
+                                <span class="button-text">List All</span>
+                            </button>
+                            <button class="join-item btn" data-action="update">Update</button>
+                            <button class="join-item btn" data-action="batch-update">Batch Update</button>
+                            <button class="join-item btn" data-action="delete">Delete</button>
                         </div>
                         
                         <!-- Create Form -->
                         <div class="action-form collapse" id="create-form">
-                            <div class="form-control">
-                                <input type="text" id="create-word" placeholder="Enter word" class="input input-bordered mb-4">
-                                <label class="label cursor-pointer">
+                            <div class="form-control mt-4">
+                                <input type="text" id="create-word" placeholder="Enter word" class="input input-bordered w-full">
+                                <label class="label cursor-pointer mt-2">
                                     <span class="label-text">Search by lemma</span>
-                                    <input type="checkbox" id="create-lemma" class="checkbox">
+                                    <input type="checkbox" id="create-lemma" class="checkbox checkbox-primary">
                                 </label>
-                                <button class="btn btn-primary submit-btn mt-4">Create Entry</button>
+                                <div class="flex gap-2">
+                                    <button class="submit-btn btn btn-primary flex-1">
+                                        <span class="loading loading-spinner loading-xs hidden"></span>
+                                        <span class="button-text">Create Entry</span>
+                                    </button>
+                                    <button class="cancel-btn btn btn-error hidden">Cancel</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Batch Create Form -->
+                        <div class="action-form collapse" id="batch-create-form">
+                            <div class="form-control mt-4">
+                                <textarea id="batch-create-words" class="textarea textarea-bordered h-32" 
+                                    placeholder="Enter words (one per line)"></textarea>
+                                <label class="label cursor-pointer mt-2">
+                                    <span class="label-text">Search by lemma</span>
+                                    <input type="checkbox" id="batch-create-lemma" class="checkbox checkbox-primary">
+                                </label>
+                                <div class="flex gap-2 mt-4">
+                                    <button class="submit-btn btn btn-primary flex-1">
+                                        <span class="loading loading-spinner loading-xs hidden"></span>
+                                        <span class="button-text">Create Entries</span>
+                                    </button>
+                                    <button class="cancel-btn btn btn-error hidden">Cancel</button>
+                                </div>
+                                <div class="progress-container mt-4 hidden">
+                                    <div class="flex justify-between mb-1">
+                                        <span class="text-sm">Progress:</span>
+                                        <span class="text-sm progress-text">0/0</span>
+                                    </div>
+                                    <progress class="progress progress-primary w-full" value="0" max="100"></progress>
+                                </div>
                             </div>
                         </div>
 
                         <!-- Get Form -->
                         <div class="action-form collapse" id="get-form">
-                            <div class="form-control">
-                                <input type="text" id="get-lemma" placeholder="Enter lemma" class="input input-bordered mb-4">
-                                <button class="btn btn-primary submit-btn">Get Entry</button>
+                            <div class="form-control mt-4">
+                                <input type="text" id="get-lemma" placeholder="Enter lemma" class="input input-bordered w-full">
+                                <div class="flex gap-2 mt-4">
+                                    <button class="submit-btn btn btn-primary flex-1">
+                                        <span class="loading loading-spinner loading-xs hidden"></span>
+                                        <span class="button-text">Get Entry</span>
+                                    </button>
+                                    <button class="cancel-btn btn btn-error hidden">Cancel</button>
+                                </div>
                             </div>
                         </div>
 
                         <!-- Update Form -->
                         <div class="action-form collapse" id="update-form">
-                            <div class="form-control">
-                                <input type="text" id="update-lemma" placeholder="Enter lemma" class="input input-bordered mb-4">
-                                <textarea id="update-translation" class="textarea textarea-bordered mb-4" placeholder="Enter new translation"></textarea>
-                                <button class="btn btn-primary submit-btn">Update Entry</button>
+                            <div class="form-control mt-4">
+                                <input type="text" id="update-lemma" placeholder="Enter lemma" class="input input-bordered w-full">
+                                <textarea id="update-translation" class="textarea textarea-bordered w-full mt-2" placeholder="Enter new translation"></textarea>
+                                <div class="flex gap-2 mt-4">
+                                    <button class="submit-btn btn btn-primary flex-1">
+                                        <span class="loading loading-spinner loading-xs hidden"></span>
+                                        <span class="button-text">Update Entry</span>
+                                    </button>
+                                    <button class="cancel-btn btn btn-error hidden">Cancel</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Batch Update Form -->
+                        <div class="action-form collapse" id="batch-update-form">
+                            <div class="form-control mt-4">
+                                <div class="grid grid-cols-1 gap-4" id="batch-update-entries">
+                                    <div class="flex gap-2 batch-update-entry">
+                                        <input type="text" placeholder="Enter lemma" class="input input-bordered flex-1 batch-update-lemma">
+                                        <input type="text" placeholder="Enter translation" class="input input-bordered flex-1 batch-update-translation">
+                                        <button class="btn btn-square btn-error remove-entry">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </div>
+                                <button class="btn btn-outline mt-2" id="add-update-entry">Add Entry</button>
+                                <div class="flex gap-2 mt-4">
+                                    <button class="submit-btn btn btn-primary flex-1">
+                                        <span class="loading loading-spinner loading-xs hidden"></span>
+                                        <span class="button-text">Update Entries</span>
+                                    </button>
+                                    <button class="cancel-btn btn btn-error hidden">Cancel</button>
+                                </div>
+                                <div class="progress-container mt-4 hidden">
+                                    <div class="flex justify-between mb-1">
+                                        <span class="text-sm">Progress:</span>
+                                        <span class="text-sm progress-text">0/0</span>
+                                    </div>
+                                    <progress class="progress progress-primary w-full" value="0" max="100"></progress>
+                                </div>
                             </div>
                         </div>
 
                         <!-- Delete Form -->
                         <div class="action-form collapse" id="delete-form">
-                            <div class="form-control">
-                                <input type="text" id="delete-lemma" placeholder="Enter lemma" class="input input-bordered mb-4">
-                                <button class="btn btn-primary submit-btn">Delete Entry</button>
+                            <div class="form-control mt-4">
+                                <input type="text" id="delete-lemma" placeholder="Enter lemma" class="input input-bordered w-full">
+                                <div class="flex gap-2 mt-4">
+                                    <button class="submit-btn btn btn-primary flex-1">
+                                        <span class="loading loading-spinner loading-xs hidden"></span>
+                                        <span class="button-text">Delete Entry</span>
+                                    </button>
+                                    <button class="cancel-btn btn btn-error hidden">Cancel</button>
+                                </div>
                             </div>
                         </div>
 
                         <div id="lexical-results" class="mt-6">
                             <h3 class="font-bold mb-2">Results</h3>
-                            <div class="results-content mockup-code bg-base-200"></div>
+                            <div class="results-content mockup-code"></div>
                         </div>
                     </div>
                 </div>
             </section>
 
             <!-- Corpus Manager Section -->
-            <section id="corpus-section" class="mode-section">
+            <section id="corpus-section" class="mode-section hidden animate-fade-in">
                 <div class="card bg-base-100 shadow-xl">
                     <div class="card-body">
                         <h2 class="card-title">Corpus Manager</h2>
-                        <div class="join join-horizontal flex-wrap gap-2 mb-6">
-                            <button class="btn join-item" data-action="list-texts">List Texts</button>
-                            <button class="btn join-item" data-action="search-texts">Search Texts</button>
-                            <button class="btn join-item" data-action="get-all">Get All Texts</button>
-                        </div>
-
-                        <!-- Search Form -->
-                        <div class="action-form collapse" id="search-form">
-                            <div class="form-control">
-                                <input type="text" id="search-query" placeholder="Enter search query" class="input input-bordered mb-4">
-                                <label class="label cursor-pointer">
-                                    <span class="label-text">Search in lemmas</span>
-                                    <input type="checkbox" id="search-lemma" class="checkbox">
-                                </label>
-                                <button class="btn btn-primary submit-btn mt-4">Search</button>
+                        <div class="flex flex-wrap gap-2">
+                            <div class="flex gap-2">
+                                <button class="btn btn-primary" data-action="list-texts">
+                                    <span class="loading loading-spinner loading-xs hidden"></span>
+                                    <span class="button-text">List Texts</span>
+                                </button>
+                                <button class="btn btn-error hidden" data-cancel-for="list-texts">Cancel</button>
+                            </div>
+                            <div class="flex gap-2">
+                                <button class="btn btn-primary" data-action="search-texts">
+                                    <span class="loading loading-spinner loading-xs hidden"></span>
+                                    <span class="button-text">Search Texts</span>
+                                </button>
+                                <button class="btn btn-error hidden" data-cancel-for="search-texts">Cancel</button>
+                            </div>
+                            <div class="flex gap-2">
+                                <button class="btn btn-primary" data-action="get-all">
+                                    <span class="loading loading-spinner loading-xs hidden"></span>
+                                    <span class="button-text">Get All</span>
+                                </button>
+                                <button class="btn btn-error hidden" data-cancel-for="get-all">Cancel</button>
                             </div>
                         </div>
 
-                        <div id="corpus-results" class="mt-6">
-                            <h3 class="font-bold mb-2">Results</h3>
-                            <div class="results-content mockup-code bg-base-200"></div>
+                        <!-- Search Form -->
+                        <div class="collapse" id="search-form">
+                            <div class="form-control mt-4">
+                                <input type="text" id="search-query" placeholder="Enter search query" class="input input-bordered w-full">
+                                <label class="label cursor-pointer mt-2">
+                                    <span class="label-text">Search by lemma</span>
+                                    <input type="checkbox" id="search-lemma" class="checkbox checkbox-primary">
+                                </label>
+                                <div class="flex gap-2 mt-4">
+                                    <button class="submit-btn btn btn-primary flex-1">
+                                        <span class="loading loading-spinner loading-xs hidden"></span>
+                                        <span class="loading loading-spinner loading-xs hidden"></span>
+                                        <span class="button-text">Search</span>
+                                    </button>
+                                    <button class="cancel-btn btn btn-error hidden">Cancel</button>
+                                </div>
+                            </div>
+    
+                            <div id="corpus-results" class="mt-6">
+                                <h3 class="font-bold mb-2">Results</h3>
+                                <div class="results-content mockup-code"></div>
+                            </div>
                         </div>
                     </div>
-                </div>
-            </section>
-        </main>
-    </div>
-    <script src="/static/app.js"></script>
-</body>
-</html>
+                </section>
+            </main>
+        </div>
+    </body>
+    </html>

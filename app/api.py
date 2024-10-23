@@ -7,7 +7,7 @@ import os
 
 from src.logging_config import initialize_logger, get_logger
 from src.corpus_manager import CorpusManager
-from src.lexical_value_generator import LexicalValueGenerator
+from src.parallel_lexical_generator import ParallelLexicalGenerator
 from src.playground import LLMAssistant
 
 # Initialize logging first
@@ -17,7 +17,7 @@ logger = get_logger()
 # Initialize components
 corpus_manager = CorpusManager()
 llm_assistant = LLMAssistant(corpus_manager)
-lexical_generator = LexicalValueGenerator(corpus_manager)
+lexical_generator = ParallelLexicalGenerator(corpus_manager)
 
 app = FastAPI()
 
@@ -32,9 +32,16 @@ class LexicalCreate(BaseModel):
     word: str
     searchLemma: bool = False
 
+class LexicalBatchCreate(BaseModel):
+    words: List[str]
+    searchLemma: bool = False
+
 class LexicalUpdate(BaseModel):
     lemma: str
     translation: str
+
+class LexicalBatchUpdate(BaseModel):
+    updates: List[Dict[str, str]]
 
 class TextSearch(BaseModel):
     query: str
@@ -62,6 +69,20 @@ async def create_lexical_value(data: LexicalCreate):
         return entry.__dict__
     except Exception as e:
         logger.error(f"Error creating lexical value: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/lexical/batch-create")
+async def create_lexical_values_batch(data: LexicalBatchCreate):
+    try:
+        results = lexical_generator.create_lexical_entries_batch(data.words, search_lemma=data.searchLemma)
+        # Convert results to serializable format
+        serialized_results = {
+            word: value.__dict__ if value else None 
+            for word, value in results.items()
+        }
+        return {"results": serialized_results}
+    except Exception as e:
+        logger.error(f"Error in batch creation: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/lexical/get/{lemma}")
@@ -95,6 +116,24 @@ async def update_lexical_value(data: LexicalUpdate):
         return {"success": True}
     except Exception as e:
         logger.error(f"Error updating lexical value: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/api/lexical/batch-update")
+async def update_lexical_values_batch(data: LexicalBatchUpdate):
+    try:
+        # Convert updates to LexicalValue objects
+        lexical_values = []
+        for update in data.updates:
+            entry = lexical_generator.get_lexical_value(update["lemma"])
+            if entry:
+                entry.translation = update["translation"]
+                lexical_values.append(entry)
+        
+        # Perform batch update
+        results = lexical_generator.update_lexical_values_batch(lexical_values)
+        return {"results": results}
+    except Exception as e:
+        logger.error(f"Error in batch update: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/api/lexical/delete/{lemma}")
