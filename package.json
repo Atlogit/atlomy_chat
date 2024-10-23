@@ -1,0 +1,30 @@
+{
+  "name": "atlomy_chat",
+  "version": "1.0.0",
+  "description": "Ancient Medical Texts Analysis App",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "build:css": "tailwindcss -i ./static/input.css -o ./static/styles.css --watch",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Atlogit/atlomy_chat.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Atlogit/atlomy_chat/issues"
+  },
+  "homepage": "https://github.com/Atlogit/atlomy_chat#readme",
+  "dependencies": {
+    "autoprefixer": "^10.4.14",
+    "daisyui": "^4.7.3",
+    "postcss": "^8.4.21",
+    "tailwindcss": "^3.4.14"
+  }
+}

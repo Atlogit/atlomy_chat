@@ -3,7 +3,7 @@ import re
 import os
 import importlib.util
 from pathlib import Path
-from .logging_config import get_logger
+from src.logging_config import get_logger
 
 def get_index_logger():
     return get_logger()

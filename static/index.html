@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,98 +7,120 @@
     <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>Ancient Medical Texts Analysis</h1>
-            <nav>
-                <button class="nav-btn active" data-mode="llm">LLM Assistant</button>
-                <button class="nav-btn" data-mode="lexical">Lexical Values</button>
-                <button class="nav-btn" data-mode="corpus">Corpus Manager</button>
-            </nav>
+    <div class="container mx-auto p-4">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold mb-6 text-primary">Ancient Medical Texts Analysis</h1>
+            <div class="tabs tabs-boxed justify-center">
+                <button class="tab tab-active" data-mode="llm">LLM Assistant</button>
+                <button class="tab" data-mode="lexical">Lexical Values</button>
+                <button class="tab" data-mode="corpus">Corpus Manager</button>
+            </div>
         </header>
 
-        <main>
+        <main class="max-w-4xl mx-auto">
             <!-- LLM Assistant Section -->
             <section id="llm-section" class="mode-section active">
-                <h2>LLM Assistant</h2>
-                <div class="input-group">
-                    <textarea id="llm-query" placeholder="Ask a question about the texts..."></textarea>
-                    <button id="llm-submit">Ask Question</button>
-                </div>
-                <div id="llm-results" class="results-area">
-                    <h3>Results</h3>
-                    <div class="results-content"></div>
+                <div class="card bg-base-100 shadow-xl">
+                    <div class="card-body">
+                        <h2 class="card-title">LLM Assistant</h2>
+                        <div class="form-control">
+                            <textarea id="llm-query" class="textarea textarea-bordered h-32" placeholder="Ask a question about the texts..."></textarea>
+                            <button id="llm-submit" class="btn btn-primary mt-4">Ask Question</button>
+                        </div>
+                        <div id="llm-results" class="mt-6">
+                            <h3 class="font-bold mb-2">Results</h3>
+                            <div class="results-content mockup-code bg-base-200"></div>
+                        </div>
+                    </div>
                 </div>
             </section>
 
             <!-- Lexical Values Section -->
             <section id="lexical-section" class="mode-section">
-                <h2>Lexical Values</h2>
-                <div class="actions">
-                    <button class="action-btn" data-action="create">Create</button>
-                    <button class="action-btn" data-action="get">Get</button>
-                    <button class="action-btn" data-action="list">List All</button>
-                    <button class="action-btn" data-action="update">Update</button>
-                    <button class="action-btn" data-action="delete">Delete</button>
-                </div>
-                
-                <!-- Create Form -->
-                <div class="action-form" id="create-form">
-                    <input type="text" id="create-word" placeholder="Enter word">
-                    <label>
-                        <input type="checkbox" id="create-lemma">
-                        Search by lemma
-                    </label>
-                    <button class="submit-btn">Create Entry</button>
-                </div>
+                <div class="card bg-base-100 shadow-xl">
+                    <div class="card-body">
+                        <h2 class="card-title">Lexical Values</h2>
+                        <div class="join join-horizontal flex-wrap gap-2 mb-6">
+                            <button class="btn join-item" data-action="create">Create</button>
+                            <button class="btn join-item" data-action="get">Get</button>
+                            <button class="btn join-item" data-action="list">List All</button>
+                            <button class="btn join-item" data-action="update">Update</button>
+                            <button class="btn join-item" data-action="delete">Delete</button>
+                        </div>
+                        
+                        <!-- Create Form -->
+                        <div class="action-form collapse" id="create-form">
+                            <div class="form-control">
+                                <input type="text" id="create-word" placeholder="Enter word" class="input input-bordered mb-4">
+                                <label class="label cursor-pointer">
+                                    <span class="label-text">Search by lemma</span>
+                                    <input type="checkbox" id="create-lemma" class="checkbox">
+                                </label>
+                                <button class="btn btn-primary submit-btn mt-4">Create Entry</button>
+                            </div>
+                        </div>
 
-                <!-- Get Form -->
-                <div class="action-form" id="get-form">
-                    <input type="text" id="get-lemma" placeholder="Enter lemma">
-                    <button class="submit-btn">Get Entry</button>
-                </div>
+                        <!-- Get Form -->
+                        <div class="action-form collapse" id="get-form">
+                            <div class="form-control">
+                                <input type="text" id="get-lemma" placeholder="Enter lemma" class="input input-bordered mb-4">
+                                <button class="btn btn-primary submit-btn">Get Entry</button>
+                            </div>
+                        </div>
 
-                <!-- Update Form -->
-                <div class="action-form" id="update-form">
-                    <input type="text" id="update-lemma" placeholder="Enter lemma">
-                    <textarea id="update-translation" placeholder="Enter new translation"></textarea>
-                    <button class="submit-btn">Update Entry</button>
-                </div>
+                        <!-- Update Form -->
+                        <div class="action-form collapse" id="update-form">
+                            <div class="form-control">
+                                <input type="text" id="update-lemma" placeholder="Enter lemma" class="input input-bordered mb-4">
+                                <textarea id="update-translation" class="textarea textarea-bordered mb-4" placeholder="Enter new translation"></textarea>
+                                <button class="btn btn-primary submit-btn">Update Entry</button>
+                            </div>
+                        </div>
 
-                <!-- Delete Form -->
-                <div class="action-form" id="delete-form">
-                    <input type="text" id="delete-lemma" placeholder="Enter lemma">
-                    <button class="submit-btn">Delete Entry</button>
-                </div>
+                        <!-- Delete Form -->
+                        <div class="action-form collapse" id="delete-form">
+                            <div class="form-control">
+                                <input type="text" id="delete-lemma" placeholder="Enter lemma" class="input input-bordered mb-4">
+                                <button class="btn btn-primary submit-btn">Delete Entry</button>
+                            </div>
+                        </div>
 
-                <div id="lexical-results" class="results-area">
-                    <h3>Results</h3>
-                    <div class="results-content"></div>
+                        <div id="lexical-results" class="mt-6">
+                            <h3 class="font-bold mb-2">Results</h3>
+                            <div class="results-content mockup-code bg-base-200"></div>
+                        </div>
+                    </div>
                 </div>
             </section>
 
             <!-- Corpus Manager Section -->
             <section id="corpus-section" class="mode-section">
-                <h2>Corpus Manager</h2>
-                <div class="actions">
-                    <button class="action-btn" data-action="list-texts">List Texts</button>
-                    <button class="action-btn" data-action="search-texts">Search Texts</button>
-                    <button class="action-btn" data-action="get-all">Get All Texts</button>
-                </div>
+                <div class="card bg-base-100 shadow-xl">
+                    <div class="card-body">
+                        <h2 class="card-title">Corpus Manager</h2>
+                        <div class="join join-horizontal flex-wrap gap-2 mb-6">
+                            <button class="btn join-item" data-action="list-texts">List Texts</button>
+                            <button class="btn join-item" data-action="search-texts">Search Texts</button>
+                            <button class="btn join-item" data-action="get-all">Get All Texts</button>
+                        </div>
 
-                <!-- Search Form -->
-                <div class="action-form" id="search-form">
-                    <input type="text" id="search-query" placeholder="Enter search query">
-                    <label>
-                        <input type="checkbox" id="search-lemma">
-                        Search in lemmas
-                    </label>
-                    <button class="submit-btn">Search</button>
-                </div>
+                        <!-- Search Form -->
+                        <div class="action-form collapse" id="search-form">
+                            <div class="form-control">
+                                <input type="text" id="search-query" placeholder="Enter search query" class="input input-bordered mb-4">
+                                <label class="label cursor-pointer">
+                                    <span class="label-text">Search in lemmas</span>
+                                    <input type="checkbox" id="search-lemma" class="checkbox">
+                                </label>
+                                <button class="btn btn-primary submit-btn mt-4">Search</button>
+                            </div>
+                        </div>
 
-                <div id="corpus-results" class="results-area">
-                    <h3>Results</h3>
-                    <div class="results-content"></div>
+                        <div id="corpus-results" class="mt-6">
+                            <h3 class="font-bold mb-2">Results</h3>
+                            <div class="results-content mockup-code bg-base-200"></div>
+                        </div>
+                    </div>
                 </div>
             </section>
         </main>

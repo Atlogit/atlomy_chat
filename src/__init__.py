@@ -4,3 +4,4 @@ from .corpus_manager import CorpusManager
 from .lexical_value_storage import LexicalValueStorage
 from .logging_config import initialize_logger, get_logger
 from .index_utils import TLGParser
+from .playground import LLMAssistant

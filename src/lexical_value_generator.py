@@ -3,26 +3,26 @@ import os
 import re
 from typing import List, Dict, Optional
 from pathlib import Path
-from .lexical_value import LexicalValue
-from .corpus_manager import CorpusManager
-from .lexical_value_storage import LexicalValueStorage
-from .logging_config import get_logger
-from .index_utils import TLGParser
+from src.lexical_value import LexicalValue
+from src.corpus_manager import CorpusManager
+from src.lexical_value_storage import LexicalValueStorage
+from src.logging_config import initialize_logger, get_logger
+from src.index_utils import TLGParser
 from langchain_aws import ChatBedrock
 from langchain.prompts import PromptTemplate
 from langchain.schema import HumanMessage
 import traceback
 
-# Use a function to get the logger
-def get_lvg_logger():
-    return get_logger()
+# Initialize logger at module level
+initialize_logger()
+logger = get_logger()
 
 class LexicalValueGeneratorError(Exception):
     """Custom exception for LexicalValueGenerator errors."""
     pass
 
 class LexicalValueGenerator:
-    lexical_term_template= """
+    lexical_term_template = """
     You are an AI assistant specializing in ancient Greek lexicography and philology. You will build a lexcial value based on validatd texts analysis. Analyze the following word and its usage in the given citations:
 
     Word: {word}
@@ -67,7 +67,7 @@ class LexicalValueGenerator:
     make sure your response is formatted for JSON.
     """
 
-    def __init__(self, corpus_manager: CorpusManager, storage_dir: str = 'lexical_values', model_id: str = "anthropic.claude-3-haiku-20240307-v1:0", temperature: float = 0.5, default_search_lemma: bool = False):
+    def __init__(self, corpus_manager: CorpusManager, storage_dir: str = 'lexical_values', model_id: str = "anthropic.claude-3-5-sonnet-20240620-v1:0", temperature: float = 0.5, default_search_lemma: bool = False):
         self.corpus_manager = corpus_manager
         self.storage = LexicalValueStorage(storage_dir)
         self.model_id = model_id
@@ -75,9 +75,9 @@ class LexicalValueGenerator:
         self.default_search_lemma = default_search_lemma
         try:
             self.llm = ChatBedrock(model_id=self.model_id, temperature=self.temperature)
-            get_lvg_logger().info(f"LexicalValueGenerator initialized with model_id: {model_id}")
+            logger.info(f"LexicalValueGenerator initialized with model_id: {model_id}")
         except Exception as e:
-            get_lvg_logger().error(f"Failed to initialize ChatBedrock: {str(e)}")
+            logger.error(f"Failed to initialize ChatBedrock: {str(e)}")
             raise LexicalValueGeneratorError("Failed to initialize ChatBedrock") from e
 
         # Initialize TLGParser
@@ -87,42 +87,40 @@ class LexicalValueGenerator:
             authors_path = project_root / "assets" / "indexes" / "tlg_index.py"
             works_path = project_root / "assets" / "indexes" / "work_numbers.py"
             self.tlg_parser = TLGParser(str(authors_path), str(works_path))
-            get_lvg_logger().info(f"Initialized TLGParser with authors_path: {authors_path} and works_path: {works_path}")
+            logger.info(f"Initialized TLGParser with authors_path: {authors_path} and works_path: {works_path}")
         except Exception as e:
-            get_lvg_logger().error(f"Failed to initialize TLGParser: {str(e)}")
+            logger.error(f"Failed to initialize TLGParser: {str(e)}")
             raise LexicalValueGeneratorError("Failed to initialize TLGParser") from e
 
     def query_llm(self, prompt: str) -> str:
         try:
-            get_lvg_logger().info(f"Querying the LLM model with prompt: {prompt[:50]}...")
+            logger.info(f"Querying the LLM model with prompt: {prompt[:50]}...")
             human_message = HumanMessage(content=prompt)
             answer = self.llm([human_message])
-            get_lvg_logger().debug(f"Received answer from LLM: {answer.content[:100]}...")
+            logger.debug(f"Received answer from LLM: {answer.content[:100]}...")
             return answer.content
         except Exception as e:
-            get_lvg_logger().error(f"Error querying LLM: {str(e)}")
+            logger.error(f"Error querying LLM: {str(e)}")
             raise LexicalValueGeneratorError("Failed to query LLM") from e
 
     def get_citations(self, word: str, search_lemma: Optional[bool] = None) -> List[Dict[str, str]]:
         try:
             search_lemma = self.default_search_lemma if search_lemma is None else search_lemma
-            get_lvg_logger().info(f"Searching for citations of word: {word} (search_lemma: {search_lemma})")
+            logger.info(f"Searching for citations of word: {word} (search_lemma: {search_lemma})")
             search_results = self.corpus_manager.search_texts(word, search_lemma=search_lemma)
             
             if not search_results:
-                get_lvg_logger().warning(f"No citations found for word: {word}")
+                logger.warning(f"No citations found for word: {word}")
                 return []
 
-            citations = []
-            
             citations = [item['sentence'] if isinstance(item, dict) and 'sentence' in item else str(item) for item in search_results]
-            get_lvg_logger().debug(f"Text list before processing: {citations[:5]}...")  # Log first 5 items
+            logger.debug(f"Text list before processing: {citations[:5]}...")  # Log first 5 items
 
             processed_citations = self.tlg_parser.process_texts(citations)
-            get_lvg_logger().info(f"Found {len(processed_citations)} citations for word: {word}")
+            logger.info(f"Found {len(processed_citations)} citations for word: {word}")
             return processed_citations
         except Exception as e:
-            get_lvg_logger().error(f"Error getting citations for word '{word}': {str(e)}")
+            logger.error(f"Error getting citations for word '{word}': {str(e)}")
             raise LexicalValueGeneratorError(f"Failed to get citations for word '{word}'") from e
 
     def generate_lexical_term(self, word: str, citations: List[str]) -> LexicalValue:
@@ -136,14 +134,15 @@ class LexicalValueGenerator:
             prompt = prompt_template.format(word=word, citations=citations_text)
 
             response = self.query_llm(prompt)
-            get_lvg_logger().info(f"Generated lexical term for '{word}'")
+            logger.info(f"Generated lexical term for '{word}'")
             
             # Log the raw response for debugging
-            get_lvg_logger().debug(f"Raw LLM response for '{word}': {response}")
+            logger.debug(f"Raw LLM response for '{word}': {response}")
                         
             # Sanitize response to remove invalid control characters
             sanitized_response = re.sub(r'[\x00-\x1F\x7F]', '', response)
             print("sanitized_response is: ", sanitized_response)
+            
             # Extract JSON object from the response
             json_match = re.search(r'\{.*\}', sanitized_response, re.DOTALL)
             if not json_match:
@@ -154,88 +153,88 @@ class LexicalValueGenerator:
             print("lexical_value_dict is: ", lexical_value_dict)
             return LexicalValue(**lexical_value_dict)
         except json.JSONDecodeError as e:
-            get_lvg_logger().error(f"Failed to parse LLM response for '{word}': {str(e)}")
-            get_lvg_logger().error(f"Raw response that caused the error: {response}")
+            logger.error(f"Failed to parse LLM response for '{word}': {str(e)}")
+            logger.error(f"Raw response that caused the error: {response}")
             raise LexicalValueGeneratorError(f"Invalid LLM response format for word '{word}'") from e
         except Exception as e:
-            get_lvg_logger().error(f"Error generating lexical term for '{word}': {str(e)}")
+            logger.error(f"Error generating lexical term for '{word}': {str(e)}")
             raise LexicalValueGeneratorError(f"Failed to generate lexical term for word '{word}'") from e
 
     def create_lexical_entry(self, word: str, search_lemma: Optional[bool] = None) -> LexicalValue:
         try:
-            get_lvg_logger().info(f"Creating lexical entry for word: {word}")
+            logger.info(f"Creating lexical entry for word: {word}")
             # Log the search_lemma value
-            get_lvg_logger().debug(f"search_lemma: {search_lemma}")
+            logger.debug(f"search_lemma: {search_lemma}")
         
             citations = self.get_citations(word, search_lemma)
             
             # Log the retrieved citations
-            get_lvg_logger().debug(f"Citations retrieved: {citations}")
+            logger.debug(f"Citations retrieved: {citations}")
 
             if not citations:
-                get_lvg_logger().warning(f"No citations found for word '{word}'. Proceeding with empty citations.")
+                logger.warning(f"No citations found for word '{word}'. Proceeding with empty citations.")
             
             lexical_value = self.generate_lexical_term(word, citations)
             # Log the generated lexical value
-            get_lvg_logger().debug(f"Generated lexical value: {lexical_value}")
+            logger.debug(f"Generated lexical value: {lexical_value}")
 
             self.storage.store(lexical_value)
             
-            get_lvg_logger().info(f"Created and stored lexical entry for '{word}'")
+            logger.info(f"Created and stored lexical entry for '{word}'")
             return lexical_value
         except Exception as e:
-            get_lvg_logger().error(f"Error creating lexical entry for '{word}': {str(e)}")
-            get_lvg_logger().error(traceback.format_exc())
+            logger.error(f"Error creating lexical entry for '{word}': {str(e)}")
+            logger.error(traceback.format_exc())
             raise LexicalValueGeneratorError(f"Failed to create lexical entry for word '{word}'") from e
 
     def get_lexical_value(self, lemma: str) -> Optional[LexicalValue]:
         try:
-            get_lvg_logger().info(f"Retrieving lexical value for lemma: {lemma}")
+            logger.info(f"Retrieving lexical value for lemma: {lemma}")
             lexical_value = self.storage.retrieve(lemma)
             if lexical_value is None:
-                get_lvg_logger().warning(f"No lexical value found for lemma: {lemma}")
+                logger.warning(f"No lexical value found for lemma: {lemma}")
             return lexical_value
         except Exception as e:
-            get_lvg_logger().error(f"Error retrieving lexical value for '{lemma}': {str(e)}")
+            logger.error(f"Error retrieving lexical value for '{lemma}': {str(e)}")
             raise LexicalValueGeneratorError(f"Failed to retrieve lexical value for lemma '{lemma}'") from e
 
     def list_lexical_values(self) -> List[str]:
         try:
-            get_lvg_logger().info("Listing all lexical values")
+            logger.info("Listing all lexical values")
             values = self.storage.list_all()
-            get_lvg_logger().info(f"Found {len(values)} lexical values")
+            logger.info(f"Found {len(values)} lexical values")
             return values
         except Exception as e:
-            get_lvg_logger().error(f"Error listing lexical values: {str(e)}")
+            logger.error(f"Error listing lexical values: {str(e)}")
             raise LexicalValueGeneratorError("Failed to list lexical values") from e
 
     def update_lexical_value(self, lexical_value: LexicalValue) -> None:
         try:
-            get_lvg_logger().info(f"Updating lexical value for lemma: {lexical_value.lemma}")
+            logger.info(f"Updating lexical value for lemma: {lexical_value.lemma}")
             self.storage.update(lexical_value)
-            get_lvg_logger().info(f"Updated lexical value for '{lexical_value.lemma}'")
+            logger.info(f"Updated lexical value for '{lexical_value.lemma}'")
         except Exception as e:
-            get_lvg_logger().error(f"Error updating lexical value for '{lexical_value.lemma}': {str(e)}")
+            logger.error(f"Error updating lexical value for '{lexical_value.lemma}': {str(e)}")
             raise LexicalValueGeneratorError(f"Failed to update lexical value for lemma '{lexical_value.lemma}'") from e
 
     def delete_lexical_value(self, lemma: str) -> bool:
         try:
-            get_lvg_logger().info(f"Deleting lexical value for lemma: {lemma}")
+            logger.info(f"Deleting lexical value for lemma: {lemma}")
             result = self.storage.delete(lemma)
             if result:
-                get_lvg_logger().info(f"Deleted lexical value for '{lemma}'")
+                logger.info(f"Deleted lexical value for '{lemma}'")
             else:
-                get_lvg_logger().warning(f"Lexical value for '{lemma}' not found or could not be deleted")
+                logger.warning(f"Lexical value for '{lemma}' not found or could not be deleted")
             return result
         except Exception as e:
-            get_lvg_logger().error(f"Error deleting lexical value for '{lemma}': {str(e)}")
+            logger.error(f"Error deleting lexical value for '{lemma}': {str(e)}")
             raise LexicalValueGeneratorError(f"Failed to delete lexical value for lemma '{lemma}'") from e
 
 # Example usage
 if __name__ == "__main__":
     from .logging_config import initialize_logger
     initialize_logger()
-    logger = get_lvg_logger()
+    logger = logger
     
     try:
         corpus_manager = CorpusManager()

@@ -1,8 +1,8 @@
 import json
 import os
 from typing import List, Dict, Optional
-from .lexical_value import LexicalValue
-from .logging_config import get_logger
+from src.lexical_value import LexicalValue
+from src.logging_config import get_logger
 
 def get_lvg_logger():
     return get_logger()

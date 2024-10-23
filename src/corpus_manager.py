@@ -1,13 +1,14 @@
 import os
 import json
-from .lexical_value_storage import LexicalValueStorage
-from .logging_config import get_logger
+from lexical_value_storage import LexicalValueStorage
+from logging_config import get_logger, initialize_logger
 import re
 from typing import List, Dict, Any
 import unicodedata
 
-def get_corpus_logger():
-    return get_logger()
+# Initialize logger at module level
+initialize_logger()
+logger = get_logger()
 
 class CorpusManager:
     def __init__(self, corpus_dir: str = None):
@@ -17,7 +18,7 @@ class CorpusManager:
         else:
             self.corpus_dir = corpus_dir
         self.processed_texts: Dict[str, Any] = {}
-        get_corpus_logger().info(f"CorpusManager initialized with corpus directory: {self.corpus_dir}")
+        logger.info(f"CorpusManager initialized with corpus directory: {self.corpus_dir}")
         # Load all texts during initialization
         #self.get_all_texts()
 
@@ -44,9 +45,9 @@ class CorpusManager:
 
             # Load the processed data
             self.processed_texts[file_name] = self._load_jsonl(output_path)
-            get_corpus_logger().info(f"Successfully imported text: {file_name}")
+            logger.info(f"Successfully imported text: {file_name}")
         except Exception as e:
-            get_corpus_logger().error(f"Error importing text {file_path}: {str(e)}")
+            logger.error(f"Error importing text {file_path}: {str(e)}")
             raise
 
     def _load_jsonl(self, file_path: str) -> List[Dict[str, Any]]:
@@ -58,13 +59,13 @@ class CorpusManager:
             with open(file_path, 'r', encoding='utf-8') as f:
                 for line in f:
                     data.append(json.loads(line))
-            get_corpus_logger().debug(f"Successfully loaded JSONL file: {file_path}")
+            logger.debug(f"Successfully loaded JSONL file: {file_path}")
             return data
         except json.JSONDecodeError as e:
-            get_corpus_logger().error(f"Error decoding JSON in file {file_path}: {str(e)}")
+            logger.error(f"Error decoding JSON in file {file_path}: {str(e)}")
             raise
         except Exception as e:
-            get_corpus_logger().error(f"Error loading JSONL file {file_path}: {str(e)}")
+            logger.error(f"Error loading JSONL file {file_path}: {str(e)}")
             raise
 
     def get_text(self, file_name: str) -> List[Dict[str, Any]]:
@@ -78,10 +79,10 @@ class CorpusManager:
                     self.processed_texts[file_name] = self._load_jsonl(jsonl_path)
                 else:
                     raise FileNotFoundError(f"Processed text not found: {file_name}")
-            get_corpus_logger().info(f"Retrieved text: {file_name}")
+            logger.info(f"Retrieved text: {file_name}")
             return self.processed_texts[file_name]
         except Exception as e:
-            get_corpus_logger().error(f"Error retrieving text {file_name}: {str(e)}")
+            logger.error(f"Error retrieving text {file_name}: {str(e)}")
             raise
 
     def get_all_texts(self) -> Dict[str, List[Dict[str, Any]]]:
@@ -94,10 +95,10 @@ class CorpusManager:
                     text_id = file_name.replace('_tagged.jsonl', '')
                     if text_id not in self.processed_texts:
                         self.processed_texts[text_id] = self._load_jsonl(os.path.join(self.corpus_dir, file_name))
-            get_corpus_logger().info(f"Retrieved all texts: {len(self.processed_texts)} texts loaded")
+            logger.info(f"Retrieved all texts: {len(self.processed_texts)} texts loaded")
             return self.processed_texts
         except Exception as e:
-            get_corpus_logger().error(f"Error retrieving all texts: {str(e)}")
+            logger.error(f"Error retrieving all texts: {str(e)}")
             raise
 
     def list_texts(self) -> List[str]:
@@ -105,7 +106,7 @@ class CorpusManager:
         List all processed texts in the corpus.
         """
         texts = list(self.processed_texts.keys())
-        get_corpus_logger().info(f"Listed {len(texts)} texts in the corpus")
+        logger.info(f"Listed {len(texts)} texts in the corpus")
         return texts
 
     def add_text(self, text_id: str, tagged_data: List[Dict[str, Any]]) -> None:
@@ -119,9 +120,9 @@ class CorpusManager:
                 self.processed_texts[text_id] = tagged_data
                 output_path = os.path.join(self.corpus_dir, f"{text_id}_tagged.jsonl")
                 self._save_jsonl(output_path, tagged_data)
-                get_corpus_logger().info(f"Added new text: {text_id}")
+                logger.info(f"Added new text: {text_id}")
         except Exception as e:
-            get_corpus_logger().error(f"Error adding text {text_id}: {str(e)}")
+            logger.error(f"Error adding text {text_id}: {str(e)}")
             raise
 
     def update_text(self, text_id: str, tagged_data: List[Dict[str, Any]]) -> None:
@@ -135,9 +136,9 @@ class CorpusManager:
             self.processed_texts[text_id] = tagged_data
             output_path = os.path.join(self.corpus_dir, f"{text_id}_tagged.jsonl")
             self._save_jsonl(output_path, tagged_data)
-            get_corpus_logger().info(f"Updated existing text: {text_id}")
+            logger.info(f"Updated existing text: {text_id}")
         except Exception as e:
-            get_corpus_logger().error(f"Error updating text {text_id}: {str(e)}")
+            logger.error(f"Error updating text {text_id}: {str(e)}")
             raise
 
     def remove_text(self, text_id: str) -> None:
@@ -155,12 +156,12 @@ class CorpusManager:
             # Remove the JSONL file
             output_path = os.path.join(self.corpus_dir, f"{text_id}_tagged.jsonl")
             os.remove(output_path)
-            get_corpus_logger().info(f"Removed text from corpus: {text_id}")
+            logger.info(f"Removed text from corpus: {text_id}")
         except OSError as e:
-            get_corpus_logger().error(f"Error removing file for text {text_id}: {str(e)}")
+            logger.error(f"Error removing file for text {text_id}: {str(e)}")
             raise
         except Exception as e:
-            get_corpus_logger().error(f"Error removing text {text_id}: {str(e)}")
+            logger.error(f"Error removing text {text_id}: {str(e)}")
             raise
 
     def _save_jsonl(self, file_path: str, data: List[Dict[str, Any]]) -> None:
@@ -172,9 +173,9 @@ class CorpusManager:
                 for item in data:
                     json.dump(item, f, ensure_ascii=False)
                     f.write('\n')
-            get_corpus_logger().debug(f"Successfully saved JSONL file: {file_path}")
+            logger.debug(f"Successfully saved JSONL file: {file_path}")
         except Exception as e:
-            get_corpus_logger().error(f"Error saving JSONL file {file_path}: {str(e)}")
+            logger.error(f"Error saving JSONL file {file_path}: {str(e)}")
             raise
 
     def save_texts(self) -> None:
@@ -185,9 +186,9 @@ class CorpusManager:
             for text_id, data in self.processed_texts.items():
                 output_path = os.path.join(self.corpus_dir, f"{text_id}_tagged.jsonl")
                 self._save_jsonl(output_path, data)
-            get_corpus_logger().info(f"Saved all {len(self.processed_texts)} texts to JSONL files")
+            logger.info(f"Saved all {len(self.processed_texts)} texts to JSONL files")
         except Exception as e:
-            get_corpus_logger().error(f"Error saving all texts: {str(e)}")
+            logger.error(f"Error saving all texts: {str(e)}")
             raise
 
     def text_exists(self, text_id: str) -> bool:
@@ -196,7 +197,7 @@ class CorpusManager:
         """
         output_path = os.path.join(self.corpus_dir, f"{text_id}_tagged.jsonl")
         exists = os.path.exists(output_path)
-        get_corpus_logger().debug(f"Checked existence of text {text_id}: {'exists' if exists else 'does not exist'}")
+        logger.debug(f"Checked existence of text {text_id}: {'exists' if exists else 'does not exist'}")
         return exists
 
     def search_texts(self, word: str = None, search_lemma: bool = False) -> List[Dict[str, Any]]:
@@ -206,7 +207,6 @@ class CorpusManager:
         """
         try:
             results = []
-            logger = get_corpus_logger()
             logger.debug(f"Searching texts with query: {word}")
             
             if not self.processed_texts:
@@ -242,9 +242,8 @@ class CorpusManager:
 
 # Example usage
 if __name__ == "__main__":
-    from .logging_config import initialize_logger
     initialize_logger()
-    logger = get_corpus_logger()
+    logger = get_logger()
     
     try:
         corpus_manager = CorpusManager()

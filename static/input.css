@@ -1,0 +1,67 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom styles */
+.mode-section {
+    display: none;
+}
+
+.mode-section.active {
+    display: block;
+}
+
+.action-form {
+    display: none;
+}
+
+.action-form.active {
+    display: block;
+}
+
+.results-content {
+    white-space: pre-wrap;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+/* Custom DaisyUI overrides and extensions */
+.join-horizontal {
+    flex-wrap: wrap;
+}
+
+/* Ensure proper spacing in mobile view */
+@media (max-width: 640px) {
+    .join-horizontal {
+        gap: 0.5rem;
+    }
+    
+    .join-item {
+        width: calc(50% - 0.5rem);
+    }
+}
+
+/* Ensure proper spacing for forms */
+.form-control {
+    gap: 0.5rem;
+}
+
+/* Custom animation for tab transitions */
+.tab {
+    transition: all 0.3s ease;
+}
+
+.tab:hover {
+    transform: translateY(-1px);
+}
+
+.tab.tab-active {
+    transform: translateY(-2px);
+}
+
+/* Custom styling for mockup-code */
+.mockup-code {
+    margin-top: 1rem;
+    font-size: 0.9rem;
+    line-height: 1.5;
+}

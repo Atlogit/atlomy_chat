@@ -8,15 +8,19 @@ from langchain.prompts import PromptTemplate
 from langchain.schema import HumanMessage
 
 # Import TLGParser class for reference details conversion
-from .index_utils import TLGParser
+from index_utils import TLGParser
 # Import logger from logging_config
-from .logging_config import initialize_logger, get_logger
+from logging_config import initialize_logger, get_logger
 # Import CorpusManager for centralized text management
-from .corpus_manager import CorpusManager, get_corpus_logger
+from corpus_manager import CorpusManager
 # Import LexicalValueGenerator
-from .lexical_value_generator import LexicalValueGenerator, get_lvg_logger, LexicalValueGeneratorError
+from lexical_value_generator import LexicalValueGenerator, LexicalValueGeneratorError
 # Import LexicalValue
-from .lexical_value import LexicalValue
+from lexical_value import LexicalValue
+
+# Initialize logger at module level
+initialize_logger()
+logger = get_logger()
 
 class LLMAssistant:
     # Updated data query template to reflect new CorpusManager methods
@@ -52,7 +56,7 @@ class LLMAssistant:
     Question: {question}
     """
 
-    def __init__(self, corpus_manager, model_id="anthropic.claude-3-sonnet-20240307-v1:0", temperature=0.5):
+    def __init__(self, corpus_manager, model_id="anthropic.claude-3-5-sonnet-20240620-v1:0", temperature=0.5):
         self.model_id = model_id
         self.temperature = temperature
         self.corpus_manager = corpus_manager
@@ -134,7 +138,6 @@ class LLMAssistant:
         return None
 
 def interactive_test(oracle, lexical_generator):
-    logger = get_logger()
     logger.info("Starting interactive test")
     while True:
         mode = input("Choose mode (1: LLMAssistant, 2: LexicalValueGenerator, 3: CorpusManager, 'escape' to exit): ")
@@ -161,7 +164,6 @@ def interactive_test(oracle, lexical_generator):
     logger.info("Exiting the interactive test")
 
 def lexical_value_test(lexical_generator):
-    logger = get_logger()
     while True:
         action = input("Choose action (1: Create, 2: Get, 3: List, 4: Update, 5: Delete, 'back' to return): ")
         if action.lower() == 'back':
@@ -220,7 +222,6 @@ def lexical_value_test(lexical_generator):
             logger.error(f"Unexpected error in lexical_value_test: {str(e)}")
 
 def corpus_manager_test(corpus_manager):
-    logger = get_logger()
     while True:
         action = input("Choose action (1: List texts, 2: Search texts, 3: Get all texts, 'back' to return): ")
         if action.lower() == 'back':
@@ -252,7 +253,6 @@ def corpus_manager_test(corpus_manager):
             logger.error(f"Error in corpus_manager_test: {str(e)}")
 
 def comprehensive_lexical_value_test(lexical_generator):
-    logger = get_logger()
     logger.info("Starting comprehensive LexicalValueGenerator test")
     
     try:
@@ -293,7 +293,6 @@ def comprehensive_lexical_value_test(lexical_generator):
         logger.error(f"LexicalValueGeneratorError in comprehensive test: {str(e)}")
     except Exception as e:
         logger.error(f"Error in test_phleps_search: {str(e)}")
-
 
 def test_phleps_search(corpus_manager):
     logger = get_logger()
