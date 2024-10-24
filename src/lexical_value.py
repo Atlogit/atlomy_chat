@@ -9,7 +9,7 @@ class LexicalValue:
     short_description: str
     long_description: str
     related_terms: List[str] = field(default_factory=list)
-    #historical_timeline: List[Dict[str, str]] = field(default_factory=list)
+    citations_used: List[Dict[str, str]] = field(default_factory=list)
     references: List[Dict[str, str]] = field(default_factory=list)
 
     def to_json(self) -> str:
@@ -27,10 +27,6 @@ class LexicalValue:
         if term not in self.related_terms:
             self.related_terms.append(term)
 
-    def add_timeline_event(self, period: str, description: str) -> None:
-        """Add a historical timeline event to the lexical value."""
-        self.historical_timeline.append({"period": period, "description": description})
-
     def add_reference(self, author: str, work: str, passage: str) -> None:
         """Add a reference to the lexical value."""
         self.references.append({"author": author, "work": work, "passage": passage})
@@ -47,8 +43,6 @@ if __name__ == "__main__":
 
     # Add some sample data
     sample_value.add_related_term("φλέψ")
-    sample_value.add_timeline_event("5th century BCE", "Used to refer to the windpipe")
-    sample_value.add_timeline_event("3rd century BCE", "Distinction between arteries and veins emerges")
     sample_value.add_reference("Hippocrates", "On the Sacred Disease", "Chapter 3")
 
     # Serialize to JSON

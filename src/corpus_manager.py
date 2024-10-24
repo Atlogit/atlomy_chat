@@ -105,6 +105,9 @@ class CorpusManager:
         """
         List all processed texts in the corpus.
         """
+        if not self.processed_texts:
+            logger.info("No texts loaded. Loading all texts...")
+            self.get_all_texts()
         texts = list(self.processed_texts.keys())
         logger.info(f"Listed {len(texts)} texts in the corpus")
         return texts

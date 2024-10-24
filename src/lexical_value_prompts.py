@@ -28,6 +28,18 @@ Consider different types of medical terms:
 - Physiological processes: Relate to ancient theories of body function and health
 
 Present your findings in a JSON format, with each lexical entry as an object in a list. Ensure that your entries are comprehensive, historically accurate, and reflect the nuances of ancient Greek medical thought across all provided texts.
+JSON structure:
+{{
+    "lemma": "{word}",
+    "translation": "Your translation here",
+    "short_description": "Your short description here",
+    "long_description": "Your long description here",
+    "related_terms": ["term1", "term2", "term3"],
+    "references": ["Citation 1", "Citation 2", "Citation 3"]
+}}
+
+
+    make sure your response is formatted for JSON.
 """
 
 SUGGEST_UPDATES_PROMPT = """
@@ -54,14 +66,12 @@ Please suggest updates to the following fields if necessary:
 Present your suggestions in a JSON format, including only the fields that need updating. Provide a brief explanation for each suggested change. Example structure:
 
 {{
-  "translation": {{
-    "value": "updated translation",
-    "explanation": "Reason for the translation update"
-  }},
-  "long_description": {{
-    "value": "updated long description",
-    "explanation": "New insights incorporated into the description"
-  }}
+    "lemma": "{word}",
+    "translation": "Your translation here",
+    "short_description": "Your short description here",
+    "long_description": "Your long description here",
+    "related_terms": ["term1", "term2", "term3"],
+    "references": ["Citation 1", "Citation 2", "Citation 3"]
 }}
 
 Ensure that your suggestions are well-justified, historically accurate, and enhance the overall quality and depth of the lexical entry.

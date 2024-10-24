@@ -7,8 +7,9 @@
     "test": "tests"
   },
   "scripts": {
-    "build:css": "tailwindcss -i ./static/input.css -o ./static/styles.css --watch",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "tailwindcss -i ./static/input.css -o ./static/styles.css --watch",
+    "build": "tailwindcss -i ./static/input.css -o ./static/styles.css --minify",
+    "test": "jest"
   },
   "repository": {
     "type": "git",
@@ -22,9 +23,22 @@
   },
   "homepage": "https://github.com/Atlogit/atlomy_chat#readme",
   "dependencies": {
-    "autoprefixer": "^10.4.14",
-    "daisyui": "^4.7.3",
-    "postcss": "^8.4.21",
-    "tailwindcss": "^3.4.14"
+    "autoprefixer": "^10.4.17",
+    "daisyui": "^4.7.2",
+    "next": "^15.0.1",
+    "postcss": "^8.4.35",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tailwindcss": "^3.4.1"
+  },
+  "devDependencies": {
+    "@babel/plugin-transform-react-jsx": "^7.25.9",
+    "@babel/preset-react": "^7.25.9",
+    "@babel/preset-typescript": "^7.25.9",
+    "@testing-library/jest-dom": "^6.6.2",
+    "@testing-library/react": "^16.0.1",
+    "@testing-library/user-event": "^14.5.2",
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0"
   }
 }

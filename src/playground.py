@@ -56,7 +56,7 @@ class LLMAssistant:
     Question: {question}
     """
 
-    def __init__(self, corpus_manager, model_id="anthropic.claude-3-5-sonnet-20240620-v1:0", temperature=0.5):
+    def __init__(self, corpus_manager, model_id="anthropic.claude-3-haiku-20240307-v1:0", temperature=0.5):
         self.model_id = model_id
         self.temperature = temperature
         self.corpus_manager = corpus_manager

@@ -41,6 +41,10 @@
 - [x] Implement caching for lexical value generation
 - [x] Develop modern web interface with FastAPI
 - [x] Implement parallel processing for lexical value generation
+- [x] Improve testing infrastructure with Jest and React Testing Library
+- [x] Implement consistent API handling with custom hooks
+- [x] Implement background tasks for long-running operations
+- [x] Implement single attempt creation for lexical values
 - [ ] Develop chatbot interface
 - [ ] Implement fact-based response system
 - [ ] Conduct thorough testing and refinement
@@ -76,6 +80,21 @@
 - Added batch operations for lexical value generation
 - Created modern UI for batch operations with progress tracking
 - Enhanced API with parallel processing endpoints
+- Updated Jest configuration to support TypeScript and JSX
+- Added Babel presets for React and TypeScript
+- Improved test coverage for API interactions and error scenarios
+- Implemented a reusable `useApi` hook for consistent API call management
+- Added retry mechanism for improved API call reliability
+- Integrated progress tracking for batch operations
+- Standardized error handling across all API interactions
+- Implemented an ErrorBoundary component for graceful error management
+- Improved error reporting and display in UI components
+- Implemented caching in the `useApi` hook for frequently accessed data
+- Optimized batch operations with progress tracking
+- Implemented background tasks for long-running operations (lexical value creation)
+- Updated frontend to handle long-running requests and poll for status updates
+- Implemented single attempt creation for lexical values
+- Improved error handling and user feedback for lexical value creation process
 
 ## Next Steps
 - Design user-friendly chatbot interface
@@ -85,12 +104,24 @@
 - Expand unit test coverage for parallel processing components
 - Create comprehensive user guides for batch operations
 - Optimize parallel processing performance
+- Implement end-to-end testing for critical user flows
+- Develop performance benchmarks for API calls and batch operations
+- Create documentation for the new `useApi` hook and error handling patterns
+- Conduct thorough testing of the new reliability enhancements
+- Monitor and analyze the performance of long-running operations
+- Consider implementing server-sent events or WebSocket connections for real-time updates
+- Update user documentation to reflect the improved error handling and retry mechanisms
+- Explore further optimizations for the lexical value creation process
 
 ## Current Focus
 - Developing chatbot interface
 - Planning fact-based response system
 - Expanding test coverage and documentation
 - Optimizing parallel processing performance
+- Refining error handling and API integration across components
+- Evaluating the effectiveness of the new retry mechanism and timeout settings
+- Improving user feedback for long-running operations
+- Investigating potential performance bottlenecks in lexical value creation
 
 ## Future Enhancements (Post-POC)
 - Integrate additional ancient text sources beyond TLG
@@ -104,5 +135,8 @@
   - Advanced search capabilities
   - Enhanced batch processing capabilities
 - Explore possibilities for academic collaboration and publication
+- Implement automated performance testing and monitoring
+- Develop a comprehensive API documentation system
+- Create a developer portal for easier onboarding and contribution
 
-This roadmap reflects the current state of the Ancient Medical Texts Analysis App. We have successfully implemented parallel processing and batch operations, significantly improving the efficiency of lexical value generation. The next phase will focus on developing the chatbot interface and fact-based response system.
+This roadmap reflects the current state of the Ancient Medical Texts Analysis App. We have successfully implemented parallel processing, batch operations, and significant improvements in testing and API handling. These enhancements have improved the efficiency, reliability, and maintainability of the application. We've also addressed the "socket hang up" issue by implementing background tasks for long-running operations and ensuring single attempt creation for lexical values. The next phase will focus on developing the chatbot interface, fact-based response system, and further refinements to our testing and API integration strategies.

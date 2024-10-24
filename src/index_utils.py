@@ -73,10 +73,104 @@ class TLGParser:
                         formatted_citation = f"{groups.get('author_name', '')}, {groups.get('work_name', '')}"
                         if groups.get('division') or groups.get('subdivision'):
                             formatted_citation += f" ({groups.get('division', '')}, {groups.get('subdivision', '')})"
-                        # Include the rest of the reference info (e.g., Chapter and Line)
-                        rest_of_reference = citation.split('],', 1)[-1].strip()
-                        if rest_of_reference:
-                            formatted_citation += f", {rest_of_reference}"
+                        
+                        # Extract and format volume, chapter, and line information
+                        volume_chapter_line = re.findall(r'Volume (\w+), Chapter (\w+), Line (\w+)', citation)
+                        if volume_chapter_line:
+                            volumes = {}
+                            for vol, chap, line in volume_chapter_line:
+                                if vol not in volumes:
+                                    volumes[vol] = {}
+                                if chap not in volumes[vol]:
+                                    volumes[vol][chap] = []
+                                volumes[vol][chap].append(int(line))
+                            
+                            # Sort and group lines into ranges for each chapter in each volume
+                            volume_strs = []
+                            for vol in sorted(volumes.keys()):
+                                chapter_strs = []
+                                for chap in sorted(volumes[vol].keys()):
+                                    lines = sorted(volumes[vol][chap])
+                                    line_ranges = []
+                                    start = lines[0]
+                                    end = lines[0]
+                                    for i in range(1, len(lines)):
+                                        if lines[i] == end + 1:
+                                            end = lines[i]
+                                        else:
+                                            if start == end:
+                                                line_ranges.append(f"Line {start}")
+                                            else:
+                                                line_ranges.append(f"Lines {start}-{end}")
+                                            start = lines[i]
+                                            end = lines[i]
+                                    if start == end:
+                                        line_ranges.append(f"Line {start}")
+                                    else:
+                                        line_ranges.append(f"Lines {start}-{end}")
+                                    chapter_strs.append(f"Chapter {chap}: {', '.join(line_ranges)}")
+                                volume_strs.append(f"Volume {vol}: {', '.join(chapter_strs)}")
+                            
+                            formatted_citation += f", {', '.join(volume_strs)}"
+                        else:
+                            # Handle cases where there are no volumes, chapters, or lines
+                            chapter_line = re.findall(r'Chapter (\w+), Line (\w+)', citation)
+                            if chapter_line:
+                                chapters = {}
+                                for chap, line in chapter_line:
+                                    if chap not in chapters:
+                                        chapters[chap] = []
+                                    chapters[chap].append(int(line))
+                                
+                                # Sort and group lines into ranges for each chapter
+                                chapter_strs = []
+                                for chap in sorted(chapters.keys()):
+                                    lines = sorted(chapters[chap])
+                                    line_ranges = []
+                                    start = lines[0]
+                                    end = lines[0]
+                                    for i in range(1, len(lines)):
+                                        if lines[i] == end + 1:
+                                            end = lines[i]
+                                        else:
+                                            if start == end:
+                                                line_ranges.append(f"Line {start}")
+                                            else:
+                                                line_ranges.append(f"Lines {start}-{end}")
+                                            start = lines[i]
+                                            end = lines[i]
+                                    if start == end:
+                                        line_ranges.append(f"Line {start}")
+                                    else:
+                                        line_ranges.append(f"Lines {start}-{end}")
+                                    chapter_strs.append(f"Chapter {chap}: {', '.join(line_ranges)}")
+                                
+                                formatted_citation += f", {', '.join(chapter_strs)}"
+                            else:
+                                # Handle cases where there are only lines
+                                line_only = re.findall(r'Line (\w+)', citation)
+                                if line_only:
+                                    lines = sorted([int(line) for line in line_only])
+                                    line_ranges = []
+                                    start = lines[0]
+                                    end = lines[0]
+                                    for i in range(1, len(lines)):
+                                        if lines[i] == end + 1:
+                                            end = lines[i]
+                                        else:
+                                            if start == end:
+                                                line_ranges.append(f"Line {start}")
+                                            else:
+                                                line_ranges.append(f"Lines {start}-{end}")
+                                            start = lines[i]
+                                            end = lines[i]
+                                    if start == end:
+                                        line_ranges.append(f"Line {start}")
+                                    else:
+                                        line_ranges.append(f"Lines {start}-{end}")
+                                    
+                                    formatted_citation += f", {', '.join(line_ranges)}"
+                        
                         self.logger.debug(f"Formatted citation: {formatted_citation}")
                         return formatted_citation.strip(', ') + ": "
                     except KeyError as e:
