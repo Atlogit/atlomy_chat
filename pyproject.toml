@@ -33,6 +33,10 @@ minversion = "6.0"
 addopts = "-ra -q"
 testpaths = [
     "tests",
+    "toolkit/tests",
+]
+pythonpath = [
+    ".",
 ]
 
 [tool.mypy]

@@ -1,0 +1,44 @@
+{
+  "citation_patterns": [
+    {
+      "pattern": "\\[(\\w*)\\]\\s*\\[(\\w*)\\]\\s*\\[(\\w*)\\]\\s*\\[(\\w*)\\]",
+      "groups": ["author_id", "work_id", "division", "subdivision"],
+      "format": "{author_name}, {work_name} ({division}{subdivision})"
+    },
+    {
+      "pattern": "^\\.t\\.(\\d+)",
+      "groups": ["title_number"],
+      "format": "Title {title_number}"
+    },
+    {
+      "pattern": "^\\.(\\d+)\\.(\\d+)",
+      "groups": ["chapter", "line"],
+      "format": "Chapter {chapter}, Line {line}"
+    },
+    {
+      "pattern": "(\\d+)\\.(\\d+)\\.t(\\d+)",
+      "groups": ["volume", "chapter", "title_number"],
+      "format": "Volume {volume}, Page {chapter}, Title {title_number}"
+    },
+    {
+      "pattern": "(\\d+)\\.(\\d+)\\.(\\d+)",
+      "groups": ["volume", "chapter", "line"],
+      "format": "Volume {volume}, Page {chapter}, Line {line}"
+    },
+    {
+      "pattern": "([a-zA-Z\\d]+)?\\.([a-zA-Z\\d]+)?\\.([a-zA-Z\\d]+)?",
+      "groups": ["volume", "chapter", "line"],
+      "format": "Volume {volume}, Chapter {chapter}, Line {line}"
+    },
+    {
+      "pattern": "\\.([a-zA-Z])\\.([a-zA-Z\\d]+)",
+      "groups": ["volume", "line"],
+      "format": "Chapter {volume}, Line {line}"
+    },
+    {
+      "pattern": "(\\d+)\\.(\\d+)\\.(\\d+)\\.(\\d+)",
+      "groups": ["volume", "chapter", "subdivision", "line"],
+      "format": "Book {volume}, Chapter {chapter}, Section {subdivision}, Line {line}"
+    }
+  ]
+}

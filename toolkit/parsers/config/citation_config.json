@@ -6,17 +6,22 @@
       "format": "{author_name}, {work_name} ({division}{subdivision})"
     },
     {
-      "pattern": "([a-zA-Z\\d]+)?\\.([a-zA-Z\\d]+)?\\.([a-zA-Z\\d]+)?",
+      "pattern": "^(\\d+)\\.(\\d+)\\.(\\d+)(?:\\s|$)",
       "groups": ["Volume", "chapter", "line"],
       "format": "Volume {volume}, Chapter {chapter}, Line {line}"
     },
     {
-      "pattern": "\\.([a-zA-Z])\\.([a-zA-Z\\d]+)",
-      "groups": ["Volume", "line"],
-      "format": "Volume {volume}, Line {line}"
+      "pattern": "^\\.(\\w+)\\.(\\d+)(?:\\s|$)",
+      "groups": ["chapter", "line"],
+      "format": "Chapter {chapter}, Line {line}"
     },
     {
-      "pattern": "^(\\.[t]\\.[1-9]\\d*)",
+      "pattern": "^(\\d+)\\.(\\d+)\\.t(\\d+)(?:\\s|$)",
+      "groups": ["Volume", "chapter", "title_number"],
+      "format": "Volume {volume}, Chapter {chapter}, Title {title_number}"
+    },
+    {
+      "pattern": "^(?:\\.t\\.|t\\.|t)(\\d+(?:\\.\\d+)?)(?:\\s|$)",
       "groups": ["title_number"],
       "format": "Title {title_number}"
     }

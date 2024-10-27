@@ -7,8 +7,7 @@ conda create -n atlomy_chat python -y
 conda activate atlomy_chat
 
 # Install Node.js LTS from conda-forge
-conda install -c conda-forge nodejs=20 -y --override-channels
-
+conda install -c conda-forge nodejs=20 -y
 # Install pip packages from requirements.txt
 pip install -r requirements.txt
 

@@ -1,10 +1,55 @@
-spacy
-spacy-transformers
-langchain
+# Data Processing
+pandas
+numpy
+
+# Web Framework
+fastapi
+uvicorn
+
+# Database
+sqlalchemy
+alembic
+asyncpg
+
+# AWS
+boto3
 langchain-aws
+
+# NLP and Machine Learning
+spacy[cuda12x]
+spacy-transformers
+spacy-lookups-data
+langchain
+
+# Utilities
 typing-extensions
 pathlib
-boto3
+pydantic
+pydantic_settings
+
+# Testing
 pytest
-playwright
-git
+pytest-asyncio
+pytest-cov
+psutil
+spacy-model-xx_ent_wiki_sm
+
+# Version Control
+gitpython
+
+# HTTP Client
+httpx
+
+# Environment Variables
+python-dotenv
+
+# Async Support
+asyncio
+
+# Logging
+loguru
+
+# Front-end
+# Note: Front-end dependencies (including Next.js, React, Tailwind CSS, and DaisyUI) 
+# are managed in the package.json file in the next-app directory.
+# Please refer to that file for the complete list of front-end dependencies.

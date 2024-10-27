@@ -1,21 +1,49 @@
-import uvicorn
-import sys
-from pathlib import Path
-import os
+"""
+Main FastAPI application entry point.
+"""
 
-# Add the project root directory to Python path
-project_root = str(Path(__file__).parent.parent)
-if project_root not in sys.path:
-    sys.path.append(project_root)
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
+from app.core.config import settings
+from app.api import api_router
+
+# Initialize logging
 from src.logging_config import initialize_logger, get_logger
+initialize_logger()
+logger = get_logger()
+
+# Create FastAPI app
+app = FastAPI(
+    title="Ancient Medical Texts Analysis",
+    description="API for analyzing ancient medical texts using NLP and LLMs",
+    version="2.0.0",
+    docs_url="/api/docs",
+    redoc_url="/api/redoc"
+)
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],  # Allow requests from Next.js frontend
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Mount static files
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# Include API router
+app.include_router(api_router, prefix=settings.API_V1_STR)
 
 if __name__ == "__main__":
-    # Initialize the logger with the LOG_LEVEL from environment variable
-    log_level = os.environ.get('LOG_LEVEL', 'INFO')
-    initialize_logger(log_level)
-    logger = get_logger()
-    
-    logger.debug("Starting the server with debug logging enabled")
-    
-    uvicorn.run("app.api:app", host="0.0.0.0", port=8000, reload=True, log_level=log_level.lower())
+    import uvicorn
+    logger.info("Starting Uvicorn server")
+    uvicorn.run(
+        "app.run_server:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=settings.DEBUG
+    )
