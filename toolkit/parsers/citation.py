@@ -13,7 +13,7 @@ from dataclasses import dataclass
 import logging
 from functools import wraps
 
-from exceptions import CitationError
+from .exceptions import CitationError
 
 logger = logging.getLogger(__name__)
 
@@ -180,7 +180,6 @@ class CitationParser:
         
         # Create citation with raw text
         citation = Citation(raw_citation=raw_citation.strip())
-        
         # Check if this is a title reference
         title_number, remaining_dict = self._extract_title_info(raw_citation, citation_dict)
         
@@ -194,12 +193,13 @@ class CitationParser:
                 citation.volume = remaining_dict['volume']
             if 'chapter' in remaining_dict:
                 citation.chapter = remaining_dict['chapter']
+                if 'line' in remaining_dict:
+                    citation.line = remaining_dict['line']
         else:
             # Not a title reference, map all fields directly
             for group, value in citation_dict.items():
                 if value:  # Skip empty values
                     setattr(citation, group, value)
-        
         return citation
 
     @log_exceptions

@@ -11,8 +11,8 @@ from dataclasses import dataclass
 import logging
 from functools import wraps
 
-from exceptions import TextExtractionError, EncodingError
-from citation import CitationParser, Citation
+from .exceptions import TextExtractionError, EncodingError
+from .citation import CitationParser, Citation
 
 logger = logging.getLogger(__name__)
 
@@ -75,18 +75,15 @@ class TextParser:
                 if citation.title_number is not None:
                     is_title = True
                     # For title lines, don't carry over the citation
-                    current_citation = citation
-                    print(current_citation)
+                    current_citation = None
                 elif citation.author_id:
                     # For TLG references, update the current citation
                     current_citation = citation
                     is_title = False
-                    print(current_citation)
                 else:
                     # For other citations, use them directly
                     current_citation = citation
                     is_title = False
-                    print(current_citation)
                 
                 # Create TextLine object with the parsed content
                 if line or citation:  # Create line if there's content or a citation
@@ -105,7 +102,7 @@ class TextParser:
                         is_title=False
                     )
                     parsed_lines.append(parsed_line)
-        print(parsed_lines)
+        
         return parsed_lines
 
     async def _read_file(self, file_path: Path) -> str:
@@ -142,8 +139,3 @@ class TextParser:
             if start < end:
                 return content[start:end].strip()
         return None
-
-if __name__ == "__main__":
-    import asyncio
-    asyncio.run(TextParser().parse_file(file_path='/root/Projects/Atlomy/git/atlomy_chat/assets/texts/original/TLG/TLG0627_hippocrates-050.txt'))
-    

@@ -1,5 +1,6 @@
 from typing import Optional, Dict, Any, List
-from sqlalchemy import String, Integer, ForeignKey, JSON, ARRAY
+from sqlalchemy import String, Integer, ForeignKey, JSON
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from . import Base
 

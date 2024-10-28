@@ -21,7 +21,7 @@ class NLPPipeline:
     def __init__(
         self,
         model_path: Optional[str] = None,
-        batch_size: int = 1000,
+        batch_size: int = 500,
         category_threshold: float = 0.2,
         use_gpu: Optional[bool] = None
     ):

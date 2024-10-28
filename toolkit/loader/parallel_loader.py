@@ -83,7 +83,7 @@ class ParallelDatabaseLoader:
         try:
             # Parse text file using TextParser
             parsed_lines = await self.text_parser.parse_file(file_path)
-            
+            print("-----------------------------------",parsed_lines, "****))))))))))))))))))))))))))000000000000000000000000000000000000000")
             # Extract text metadata from filename
             text_id = file_path.stem  # e.g., "TLG0627_hippocrates-050"
             
@@ -104,6 +104,7 @@ class ParallelDatabaseLoader:
             # Process each line
             for line_obj in parsed_lines:
                 # Parse citation from line content
+                #print("-----------------------------------",line_obj.content, "****))))))))))))))))))))))))))000000000000000000000000000000000000000")
                 remaining, citations = self.citation_parser.parse_citation(line_obj.content)
                 
                 if citations:

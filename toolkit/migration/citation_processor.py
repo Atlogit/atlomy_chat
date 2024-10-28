@@ -4,88 +4,75 @@ This module handles the parsing and processing of citations and their components
 """
 
 import re
-from typing import Dict, Optional, Tuple
+import logging
+from typing import Dict, Optional, Tuple, List
+from pathlib import Path
+
+from toolkit.parsers.citation import CitationParser, Citation
+
+logger = logging.getLogger(__name__)
 
 class CitationProcessor:
     """Processes citations and their components."""
 
     def __init__(self):
-        # Compile regex patterns
-        self.section_pattern = re.compile(r'(\[\d*\]\s*\[\d*\](?:\s*\[\w*\]){0,2})')  # Allow empty brackets
+        """Initialize the citation processor."""
+        self.citation_parser = CitationParser()
         
-        # Pattern to match various title formats:
-        # .t.1, .847a.t., ..t., 6.1.t., 5.899.t1, .847a.t.
-        self.title_pattern = re.compile(r'^(?:\.?(\w+)?\.)?(?:t\.?(\d*)|(\w+)\.t\.?)(?:\s+|$)(.*)')
+    def process_text(self, text: str) -> List[Dict]:
+        """Process text and return list of sections with their citation info.
         
-        # Pattern for regular line numbers (non-title)
-        self.line_pattern = re.compile(r'^\.?(\w+)?\.(\d+)\s*(.+)$')
-
-    def extract_bracketed_values(self, citation: str) -> Dict[str, Optional[str]]:
-        """Extract values from bracketed citation."""
-        # Find all bracketed values
-        brackets = re.findall(r'\[(\d*)\]', citation)
-        values = {}
-        
-        # First bracket is author_id
-        if len(brackets) >= 1 and brackets[0]:
-            values['author_id'] = brackets[0]
-            
-        # Second bracket is work_id
-        if len(brackets) >= 2 and brackets[1]:
-            values['work_id'] = brackets[1]
-            
-        # Third bracket is division
-        if len(brackets) >= 3 and brackets[2]:
-            values['division'] = brackets[2]
-            
-        # Fourth bracket is subdivision
-        if len(brackets) >= 4 and brackets[3]:
-            values['subdivision'] = brackets[3]
-            
-        return values
-
-    def extract_line_info(self, line: str) -> Tuple[str, bool, int, Optional[str]]:
-        """Extract line number and content from a line.
-        
-        Returns:
-            Tuple containing:
-            - content (str): The actual text content
-            - is_title (bool): Whether this is a title line
-            - number (int): Line number or title number (negative for titles)
-            - section (Optional[str]): Section identifier (e.g., '847a')
+        Returns list of dicts with:
+        - citation: Citation object from CitationParser
+        - content: The text content
+        - inherited_citation: The current TLG citation that applies to this line
         """
-        # First try to match title pattern
-        title_match = self.title_pattern.match(line)
-        if title_match:
-            section, title_num, subsection, content = title_match.groups()
+        # Clean up text - normalize line endings and remove any BOM
+        text = text.replace('\r\n', '\n').replace('\r', '\n')
+        if text.startswith('\ufeff'):
+            text = text[1:]
             
-            # This is a title line
-            if title_num:
-                number = -int(title_num)  # Make title numbers negative
+        # Split into lines
+        lines = text.split('\n')
+        sections = []
+        current_tlg_citation = None  # Track current TLG citation (brackets)
+        
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+                
+            # Parse citations using CitationParser
+            remaining_text, citations = self.citation_parser.parse_citation(line)
+            
+            if citations:
+                citation = citations[0]
+                line = remaining_text.strip()
+                
+                # If this is a TLG citation (has brackets), update current
+                if citation.author_id:
+                    current_tlg_citation = citation
+                    # Don't create a section for just the TLG citation line
+                    if not line:
+                        continue
+                
+                # Create section with the parsed content
+                if line or citation:  # Create section if there's content or a citation
+                    sections.append({
+                        'citation': citation,  # Line's own citation (chapter/line info)
+                        'content': line,
+                        'inherited_citation': current_tlg_citation  # Current TLG citation
+                    })
             else:
-                number = 0  # For titles without numbers
-                
-            # Clean up content
-            content = content.strip()
-            if content.startswith('<') and content.endswith('>'):
-                content = content[1:-1].strip()
-            elif content.startswith('{') and content.endswith('}'):
-                content = content[1:-1].strip()
-                
-            return content, True, number, section or subsection
+                # No citation found, use current TLG citation
+                if line:  # Only create section if there's content
+                    sections.append({
+                        'citation': None,  # No line-specific citation
+                        'content': line,
+                        'inherited_citation': current_tlg_citation  # Current TLG citation
+                    })
             
-        # Then try regular line pattern
-        line_match = self.line_pattern.match(line)
-        if line_match:
-            section, line_num, content = line_match.groups()
-            return content.strip(), False, int(line_num), section
+        if not sections:
+            raise ValueError("No valid sections found in the text")
             
-        # If no patterns match, return the whole line as content
-        return line.strip(), False, 0, None
-
-    def split_sections(self, text: str) -> list:
-        """Split text into sections based on citation patterns."""
-        sections = self.section_pattern.split(text)
-        if len(sections) < 2:
-            raise ValueError("No sections found in the text")
         return sections

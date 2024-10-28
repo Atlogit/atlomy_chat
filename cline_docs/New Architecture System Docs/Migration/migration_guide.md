@@ -26,7 +26,7 @@ This guide provides instructions for executing and monitoring the migration of c
 2. **Configure Database Connection**
    - Update `.env` file with database credentials:
    ```
-   DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/ancient_texts_db
+   DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/amta_greek
    ```
 
 3. **Verify Environment**
@@ -37,6 +37,45 @@ This guide provides instructions for executing and monitoring the migration of c
    # Verify citation parser
    python -c "from toolkit.parsers.citation import CitationParser; print('Citation parser loaded')"
    ```
+## Data Structure
+
+### Text Divisions
+
+A division is a logical unit of text organization that combines citation and structural components:
+
+1. **Citation Components**:
+   - Author ID field (e.g., [0086])
+   - Work number field (e.g., [055])
+   - Abbreviation/epithet field (optional, e.g., [Divis])
+   - Fragment field (optional)
+
+2. **Structural Components**:
+   - Volume
+   - Chapter
+   - Section (e.g., 847a)
+   - Lines within the division
+
+3. **Title Components**:
+   - Is title flag
+   - Title number
+   - Title text
+
+Divisions are created:
+- When a new chapter is encountered
+- When title information is found
+- When the TLG citation changes
+- With a default chapter "1" if no chapter information exists
+
+Example:
+```
+[TLG0627][055] Hippocrates Work
+1.1 First chapter first line
+1.2 First chapter second line
+2.1 Second chapter first line
+```
+Creates:
+- Division 1: Chapter 1 with lines 1 and 2
+- Division 2: Chapter 2 with line 1
 
 ## Migration Options
 
@@ -96,14 +135,22 @@ For more granular control, you can run individual components:
 ## Monitoring Progress
 
 1. **Pipeline Reports**
-   - Location: `<corpus_dir>/pipeline_reports/`
-   - Contains execution time, issues summary, and detailed error messages
+   - Location: `toolkit/migration/reports/`
+   - Contains:
+     - Execution time
+     - Issues summary by category
+     - Detailed error messages
+     - Processing statistics
    - Automatically generated for each run
+   - Named with timestamp for easy tracking
+   - Preserved separately from source data
+   - Easily accessible for review and troubleshooting
 
 2. **Log Files**
    - Location: `toolkit/migration/logs/migration.log`
    - Contains detailed progress information
    - Rotates automatically (10MB per file, keeps 5 files)
+   - Focused on real-time processing details
 
 3. **Console Output**
    - Shows progress bars for each stage
@@ -152,7 +199,8 @@ For more granular control, you can run individual components:
 ### Error Recovery
 
 1. **If migration fails:**
-   - Check pipeline reports for error details
+   - Check pipeline reports in `toolkit/migration/reports/`
+   - Review error details and stack traces
    - Fix any identified issues
    - Reset sequences if needed:
    ```bash
@@ -191,14 +239,14 @@ For more granular control, you can run individual components:
 ## Post-Migration Steps
 
 1. **Verify Data**
-   - Review pipeline reports
+   - Review pipeline reports in `toolkit/migration/reports/`
    - Check validation results
    - Verify sample records
 
 2. **Clean Up**
    ```bash
-   # Archive logs and reports
-   tar -czf logs/migration_$(date +%Y%m%d).tar.gz toolkit/migration/logs/ */pipeline_reports/
+   # Archive old reports (optional)
+   tar -czf toolkit/migration/reports/archive_$(date +%Y%m%d).tar.gz toolkit/migration/reports/pipeline_report_*.txt
    
    # Remove temporary files
    rm -rf data/sample
@@ -212,7 +260,7 @@ For more granular control, you can run individual components:
 ## Support
 
 For issues or questions:
-1. Check the pipeline reports in `<corpus_dir>/pipeline_reports/`
+1. Check the pipeline reports in `toolkit/migration/reports/`
 2. Review the logs in `toolkit/migration/logs/`
 3. Consult the [Pipeline Usage Guide](pipeline_usage.md)
 4. Review the test suite for expected behavior

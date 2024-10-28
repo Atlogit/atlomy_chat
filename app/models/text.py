@@ -1,7 +1,8 @@
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, List, Any
 from sqlalchemy import String, ForeignKey, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from . import Base
+from .author import Author
 
 class Text(Base):
     """Model for storing ancient medical texts.
@@ -16,15 +17,15 @@ class Text(Base):
     
     # Foreign key to Author
     author_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("authors.id", ondelete="SET NULL"),
+        ForeignKey("authors.id"),
         nullable=True
     )
     
     # Required fields
+    reference_code: Mapped[Optional[str]] = mapped_column(String(20), nullable=True, index=True)
     title: Mapped[str] = mapped_column(String, nullable=False)
     
     # Optional fields
-    reference_code: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     text_metadata: Mapped[Optional[Dict[str, Any]]] = mapped_column(
         JSON,
         nullable=True,

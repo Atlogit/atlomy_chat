@@ -26,6 +26,7 @@ The system is being split into two main components:
    - Handles text ingestion
    - Processes NLP analysis
    - Manages database population
+   - [Sentence Processing Flow](../sentence_processing_flow.md) - Advanced handling of multi-line sentences and token mapping
 
 2. **[Analysis Application](application.md)**
    - Provides text search and analysis
@@ -43,6 +44,7 @@ The system is being split into two main components:
 - FastAPI Backend
 - AWS Bedrock Integration
 - spaCy NLP Pipeline
+- Advanced Sentence Processing System
 
 ## Technology Stack
 - Python 3.9+
@@ -57,6 +59,7 @@ The system is being split into two main components:
 - Review the [Toolkit Architecture](toolkit.md)
 - Review the [Application Architecture](application.md)
 - Understand the [Database Schema](../database/schema.md)
+- Study the [Sentence Processing Flow](../sentence_processing_flow.md)
 
 
 I'll create documentation focused on restructuring the existing codebase into the new architecture.
@@ -88,6 +91,7 @@ ancient_texts/
    - One-time/occasional use
    - Text processing utilities
    - Database population
+   - Advanced sentence processing
 
 2. **Lemma Analysis Application**
    - Regular interactive use
@@ -357,5 +361,3 @@ import uvicorn
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
 ```
-```
-

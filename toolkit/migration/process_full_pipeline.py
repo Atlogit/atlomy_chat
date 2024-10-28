@@ -3,11 +3,10 @@ Complete pipeline script for loading texts and processing them through NLP.
 
 This script coordinates the entire process:
 1. Verifying NLP pipeline
-2. Loading texts into database
-3. Migrating citations and relationships
-4. Processing texts into sentences
-5. Running NLP on sentences
-6. Validating the results
+2. Migrating citations and relationships
+3. Processing texts into sentences
+4. Running NLP on sentences
+5. Validating the results
 """
 
 import asyncio
@@ -16,19 +15,19 @@ import argparse
 from pathlib import Path
 from typing import Optional, Dict, List
 from datetime import datetime
+import contextvars
+import greenlet
 
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_scoped_session
 from sqlalchemy.orm import sessionmaker
 
 from app.core.config import settings
-from toolkit.loader.database import DatabaseLoader
-from toolkit.loader.parallel_loader import ParallelDatabaseLoader
-from toolkit.migration.parallel_processor import ParallelProcessor
 from toolkit.migration.citation_migrator import CitationMigrator
 from toolkit.migration.content_validator import DataVerifier
 from toolkit.migration.corpus_processor import CorpusProcessor
 from toolkit.nlp.pipeline import NLPPipeline
 
+# Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -36,19 +35,11 @@ class PipelineReport:
     """Tracks and reports issues during pipeline execution."""
     
     def __init__(self):
-        self.loading_issues: List[Dict] = []
         self.citation_issues: List[Dict] = []
         self.sentence_issues: List[Dict] = []
         self.nlp_issues: List[Dict] = []
         self.validation_issues: List[Dict] = []
         self.start_time = datetime.now()
-        
-    def add_loading_issue(self, text_title: str, error: str):
-        self.loading_issues.append({
-            "text": text_title,
-            "error": str(error),
-            "stage": "loading"
-        })
         
     def add_citation_issue(self, text_title: str, error: str):
         self.citation_issues.append({
@@ -86,19 +77,11 @@ class PipelineReport:
             "\n=== Pipeline Execution Report ===",
             f"Execution time: {duration}",
             "\nIssues Summary:",
-            f"- Loading issues: {len(self.loading_issues)}",
             f"- Citation migration issues: {len(self.citation_issues)}",
             f"- Sentence processing issues: {len(self.sentence_issues)}",
             f"- NLP processing issues: {len(self.nlp_issues)}",
             f"- Validation issues: {len(self.validation_issues)}"
         ]
-        
-        if self.loading_issues:
-            report.extend([
-                "\nLoading Issues:",
-                *[f"- {issue['text']}: {issue['error']}" 
-                  for issue in self.loading_issues]
-            ])
             
         if self.citation_issues:
             report.extend([
@@ -130,11 +113,17 @@ class PipelineReport:
             
         return "\n".join(report)
     
-    def save_report(self, output_dir: Path):
+    def save_report(self, output_dir: Optional[Path] = None):
         """Save the report to a file."""
+        # Use toolkit/migration/reports directory by default
+        if output_dir is None:
+            output_dir = Path(__file__).parent / "reports"
+            
+        # Create reports directory if it doesn't exist
+        output_dir.mkdir(parents=True, exist_ok=True)
+        
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         report_path = output_dir / f"pipeline_report_{timestamp}.txt"
-        report_path.parent.mkdir(parents=True, exist_ok=True)
         
         with open(report_path, "w") as f:
             f.write(self.generate_report())
@@ -172,9 +161,9 @@ async def run_pipeline(
     batch_size: int = 1000,
     max_workers: Optional[int] = None,
     validate: bool = True,
-    parallel_loading: bool = False,
-    loading_batch_size: int = 5,
-    use_gpu: Optional[bool] = None
+    use_gpu: Optional[bool] = None,
+    debug: bool = False,
+    skip_to_corpus: bool = False
 ):
     """
     Run the complete pipeline from loading to processing.
@@ -185,10 +174,16 @@ async def run_pipeline(
         batch_size: Size of batches for NLP processing
         max_workers: Maximum number of worker processes
         validate: Whether to run validation after processing
-        parallel_loading: Whether to use parallel loading for texts
-        loading_batch_size: Batch size for parallel loading
         use_gpu: Whether to use GPU for NLP processing (None for auto-detect)
+        debug: Whether to enable debug logging
+        skip_to_corpus: Whether to skip citation migration and start from corpus processing
     """
+    # Set debug logging if requested
+    if debug:
+        logging.getLogger().setLevel(logging.DEBUG)
+        logging.getLogger('citation_migrator').setLevel(logging.DEBUG)
+        logging.getLogger('citation_processor').setLevel(logging.DEBUG)
+    
     # Initialize report tracker
     report = PipelineReport()
     
@@ -196,71 +191,64 @@ async def run_pipeline(
         # Verify NLP pipeline first
         await verify_nlp_pipeline(model_path, use_gpu)
         
-        # Initialize database connection
+        # Initialize database connection with proper async context
         engine = create_async_engine(
             settings.DATABASE_URL,
             pool_size=settings.DB_POOL_SIZE,
             max_overflow=settings.DB_MAX_OVERFLOW,
             pool_timeout=settings.DB_POOL_TIMEOUT,
-            echo=settings.DEBUG
-        )
-        async_session = sessionmaker(
-            engine, class_=AsyncSession, expire_on_commit=False
+            echo=settings.DEBUG,
+            pool_pre_ping=True
         )
 
-        async with async_session() as session:
-            # Phase 1: Load texts into database
-            logger.info("Phase 1: Loading texts...")
-            try:
-                if parallel_loading:
-                    logger.info(f"Using parallel loading with {max_workers} workers")
-                    loader = ParallelDatabaseLoader(
-                        session,
-                        max_workers=max_workers or 4,
-                        batch_size=loading_batch_size
-                    )
-                    await loader.load_corpus_directory_parallel(corpus_dir)
-                else:
-                    logger.info("Using standard sequential loading")
-                    loader = DatabaseLoader(session)
-                    await loader.load_corpus_directory(corpus_dir)
-                
-                await session.commit()
-                logger.info("Text loading completed")
-            except Exception as e:
-                report.add_loading_issue("corpus_directory", str(e))
-                logger.error(f"Error during text loading: {e}")
-                raise
+        # Create session factory with proper async scoping
+        session_factory = sessionmaker(
+            engine,
+            class_=AsyncSession,
+            expire_on_commit=False
+        )
+        
+        # Create scoped session tied to async context
+        async_session = async_scoped_session(
+            session_factory,
+            scopefunc=asyncio.current_task
+        )
 
-            # Phase 2: Migrate citations
-            logger.info("Phase 2: Migrating citations...")
-            try:
-                citation_migrator = CitationMigrator(session)
-                await citation_migrator.migrate_directory(corpus_dir)
-                logger.info("Citation migration completed")
-            except Exception as e:
-                report.add_citation_issue("corpus_directory", str(e))
-                logger.error(f"Error during citation migration: {e}")
-                raise
+        try:
+            # Create new session for this task
+            session = async_session()
+            
+            if not skip_to_corpus:
+                # Phase 1: Migrate citations
+                logger.info("Phase 1: Migrating citations...")
+                try:
+                    citation_migrator = CitationMigrator(session)
+                    await citation_migrator.migrate_directory(corpus_dir)
+                    logger.info("Citation migration completed")
+                except Exception as e:
+                    report.add_citation_issue("corpus_directory", str(e))
+                    logger.error(f"Error during citation migration: {e}")
+                    raise
+            else:
+                logger.info("Skipping citation migration phase...")
 
-            # Phase 3: Process sentences and NLP
-            logger.info("Phase 3: Processing sentences and NLP...")
+            # Phase 2: Process sentences and NLP
+            logger.info("Phase 2: Processing sentences and NLP...")
             try:
-                processor = ParallelProcessor(
+                processor = CorpusProcessor(
                     session,
                     model_path=model_path,
-                    max_workers=max_workers,
                     use_gpu=use_gpu
                 )
-                await processor.process_corpus_parallel(batch_size=batch_size)
+                await processor.process_corpus()
             except Exception as e:
                 report.add_sentence_issue("corpus_processing", str(e))
                 logger.error(f"Error during sentence/NLP processing: {e}")
                 raise
             
-            # Phase 4: Validate results if requested
+            # Phase 3: Validate results if requested
             if validate:
-                logger.info("Phase 4: Validation...")
+                logger.info("Phase 3: Validation...")
                 verifier = DataVerifier(session)
                 try:
                     validation_results = await verifier.run_all_verifications()
@@ -291,14 +279,18 @@ async def run_pipeline(
                     report.add_validation_issue("validation_process", str(e))
                     logger.error(f"Error during validation: {e}")
 
+        finally:
+            await session.close()
+            
     except Exception as e:
         logger.error(f"Pipeline failed: {str(e)}")
         raise
     finally:
         await engine.dispose()
+        await async_session.remove()
         
         # Save the execution report
-        report.save_report(corpus_dir / "pipeline_reports")
+        report.save_report()
         
         # Display report summary
         logger.info("\nPipeline Execution Summary:")
@@ -334,17 +326,6 @@ def main():
         help="Skip validation phase"
     )
     parser.add_argument(
-        "--parallel-loading",
-        action="store_true",
-        help="Use parallel loading for texts"
-    )
-    parser.add_argument(
-        "--loading-batch-size",
-        type=int,
-        default=5,
-        help="Batch size for parallel loading"
-    )
-    parser.add_argument(
         "--use-gpu",
         action="store_true",
         help="Use GPU for NLP processing"
@@ -353,6 +334,16 @@ def main():
         "--no-gpu",
         action="store_true",
         help="Force CPU usage even if GPU is available"
+    )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Enable debug logging"
+    )
+    parser.add_argument(
+        "--skip-to-corpus",
+        action="store_true",
+        help="Skip citation migration and start from corpus processing"
     )
     
     args = parser.parse_args()
@@ -370,9 +361,9 @@ def main():
         batch_size=args.batch_size,
         max_workers=args.max_workers,
         validate=not args.no_validate,
-        parallel_loading=args.parallel_loading,
-        loading_batch_size=args.loading_batch_size,
-        use_gpu=use_gpu
+        use_gpu=use_gpu,
+        debug=args.debug,
+        skip_to_corpus=args.skip_to_corpus
     ))
 
 if __name__ == "__main__":

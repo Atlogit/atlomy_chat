@@ -50,7 +50,7 @@ class Settings(BaseSettings):
     llm: LLMConfig = LLMConfig()
     
     # Application settings
-    DEBUG: bool = True
+    DEBUG: bool = False
     API_V1_STR: str = "/api/v1"
     
     class Config:

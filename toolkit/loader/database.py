@@ -32,6 +32,55 @@ class DatabaseLoader:
         self.text_parser = TextParser()
         self.citation_parser = CitationParser()
 
+    async def get_work(self, work_id: int) -> Optional[Text]:
+        """Get a work by its ID.
+        
+        Args:
+            work_id: The ID of the work to fetch
+            
+        Returns:
+            Text object if found, None otherwise
+        """
+        stmt = select(Text).where(Text.id == work_id)
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def get_division_content(self, division_id: int) -> Optional[str]:
+        """Get the combined content of all lines in a division.
+        
+        Args:
+            division_id: The ID of the division
+            
+        Returns:
+            Combined content string if found, None otherwise
+        """
+        stmt = select(TextLine).where(
+            TextLine.division_id == division_id
+        ).order_by(TextLine.line_number)
+        result = await self.session.execute(stmt)
+        lines = result.scalars().all()
+        
+        if not lines:
+            return None
+            
+        return "\n".join(line.content for line in lines)
+
+    def _normalize_reference_code(self, ref_code: str) -> str:
+        """Normalize reference codes to prevent duplicates."""
+        # Remove 'TLG' prefix if present
+        if ref_code.startswith('TLG'):
+            ref_code = ref_code[3:]
+        return ref_code
+
+    def _extract_work_id(self, filename: str) -> Optional[str]:
+        """Extract work ID from filename."""
+        # Try to extract work number from patterns like:
+        # TLG0627_hippocrates-050.txt or TLG0057_galen-001.txt
+        match = re.search(r'-(\d+)(?:\.txt)?$', filename)
+        if match:
+            return match.group(1)
+        return None
+
     async def load_corpus_directory(self, 
                                  corpus_dir: Path,
                                  file_pattern: str = "TLG*") -> List[Text]:
@@ -49,17 +98,17 @@ class DatabaseLoader:
                 # Parse text file
                 parsed_lines = await self.text_parser.parse_file(file_path)
                 
-                # Extract text metadata from filename
-                text_id = file_path.stem  # e.g., "TLG0627_hippocrates-050"
-                
-                # Extract TLG code for reference_code
-                match = re.match(r'(TLG\d+).*', text_id)
-                reference_code = match.group(1) if match else "UNK000"
+                # Extract author and work IDs from filename
+                filename = file_path.stem
+                author_match = re.match(r'(?:TLG)?(\d+).*', filename)
+                author_id = author_match.group(1) if author_match else "UNK000"
+                work_id = self._extract_work_id(filename)
                 
                 text_data = {
-                    "author_name": "Unknown",
-                    "title": text_id,
-                    "reference_code": reference_code,
+                    "author_name": f"Author {author_id}",
+                    "title": f"Work {work_id}" if work_id else "Pending",
+                    "reference_code": work_id if work_id else "UNK000",
+                    "author_id": author_id,  # Store author_id separately
                     "language_code": "grc",
                     "divisions": []
                 }
@@ -69,45 +118,52 @@ class DatabaseLoader:
                 # Process each line
                 for line_obj in parsed_lines:
                     # Parse citation from line content
-                    remaining, citations = self.citation_parser.parse_citation(line_obj.content)
-                    
-                    if citations:
-                        citation = citations[0]  # Use first citation if multiple found
+                    citation = line_obj.citation if hasattr(line_obj, 'citation') else None
+
+                    if citation:
+                        # Update text metadata when we find a citation with author/work info
+                        if citation.work_id and text_data["title"] == "Pending":
+                            text_data["title"] = f"Work {citation.work_id}"
+                            text_data["reference_code"] = citation.work_id
+                            
                         division = {
-                            # Citation components
-                            "author_id_field": citation.author_id or "1",
-                            "work_number_field": citation.work_id or "1",
+                            # Citation components with normalized author_id
+                            "author_id_field": self._normalize_reference_code(citation.author_id) if citation.author_id else author_id,
+                            "work_number_field": citation.work_id or work_id or "1",
                             "epithet_field": None,
                             "fragment_field": None,
                             # Structural components
                             "volume": citation.volume,
                             "chapter": citation.chapter,
-                            "section": citation.division or citation.line or "1",
+                            "section": citation.section,
                             "lines": []
                         }
-                        text_data["divisions"].append(division)
-                        current_division = division
-                        continue  # Skip adding citation line as content
-                    
-                    if not current_division:
-                        current_division = {
-                            "author_id_field": "1",
-                            "work_number_field": "1",
-                            "epithet_field": None,
-                            "fragment_field": None,
-                            "volume": None,
-                            "chapter": None,
-                            "section": "1",
-                            "lines": []
-                        }
-                        text_data["divisions"].append(current_division)
-                    
-                    # Only add non-citation lines as content
+                        
+                        if not current_division or citation.chapter != current_division.get("chapter"):
+                            text_data["divisions"].append(division)
+                            current_division = division
+
+                    # Only add non-empty content lines
                     if line_obj.content.strip():
+                        if not current_division:
+                            # Create default division if none exists
+                            current_division = {
+                                "author_id_field": author_id,
+                                "work_number_field": work_id or "1",
+                                "epithet_field": None,
+                                "fragment_field": None,
+                                "volume": None,
+                                "chapter": "1",  # Default chapter
+                                "section": None,
+                                "lines": []
+                            }
+                            text_data["divisions"].append(current_division)
+                    
                         line_data = {
                             "line_number": len(current_division["lines"]) + 1,
                             "content": line_obj.content
                         }
+                        
                         current_division["lines"].append(line_data)
                 
                 texts_data.append(text_data)
@@ -125,34 +181,57 @@ class DatabaseLoader:
         text_title: str,
         reference_code: str,
         divisions: List[Dict[str, Any]],
+        author_id: Optional[str] = None,
         language_code: str = "grc",
         silent: bool = False
     ) -> Text:
         """Load a text and its divisions into the database."""
         try:
-            # Get or create author
-            author_stmt = select(Author).where(Author.name == author_name)
+            # Use provided author_id or extract from author_name
+            if not author_id and author_name.startswith("Author "):
+                author_id = author_name.split("Author ")[-1]
+            
+            # Normalize author's reference code
+            author_ref = self._normalize_reference_code(author_id) if author_id else "UNK000"
+            
+            # First try to get author by normalized reference_code
+            author_stmt = select(Author).where(Author.reference_code == author_ref)
             author = (await self.session.execute(author_stmt)).scalar_one_or_none()
             
             if not author:
+                # Create new author if none exists with this reference_code
                 author = Author(
                     name=author_name,
-                    reference_code=reference_code,
+                    reference_code=author_ref,
                     language_code=language_code
                 )
                 self.session.add(author)
                 await self.session.flush()
                 if not silent:
-                    logger.info(f"Created new author: {author_name}")
+                    logger.info(f"Created new author: {author_name} ({author_ref})")
+            elif author.name != author_name and author_name != "Pending":
+                # Update author name if it has changed and isn't "Pending"
+                author.name = author_name
+                await self.session.flush()
+                if not silent:
+                    logger.info(f"Updated author name: {author_name} ({author_ref})")
 
-            # Create text
-            text = Text(
-                author_id=author.id,
-                title=text_title,
-                reference_code=reference_code
+            # Check if text already exists
+            text_stmt = select(Text).where(
+                Text.reference_code == reference_code,
+                Text.author_id == author.id
             )
-            self.session.add(text)
-            await self.session.flush()
+            text = (await self.session.execute(text_stmt)).scalar_one_or_none()
+            
+            if not text:
+                # Create text if it doesn't exist
+                text = Text(
+                    author_id=author.id,
+                    title=text_title,
+                    reference_code=reference_code
+                )
+                self.session.add(text)
+                await self.session.flush()
 
             # Create divisions and lines
             total_lines = sum(len(div.get("lines", [])) for div in divisions)
@@ -160,6 +239,10 @@ class DatabaseLoader:
                 logger.info(f"Loading text: {text_title} ({total_lines} lines)")
 
             for div in divisions:
+                # Normalize author_id_field in division
+                if div.get("author_id_field"):
+                    div["author_id_field"] = self._normalize_reference_code(div["author_id_field"])
+                
                 division = TextDivision(
                     text_id=text.id,
                     author_id_field=div["author_id_field"],
@@ -210,6 +293,7 @@ class DatabaseLoader:
                     text_title=text_data["title"],
                     reference_code=text_data["reference_code"],
                     divisions=text_data["divisions"],
+                    author_id=text_data.get("author_id"),
                     language_code=text_data.get("language_code", "grc"),
                     silent=True
                 )

@@ -1,5 +1,5 @@
 from typing import Optional
-from sqlalchemy import String
+from sqlalchemy import String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from . import Base
 
@@ -16,7 +16,7 @@ class Author(Base):
     
     # Required fields
     name: Mapped[str] = mapped_column(String, nullable=False)
-    reference_code: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    reference_code: Mapped[str] = mapped_column(String(20), nullable=False, index=True, unique=True)
     
     # Optional fields
     normalized_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)

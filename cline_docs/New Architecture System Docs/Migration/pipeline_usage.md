@@ -2,7 +2,61 @@
 
 ## Overview
 
-The pipeline handles the complete process of loading texts into the database and processing them through the NLP pipeline. It supports both sequential and parallel processing at different stages, with optional GPU acceleration for NLP processing.
+The pipeline handles the complete process of loading texts into the database and processing them through the NLP pipeline. It processes texts into divisions - logical units that combine citation and structural components.
+
+## Text Division Structure
+
+### Division Components
+
+1. **Citation Components**:
+   ```python
+   division = {
+       "author_id_field": "0627",      # Author identifier
+       "work_number_field": "055",      # Work number
+       "epithet_field": None,          # Optional abbreviation
+       "fragment_field": None          # Optional fragment reference
+   }
+   ```
+
+2. **Structural Components**:
+   ```python
+   division.update({
+       "volume": None,                 # Optional volume number
+       "chapter": "1",                # Chapter number (defaults to "1")
+       "section": None                # Optional section reference
+   })
+   ```
+
+3. **Lines**:
+   - Each division contains an ordered set of lines
+   - Lines are normalized to be sequential within each division
+   - Line numbers are preserved from the original text when available
+
+### Division Creation Rules
+
+Divisions are created when:
+1. A new chapter is encountered in citations
+2. Title information is found
+3. The TLG citation changes
+4. Default chapter "1" is used when no chapter exists
+
+Example Processing:
+```
+Input:
+[TLG0627][055] Hippocrates Work
+1.1 First chapter first line
+1.2 First chapter second line
+2.1 Second chapter first line
+
+Output:
+Division 1:
+- Chapter: 1
+- Lines: [1.1, 1.2]
+
+Division 2:
+- Chapter: 2
+- Lines: [2.1]
+```
 
 ## Basic Usage
 
