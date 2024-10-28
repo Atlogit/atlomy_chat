@@ -1,5 +1,7 @@
 # New Architecture Codebase Summary
 
+# New Architecture Codebase Summary
+
 ## Project Structure
 
 ```
@@ -261,47 +263,126 @@ class LLMService:
     async def check_context_length(prompt: str) -> bool
 ```
 
-### 4. API Layer
+### 5. Frontend Components
 
-#### Corpus Routes
-- GET `/corpus/list`: List all texts
-- POST `/corpus/search`: Search texts
-- GET `/corpus/text/{text_id}`: Get text by ID
-- GET `/corpus/category/{category}`: Search by category
-
-#### Lexical Routes
-- POST `/lexical/create`: Create lemma
-- GET `/lexical/get/{lemma}`: Get lemma
-- GET `/lexical/list`: List lemmas
-- PUT `/lexical/update`: Update lemma
-- DELETE `/lexical/delete/{lemma}`: Delete lemma
-
-#### LLM Routes
-- POST `/llm/analyze`: Generate analysis
-- POST `/llm/analyze/stream`: Stream analysis
-- POST `/llm/token-count`: Count tokens
-
-
-## Data Flow
-
-1. Text Processing Flow (Updated)
-```mermaid
-graph LR
-    A[Raw Text] --> B[Content Validator]
-    B --> C[Citation Processor]
-    C --> D[Citation Migrator]
-    D --> E[Database]
-    E --> F[Verification]
+#### Component Structure
+```
+next-app/src/
+├── components/
+│   └── sections/
+│       └── corpus/
+│           ├── CorpusSection.tsx    # Main container component
+│           ├── ListTexts.tsx        # Text listing with metadata
+│           ├── TextDisplay.tsx      # Text content display
+│           └── SearchForm.tsx       # Search interface
 ```
 
-2. Analysis Flow
-```mermaid
-graph LR
-    A[User Query] --> B[Text Service]
-    B --> C[PostgreSQL]
-    C --> D[Analysis Service]
-    D --> E[AWS Bedrock]
-    E --> F[Result Storage]
+#### CorpusSection Component
+```typescript
+// Main container managing view state and navigation
+export function CorpusSection() {
+  const [activeView, setActiveView] = useState<'list' | 'search' | 'view'>('list')
+  const [selectedText, setSelectedText] = useState<string | null>(null)
+  
+  // View management and error handling
+  // Breadcrumb navigation
+  // Component coordination
+}
+```
+
+#### ListTexts Component
+```typescript
+// Displays text list with enhanced metadata
+export function ListTexts({ onTextSelect }: ListTextsProps) {
+  // Redis-cached text listing
+  // Citation component display
+  // Structural information visualization
+  // Metadata presentation
+}
+```
+
+#### TextDisplay Component
+```typescript
+// Renders text content with analysis
+export function TextDisplay({ textId }: TextDisplayProps) {
+  // Citation rendering
+  // spaCy token visualization
+  // Structural component handling
+  // Title and metadata display
+}
+```
+
+#### SearchForm Component
+```typescript
+// Handles text search and result display
+export function SearchForm({ onResultSelect }: SearchFormProps) {
+  // Lemma-based search
+  // Category filtering
+  // Enhanced result presentation
+  // Token analysis display
+}
+```
+
+### 6. Redis Caching Implementation
+
+#### Cache Structure
+```typescript
+// Cache key patterns
+const CACHE_KEYS = {
+  TEXT_LIST: 'texts:list',
+  TEXT_DETAIL: 'text:{id}',
+  SEARCH_RESULTS: 'search:{query}:{lemma}:{categories}',
+  CATEGORY_RESULTS: 'category:{name}'
+}
+
+// TTL configurations
+const CACHE_TTL = {
+  TEXT_LIST: 3600,      // 1 hour
+  TEXT_DETAIL: 7200,    // 2 hours
+  SEARCH_RESULTS: 1800, // 30 minutes
+  CATEGORY_RESULTS: 3600 // 1 hour
+}
+```
+
+#### Cache Operations
+```python
+class RedisCache:
+    """Redis caching implementation."""
+    
+    async def get(self, key: str) -> Optional[Dict]:
+        """Get cached data with automatic deserialization."""
+        
+    async def set(
+        self, 
+        key: str, 
+        value: Any,
+        ttl: int = DEFAULT_TTL
+    ) -> None:
+        """Set cache with TTL."""
+        
+    async def invalidate(self, pattern: str) -> None:
+        """Invalidate cache by pattern."""
+```
+
+#### Service Integration
+```python
+class CorpusService:
+    """Service with Redis caching."""
+    
+    async def list_texts(self) -> List[Dict]:
+        # Try cache first
+        cached = await self.redis.get(CACHE_KEYS.TEXT_LIST)
+        if cached:
+            return cached
+            
+        # Get from database and cache
+        texts = await self._get_texts_from_db()
+        await self.redis.set(
+            CACHE_KEYS.TEXT_LIST,
+            texts,
+            ttl=CACHE_TTL.TEXT_LIST
+        )
+        return texts
 ```
 
 ## Key Interactions
@@ -390,3 +471,26 @@ graph LR
 - Performance monitoring
 
 This summary provides an overview of the new architecture's codebase structure and key components. It will be updated as the implementation progresses and new patterns or requirements emerge.
+## Data Flow
+
+1. Frontend Request Flow
+```mermaid
+graph LR
+    A[User Action] --> B[Frontend Component]
+    B --> C[API Request]
+    C --> D[Redis Cache]
+    D -- Cache Miss --> E[Database]
+    E --> F[Cache Update]
+    F --> G[Response]
+    D -- Cache Hit --> G
+```
+
+2. Cache Invalidation Flow
+```mermaid
+graph LR
+    A[Data Update] --> B[Service Layer]
+    B --> C[Database Update]
+    C --> D[Cache Invalidation]
+    D --> E[Pattern Match]
+    E --> F[Remove Matched Keys]
+```
