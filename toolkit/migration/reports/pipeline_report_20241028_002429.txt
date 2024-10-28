@@ -1,0 +1,13 @@
+
+=== Pipeline Execution Report ===
+Execution time: 0:00:08.244833
+
+Issues Summary:
+- Loading issues: 1
+- Citation migration issues: 0
+- Sentence processing issues: 0
+- NLP processing issues: 0
+- Validation issues: 0
+
+Loading Issues:
+- corpus_directory: Multiple rows were found when one or none was required

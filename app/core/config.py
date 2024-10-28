@@ -71,6 +71,7 @@ class Settings(BaseSettings):
     # Application settings
     DEBUG: bool = False
     API_V1_STR: str = "/api/v1"
+    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
     
     class Config:
         case_sensitive = True

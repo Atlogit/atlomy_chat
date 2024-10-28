@@ -3,7 +3,7 @@ Service layer for LLM operations.
 Handles LLM client selection, prompt management, and response processing.
 """
 
-from typing import Dict, Any, Optional, AsyncGenerator, Type
+from typing import Dict, Any, Optional, AsyncGenerator, Type, Union
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings

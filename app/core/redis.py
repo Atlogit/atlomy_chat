@@ -4,7 +4,7 @@ Redis client utility for caching.
 
 from typing import Optional, Any, Union
 import json
-import aioredis
+from redis.asyncio import Redis
 from app.core.config import settings
 
 class RedisClient:
@@ -19,7 +19,7 @@ class RedisClient:
     async def init(self):
         """Initialize Redis connection."""
         if self._redis is None:
-            self._redis = await aioredis.from_url(
+            self._redis = Redis.from_url(
                 settings.redis.REDIS_URL,
                 db=settings.redis.REDIS_DB,
                 password=settings.redis.REDIS_PASSWORD,

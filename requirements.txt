@@ -5,6 +5,7 @@ numpy
 # Web Framework
 fastapi
 uvicorn
+sse-starlette
 
 # Database
 sqlalchemy

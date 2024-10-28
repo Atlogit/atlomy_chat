@@ -1,6 +1,7 @@
 interface ApiError {
   message: string;
   status?: number;
+  detail?: string;
 }
 
 export async function fetchApi<T>(
@@ -29,10 +30,25 @@ export async function fetchApi<T>(
     console.log('API Response Text:', responseText);
 
     if (!response.ok) {
+      let errorMessage = `HTTP error! status: ${response.status}`;
+      let errorDetail = '';
+      
+      try {
+        const errorJson = JSON.parse(responseText);
+        if (errorJson.detail) {
+          errorDetail = errorJson.detail;
+        }
+      } catch (e) {
+        // If response is not JSON, use the raw text
+        errorDetail = responseText;
+      }
+
       const error: ApiError = {
-        message: `HTTP error! status: ${response.status}`,
+        message: errorMessage,
         status: response.status,
+        detail: errorDetail
       };
+
       console.error('API Error:', error);
       console.error('Response details:', {
         status: response.status,
@@ -46,7 +62,7 @@ export async function fetchApi<T>(
     // Parse the response text as JSON
     let jsonResponse;
     try {
-      jsonResponse = JSON.parse(responseText);
+      jsonResponse = responseText ? JSON.parse(responseText) : null;
     } catch (parseError) {
       console.error('Error parsing JSON response:', parseError);
       console.error('Raw response:', responseText);
@@ -67,6 +83,7 @@ export async function fetchApi<T>(
       throw {
         message: error.message,
         status: (error as ApiError).status,
+        detail: (error as ApiError).detail
       };
     }
     throw { message: 'An unknown error occurred', details: JSON.stringify(error) };
@@ -139,7 +156,7 @@ export interface SearchResult {
   line_number: number;
   content: string;
   categories: string[];
-  spacy_tokens?: Record<string, unknown>;
+  spacy_data?: Record<string, unknown>;
 }
 
 export interface LexicalValue {
@@ -182,23 +199,23 @@ export interface TaskStatus {
 // API endpoints
 export const API = {
   llm: {
-    query: '/api/llm/query',
+    query: '/api/v1/llm/query',
   },
   lexical: {
-    create: '/api/lexical/create',
-    batchCreate: '/api/lexical/batch-create',
-    get: (lemma: string) => `/api/lexical/get/${encodeURIComponent(lemma)}`,
-    list: '/api/lexical/list',
-    update: '/api/lexical/update',
-    batchUpdate: '/api/lexical/batch-update',
-    delete: (lemma: string) => `/api/lexical/delete/${encodeURIComponent(lemma)}`,
-    status: (taskId: string) => `/api/lexical/status/${encodeURIComponent(taskId)}`,
+    create: '/api/v1/lexical/create',
+    batchCreate: '/api/v1/lexical/batch-create',
+    get: (lemma: string) => `/api/v1/lexical/get/${encodeURIComponent(lemma)}`,
+    list: '/api/v1/lexical/list',
+    update: '/api/v1/lexical/update',
+    batchUpdate: '/api/v1/lexical/batch-update',
+    delete: (lemma: string) => `/api/v1/lexical/delete/${encodeURIComponent(lemma)}`,
+    status: (taskId: string) => `/api/v1/lexical/status/${encodeURIComponent(taskId)}`,
   },
   corpus: {
-    list: '/api/corpus/list',
-    search: '/api/corpus/search',
-    all: '/api/corpus/all',
-    text: (id: string) => `/api/corpus/text/${encodeURIComponent(id)}`,
-    category: (category: string) => `/api/corpus/category/${encodeURIComponent(category)}`,
+    list: '/api/v1/corpus/list',
+    search: '/api/v1/corpus/search',
+    all: '/api/v1/corpus/all',
+    text: (id: string) => `/api/v1/corpus/text/${encodeURIComponent(id)}`,
+    category: (category: string) => `/api/v1/corpus/category/${encodeURIComponent(category)}`,
   },
 };

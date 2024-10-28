@@ -5,14 +5,17 @@ Main FastAPI application entry point.
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+import logging
 
 from app.core.config import settings
 from app.api import api_router
 
-# Initialize logging
-from src.logging_config import initialize_logger, get_logger
-initialize_logger()
-logger = get_logger()
+# Initialize basic logging
+logging.basicConfig(
+    level=settings.LOG_LEVEL,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 # Create FastAPI app
 app = FastAPI(

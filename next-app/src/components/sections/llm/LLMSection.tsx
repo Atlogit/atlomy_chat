@@ -139,6 +139,9 @@ export function LLMSection() {
             placeholder="Ask a question about the texts..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            spellCheck={false}
+            data-ms-editor={true}
+            suppressHydrationWarning
           />
           <div className="flex gap-2 mt-4">
             <Button

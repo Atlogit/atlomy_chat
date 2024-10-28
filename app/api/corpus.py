@@ -5,9 +5,11 @@ API routes for corpus-related operations.
 from typing import Dict, List, Optional
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
+import logging
 
 from app.dependencies import CorpusServiceDep
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # Request/Response Models
@@ -48,13 +50,20 @@ async def search_texts(
 ) -> List[Dict]:
     """Search texts in the corpus."""
     try:
-        return await corpus_service.search_texts(
+        logger.debug(f"Search request: {data}")
+        result = await corpus_service.search_texts(
             data.query,
             search_lemma=data.search_lemma,
             categories=data.categories
         )
+        logger.debug(f"Search result count: {len(result)}")
+        return result
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Search error: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Error searching texts: {str(e)}"
+        )
 
 @router.get("/text/{text_id}", response_model=TextResponse)
 async def get_text(
@@ -76,7 +85,11 @@ async def search_by_category(
     try:
         return await corpus_service.search_by_category(category)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Category search error: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Error searching by category: {str(e)}"
+        )
 
 @router.get("/all", response_model=List[TextResponse])
 async def get_all_texts(
@@ -89,4 +102,8 @@ async def get_all_texts(
             return await corpus_service.get_all_texts()
         return await corpus_service.list_texts()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Get all texts error: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Error getting all texts: {str(e)}"
+        )

@@ -1,0 +1,17 @@
+
+=== Pipeline Execution Report ===
+Execution time: 0:00:08.528173
+
+Issues Summary:
+- Loading issues: 1
+- Citation migration issues: 0
+- Sentence processing issues: 0
+- NLP processing issues: 0
+- Validation issues: 0
+
+Loading Issues:
+- corpus_directory: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.exceptions.UniqueViolationError'>: duplicate key value violates unique constraint "ix_authors_reference_code"
+DETAIL:  Key (reference_code)=(TLG0057) already exists.
+[SQL: INSERT INTO authors (name, reference_code, normalized_name, language_code, created_at, updated_at) VALUES ($1::VARCHAR, $2::VARCHAR, $3::VARCHAR, $4::VARCHAR, $5::TIMESTAMP WITHOUT TIME ZONE, $6::TIMESTAMP WITHOUT TIME ZONE) RETURNING authors.id]
+[parameters: ('Author 0057', 'TLG0057', None, 'grc', datetime.datetime(2024, 10, 27, 22, 56, 32, 793453), datetime.datetime(2024, 10, 27, 22, 56, 32, 793454))]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)

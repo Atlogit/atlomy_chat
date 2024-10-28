@@ -5,8 +5,9 @@ Handles text retrieval, searching, and metadata management with Redis caching.
 
 from typing import List, Dict, Optional, Union
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, or_
+from sqlalchemy import select, or_, cast, JSON, String, and_
 from sqlalchemy.orm import joinedload
+import logging
 
 from app.models.text import Text
 from app.models.text_division import TextDivision
@@ -14,6 +15,8 @@ from app.models.text_line import TextLine
 from app.models.author import Author
 from app.core.redis import redis_client
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 class CorpusService:
     def __init__(self, session: AsyncSession):
@@ -78,72 +81,90 @@ class CorpusService:
             search_lemma: Whether to search by lemma
             categories: Optional list of categories to filter by
         """
-        # Generate cache key based on search parameters
-        cache_key = await self._cache_key(
-            "search",
-            f"{query}_{search_lemma}_{'-'.join(categories or [])}"
-        )
-        
-        # Try to get from cache
-        cached_data = await self.redis.get(cache_key)
-        if cached_data:
-            return cached_data
-        
-        base_query = (
-            select(TextLine)
-            .join(TextDivision)
-            .join(Text)
-            .join(Author)
-        )
+        try:
+            logger.debug(f"Starting search with query: {query}, lemma: {search_lemma}, categories: {categories}")
+            
+            # Generate cache key based on search parameters
+            cache_key = await self._cache_key(
+                "search",
+                f"{query}_{search_lemma}_{'-'.join(categories or [])}"
+            )
+            
+            # Try to get from cache
+            cached_data = await self.redis.get(cache_key)
+            if cached_data:
+                logger.debug("Returning cached search results")
+                return cached_data
+            
+            base_query = (
+                select(TextLine)
+                .join(TextDivision)
+                .join(Text)
+                .join(Author)
+            )
 
-        filters = []
-        
-        if search_lemma:
-            # Search in spacy_tokens JSONB for lemmas
-            filters.append(TextLine.spacy_tokens['lemma'].astext.ilike(f'%{query}%'))
-        else:
-            # Full text search in content
-            filters.append(TextLine.content.ilike(f'%{query}%'))
+            filters = []
+            
+            if search_lemma:
+                # Search in spacy_tokens JSON for lemmas
+                # Only search non-null spacy_tokens
+                filters.append(
+                    and_(
+                        TextLine.spacy_tokens.isnot(None),
+                        cast(TextLine.spacy_tokens, String).ilike(f'%"lemma":"%{query}%"%')
+                    )
+                )
+            else:
+                # Full text search in content
+                filters.append(TextLine.content.ilike(f'%{query}%'))
 
-        if categories:
-            # Filter by any of the specified categories
-            filters.append(TextLine.categories.overlap(categories))
+            if categories:
+                # Filter by any of the specified categories
+                filters.append(TextLine.categories.overlap(categories))
 
-        search_query = base_query.filter(or_(*filters))
-        result = await self.session.execute(search_query)
-        lines = result.scalars().all()
+            search_query = base_query.filter(or_(*filters))
+            logger.debug(f"Executing search query: {str(search_query)}")
+            
+            result = await self.session.execute(search_query)
+            lines = result.scalars().all()
+            logger.debug(f"Found {len(lines)} matching lines")
 
-        data = [
-            {
-                "text_id": line.division.text.id,
-                "text_title": line.division.text.title,
-                "author": line.division.text.author.name if line.division.text.author else None,
-                "division": {
-                    "book_levels": {
-                        f"level_{i}": getattr(line.division, f"book_level_{i}")
-                        for i in range(1, 5)
-                        if getattr(line.division, f"book_level_{i}")
+            data = [
+                {
+                    "text_id": str(line.division.text.id),
+                    "text_title": line.division.text.title,
+                    "author": line.division.text.author.name if line.division.text.author else None,
+                    "division": {
+                        "author_id_field": line.division.author_id_field,
+                        "work_number_field": line.division.work_number_field,
+                        "epithet_field": line.division.epithet_field,
+                        "fragment_field": line.division.fragment_field,
+                        "volume": line.division.volume,
+                        "chapter": line.division.chapter,
+                        "section": line.division.section,
+                        "is_title": line.division.is_title,
+                        "title_number": line.division.title_number,
+                        "title_text": line.division.title_text
                     },
-                    "volume": line.division.volume,
-                    "chapter": line.division.chapter,
-                    "section": line.division.section
-                },
-                "line_number": line.line_number,
-                "content": line.content,
-                "categories": line.categories,
-                "spacy_data": line.spacy_tokens
-            }
-            for line in lines
-        ]
-        
-        # Cache search results with shorter TTL
-        await self.redis.set(
-            cache_key,
-            data,
-            ttl=settings.redis.SEARCH_CACHE_TTL
-        )
-        
-        return data
+                    "line_number": line.line_number,
+                    "content": line.content,
+                    "categories": line.categories or [],
+                    "spacy_data": line.spacy_tokens
+                }
+                for line in lines
+            ]
+            
+            # Cache search results with shorter TTL
+            await self.redis.set(
+                cache_key,
+                data,
+                ttl=settings.redis.SEARCH_CACHE_TTL
+            )
+            
+            return data
+        except Exception as e:
+            logger.error(f"Error in search_texts: {str(e)}", exc_info=True)
+            raise
 
     async def get_text_by_id(self, text_id: int) -> Optional[Dict]:
         """Get a specific text by its ID with all its divisions and lines (cached)."""
@@ -178,21 +199,23 @@ class CorpusService:
             "divisions": [
                 {
                     "id": str(div.id),
-                    "book_levels": {
-                        f"level_{i}": getattr(div, f"book_level_{i}")
-                        for i in range(1, 5)
-                        if getattr(div, f"book_level_{i}")
-                    },
+                    "author_id_field": div.author_id_field,
+                    "work_number_field": div.work_number_field,
+                    "epithet_field": div.epithet_field,
+                    "fragment_field": div.fragment_field,
                     "volume": div.volume,
                     "chapter": div.chapter,
                     "section": div.section,
+                    "is_title": div.is_title,
+                    "title_number": div.title_number,
+                    "title_text": div.title_text,
                     "metadata": div.division_metadata,
                     "lines": [
                         {
                             "line_number": line.line_number,
                             "content": line.content,
-                            "categories": line.categories,
-                            "spacy_data": line.spacy_tokens
+                            "categories": line.categories or [],
+                            "spacy_tokens": line.spacy_tokens
                         }
                         for line in sorted(div.lines, key=lambda x: x.line_number)
                     ]
@@ -232,22 +255,24 @@ class CorpusService:
         
         data = [
             {
-                "text_id": line.division.text.id,
+                "text_id": str(line.division.text.id),
                 "text_title": line.division.text.title,
                 "author": line.division.text.author.name if line.division.text.author else None,
                 "division": {
-                    "book_levels": {
-                        f"level_{i}": getattr(line.division, f"book_level_{i}")
-                        for i in range(1, 5)
-                        if getattr(line.division, f"book_level_{i}")
-                    },
+                    "author_id_field": line.division.author_id_field,
+                    "work_number_field": line.division.work_number_field,
+                    "epithet_field": line.division.epithet_field,
+                    "fragment_field": line.division.fragment_field,
                     "volume": line.division.volume,
                     "chapter": line.division.chapter,
-                    "section": line.division.section
+                    "section": line.division.section,
+                    "is_title": line.division.is_title,
+                    "title_number": line.division.title_number,
+                    "title_text": line.division.title_text
                 },
                 "line_number": line.line_number,
                 "content": line.content,
-                "categories": line.categories,
+                "categories": line.categories or [],
                 "spacy_data": line.spacy_tokens
             }
             for line in lines
