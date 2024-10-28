@@ -88,20 +88,32 @@ class Text(Base):
     reference_code: Mapped[Optional[str]]  # [0057] format
     text_metadata: Mapped[Optional[Dict[str, Any]]]
 ```
-
 #### TextDivision Model
 ```python
 class TextDivision(Base):
-    """Handles complex text hierarchies."""
+    """Model for storing text divisions with both citation and structural components."""
     id: Mapped[int]
     text_id: Mapped[int]
-    book_level_1: Mapped[Optional[str]]
-    book_level_2: Mapped[Optional[str]]
-    book_level_3: Mapped[Optional[str]]
-    book_level_4: Mapped[Optional[str]]
-    volume: Mapped[Optional[str]]
-    chapter: Mapped[Optional[str]]
-    section: Mapped[Optional[str]]
+    
+    # Citation components
+    author_id_field: Mapped[str]      # e.g., [0086]
+    work_number_field: Mapped[str]     # e.g., [055]
+    epithet_field: Mapped[Optional[str]]    # e.g., [Divis]
+    fragment_field: Mapped[Optional[str]]   # Optional fragment reference
+    
+    # Structural components
+    volume: Mapped[Optional[str]]      # Volume reference
+    chapter: Mapped[Optional[str]]     # Chapter reference
+    line: Mapped[Optional[str]]        # Line reference
+    section: Mapped[Optional[str]]     # Section reference (e.g., 847a)
+    
+    # Title components
+    is_title: Mapped[bool]
+    title_number: Mapped[Optional[str]]  # Title reference number
+    title_text: Mapped[Optional[str]]    # Title content
+    
+    # Additional metadata
+    division_metadata: Mapped[Optional[Dict[str, Any]]]
 ```
 
 #### TextLine Model

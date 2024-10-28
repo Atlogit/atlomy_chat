@@ -1,6 +1,5 @@
 """
-FastAPI dependency injection utilities.
-Provides dependencies for database sessions and services.
+FastAPI dependencies for service injection and database session management.
 """
 
 from typing import AsyncGenerator, Annotated
@@ -8,36 +7,45 @@ from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import async_session_maker
-from app.services import CorpusService, LexicalService, LLMService
+from app.core.redis import redis_client
+from app.services.corpus_service import CorpusService
+from app.services.lexical_service import LexicalService
+from app.services.llm_service import LLMService
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """Dependency provider for database sessions."""
+    """Get database session."""
     async with async_session_maker() as session:
         try:
             yield session
         finally:
             await session.close()
 
+async def get_redis():
+    """Get Redis client."""
+    await redis_client.init()
+    try:
+        yield redis_client
+    finally:
+        pass  # Don't close Redis connection here as it's a singleton
+
 async def get_corpus_service(
-    session: Annotated[AsyncSession, Depends(get_db)]
+    session: AsyncSession = Depends(get_db)
 ) -> CorpusService:
-    """Dependency provider for CorpusService."""
+    """Get CorpusService instance."""
     return CorpusService(session)
 
 async def get_lexical_service(
-    session: Annotated[AsyncSession, Depends(get_db)]
+    session: AsyncSession = Depends(get_db)
 ) -> LexicalService:
-    """Dependency provider for LexicalService."""
+    """Get LexicalService instance."""
     return LexicalService(session)
 
-async def get_llm_service(
-    session: Annotated[AsyncSession, Depends(get_db)]
-) -> LLMService:
-    """Dependency provider for LLMService."""
-    return LLMService(session)
+async def get_llm_service() -> LLMService:
+    """Get LLMService instance."""
+    return LLMService()
 
-# Type annotations for use in route functions
-DBSession = Annotated[AsyncSession, Depends(get_db)]
+# Type annotations for dependency injection
 CorpusServiceDep = Annotated[CorpusService, Depends(get_corpus_service)]
 LexicalServiceDep = Annotated[LexicalService, Depends(get_lexical_service)]
 LLMServiceDep = Annotated[LLMService, Depends(get_llm_service)]
+RedisDep = Annotated[redis_client.__class__, Depends(get_redis)]

@@ -93,7 +93,6 @@ To meet our objectives, the system is divided into two primary components: **Tex
   3. Store analysis results with citation and text links for further review.
 
 ---
-
 ## Database Schema Design
 
 The database schema is structured to support the hierarchical, multilingual data and facilitate NLP and LLM workflows.
@@ -119,11 +118,23 @@ CREATE TABLE texts (
 CREATE TABLE text_divisions (
     id SERIAL PRIMARY KEY,
     text_id INTEGER REFERENCES texts,
-    book_number TEXT,
-    chapter_number TEXT,
-    section_number TEXT,
-    page_number INTEGER,
-    metadata JSONB
+    -- Citation components
+    author_id_field VARCHAR(20) NOT NULL,    -- e.g., [0086]
+    work_number_field VARCHAR(20) NOT NULL,   -- e.g., [055]
+    epithet_field VARCHAR(100),              -- e.g., [Divis]
+    fragment_field VARCHAR(100),             -- Optional fragment reference
+    -- Structural components
+    volume VARCHAR(50),                      -- Volume reference
+    chapter VARCHAR(50),                     -- Chapter reference
+    line VARCHAR(50),                        -- Line reference
+    section VARCHAR(50),                     -- Section reference (e.g., 847a)
+    -- Title components
+    is_title BOOLEAN DEFAULT FALSE,
+    title_number VARCHAR(50),                -- Title reference number
+    title_text TEXT,                         -- Title content
+    -- Additional metadata
+    division_metadata JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE text_lines (
@@ -131,7 +142,8 @@ CREATE TABLE text_lines (
     division_id INTEGER REFERENCES text_divisions,
     line_number INTEGER,
     content TEXT,
-    spacy_tokens JSONB,  -- Holds spaCy token data
+    categories TEXT[],                       -- Array of category tags
+    spacy_tokens JSONB,                      -- Full spaCy analysis
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -157,6 +169,18 @@ CREATE TABLE lemma_analyses (
 ```
 
 ### Key Points in the Schema Design
+
+- **Citation Structure**: Text divisions now include both citation components (author_id_field, work_number_field, etc.) and structural components (volume, chapter, line, section) to support flexible citation formats.
+- **Title Support**: Added title-specific fields (is_title, title_number, title_text) to handle title entries properly.
+- **JSONB Columns**: Fields like `metadata`, `spacy_tokens`, and `division_metadata` use JSONB for flexible storage of variable attributes.
+- **Relationships**: Tables are linked through foreign keys to maintain referential integrity and streamline queries.
+- **Categories**: Text lines include a categories array for efficient categorization and searching.
+- **Indexes**: Create indexes on frequently queried fields:
+  ```sql
+  CREATE INDEX idx_text_divisions_citation ON text_divisions(author_id_field, work_number_field);
+  CREATE INDEX idx_text_lines_categories ON text_lines USING GIN(categories);
+  CREATE INDEX idx_text_lines_spacy_tokens ON text_lines USING GIN(spacy_tokens);
+  ```
 
 - **JSONB Columns**: Fields like `metadata` and `spacy_tokens` are JSONB, allowing for flexible storage of variable token attributes and custom metadata.
 - **Relationships**: Tables are linked through foreign keys (e.g., `lemmas` to `lemma_analyses`, `text_divisions` to `text_lines`) to maintain referential integrity and streamline queries.

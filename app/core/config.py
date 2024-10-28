@@ -36,6 +36,22 @@ class LLMConfig(BaseSettings):
     MAX_CONTEXT_LENGTH: int = int(os.getenv("LLM_MAX_CONTEXT_LENGTH", "100000"))
     CONTEXT_WINDOW: int = int(os.getenv("LLM_CONTEXT_WINDOW", "8192"))
 
+class RedisConfig(BaseSettings):
+    # Redis connection settings
+    REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379")
+    REDIS_DB: int = int(os.getenv("REDIS_DB", "0"))
+    REDIS_PASSWORD: Optional[str] = os.getenv("REDIS_PASSWORD")
+    
+    # Cache settings
+    CACHE_TTL: int = int(os.getenv("CACHE_TTL", "3600"))  # Default 1 hour
+    TEXT_CACHE_TTL: int = int(os.getenv("TEXT_CACHE_TTL", "86400"))  # Default 24 hours
+    SEARCH_CACHE_TTL: int = int(os.getenv("SEARCH_CACHE_TTL", "1800"))  # Default 30 minutes
+    
+    # Cache prefixes for different types of data
+    TEXT_CACHE_PREFIX: str = "text:"
+    SEARCH_CACHE_PREFIX: str = "search:"
+    CATEGORY_CACHE_PREFIX: str = "category:"
+
 class Settings(BaseSettings):
     # Database settings
     DATABASE_URL: str = os.getenv(
@@ -48,6 +64,9 @@ class Settings(BaseSettings):
     
     # LLM settings
     llm: LLMConfig = LLMConfig()
+    
+    # Redis settings
+    redis: RedisConfig = RedisConfig()
     
     # Application settings
     DEBUG: bool = False

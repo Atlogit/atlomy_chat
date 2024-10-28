@@ -11,6 +11,9 @@ sqlalchemy
 alembic
 asyncpg
 
+# Caching
+aioredis>=2.0.0
+
 # AWS
 boto3
 langchain-aws

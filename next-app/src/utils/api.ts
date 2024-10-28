@@ -81,10 +81,77 @@ export function formatResults(data: unknown): string {
   }
 }
 
+// Enhanced types for the new database schema
+export interface TextDivision {
+  id: string;
+  // Citation components
+  author_id_field: string;
+  work_number_field: string;
+  epithet_field?: string;
+  fragment_field?: string;
+  // Structural components
+  volume?: string;
+  chapter?: string;
+  line?: string;
+  section?: string;
+  // Title components
+  is_title: boolean;
+  title_number?: string;
+  title_text?: string;
+  // Additional data
+  metadata?: Record<string, unknown>;
+  lines: TextLine[];
+}
+
+export interface TextLine {
+  line_number: number;
+  content: string;
+  categories: string[];
+  spacy_tokens?: Record<string, unknown>;
+}
+
+export interface Text {
+  id: string;
+  title: string;
+  author?: string;
+  reference_code?: string;
+  metadata?: Record<string, unknown>;
+  divisions?: TextDivision[];
+}
+
+export interface SearchResult {
+  text_id: string;
+  text_title: string;
+  author?: string;
+  division: {
+    author_id_field: string;
+    work_number_field: string;
+    epithet_field?: string;
+    fragment_field?: string;
+    volume?: string;
+    chapter?: string;
+    line?: string;
+    section?: string;
+    is_title: boolean;
+    title_number?: string;
+    title_text?: string;
+  };
+  line_number: number;
+  content: string;
+  categories: string[];
+  spacy_tokens?: Record<string, unknown>;
+}
+
 export interface LexicalValue {
   lemma: string;
   translation: string;
   references?: string[];
+}
+
+export interface TextSearchRequest {
+  query: string;
+  searchLemma?: boolean;
+  categories?: string[];
 }
 
 export interface LexicalBatchCreateRequest {
@@ -97,11 +164,6 @@ export interface LexicalBatchUpdateRequest {
     lemma: string;
     translation: string;
   }>;
-}
-
-export interface TextSearchRequest {
-  query: string;
-  searchLemma?: boolean;
 }
 
 export interface CreateResponse {
@@ -136,5 +198,7 @@ export const API = {
     list: '/api/corpus/list',
     search: '/api/corpus/search',
     all: '/api/corpus/all',
+    text: (id: string) => `/api/corpus/text/${encodeURIComponent(id)}`,
+    category: (category: string) => `/api/corpus/category/${encodeURIComponent(category)}`,
   },
 };

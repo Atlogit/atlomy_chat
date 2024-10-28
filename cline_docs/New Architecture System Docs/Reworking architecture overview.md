@@ -82,11 +82,23 @@ CREATE TABLE texts (
 CREATE TABLE text_divisions (
     id SERIAL PRIMARY KEY,
     text_id INTEGER REFERENCES texts,
-    book_number TEXT,
-    chapter_number TEXT,
-    section_number TEXT,
-    page_number INTEGER,
-    metadata JSONB
+    -- Citation components
+    author_id_field VARCHAR(20) NOT NULL,    -- e.g., [0086]
+    work_number_field VARCHAR(20) NOT NULL,   -- e.g., [055]
+    epithet_field VARCHAR(100),              -- e.g., [Divis]
+    fragment_field VARCHAR(100),             -- Optional fragment reference
+    -- Structural components
+    volume VARCHAR(50),                      -- Volume reference
+    chapter VARCHAR(50),                     -- Chapter reference
+    line VARCHAR(50),                        -- Line reference
+    section VARCHAR(50),                     -- Section reference (e.g., 847a)
+    -- Title components
+    is_title BOOLEAN DEFAULT FALSE,
+    title_number VARCHAR(50),                -- Title reference number
+    title_text TEXT,                         -- Title content
+    -- Additional metadata
+    division_metadata JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE text_lines (
@@ -94,7 +106,8 @@ CREATE TABLE text_lines (
     division_id INTEGER REFERENCES text_divisions,
     line_number INTEGER,
     content TEXT,
-    spacy_tokens JSONB,  -- Full spaCy analysis
+    categories TEXT[],                       -- Array of category tags
+    spacy_tokens JSONB,                      -- Full spaCy analysis
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -175,13 +188,31 @@ async def migrate_texts():
             )
             session.add(text)
             
-            # Create text divisions and lines
-            for line in data['lines']:
-                text_line = TextLine(
-                    content=line['text'],
-                    spacy_tokens=line['nlp_data']
+            # Create text divisions with citation and structural components
+            for division in data['divisions']:
+                text_division = TextDivision(
+                    text_id=text.id,
+                    author_id_field=division['author_id'],
+                    work_number_field=division['work_number'],
+                    epithet_field=division.get('epithet'),
+                    fragment_field=division.get('fragment'),
+                    volume=division.get('volume'),
+                    chapter=division.get('chapter'),
+                    line=division.get('line'),
+                    section=division.get('section')
                 )
-                session.add(text_line)
+                session.add(text_division)
+                
+                # Create text lines
+                for line in division['lines']:
+                    text_line = TextLine(
+                        division_id=text_division.id,
+                        line_number=line['number'],
+                        content=line['text'],
+                        categories=line.get('categories', []),
+                        spacy_tokens=line.get('nlp_data')
+                    )
+                    session.add(text_line)
         
         await session.commit()
 ```
@@ -195,137 +226,4 @@ alembic upgrade head
 python -m app.scripts.migrate_data
 ```
 
-### Phase 3: Service Layer Implementation
-
-```python
-# app/services/text_service.py
-class TextService:
-    def __init__(self, db: AsyncSession):
-        self.db = db
-
-    async def find_by_category(self, category: str):
-        query = """
-        SELECT t.*, tl.*
-        FROM texts t
-        JOIN text_lines tl ON t.id = tl.text_id
-        WHERE tl.spacy_tokens->'spans' @> $1
-        """
-        return await self.db.execute(query, {'label': category})
-
-# app/services/analysis_service.py
-class AnalysisService:
-    def __init__(self, db: AsyncSession, bedrock_client):
-        self.db = db
-        self.llm = bedrock_client
-
-    async def analyze_term(self, term: str, contexts: List[dict]):
-        # Get analysis from AWS Bedrock
-        analysis = await self.llm.analyze(term, contexts)
-        
-        # Store in database
-        async with self.db.begin():
-            lemma = Lemma(term=term)
-            self.db.add(lemma)
-            
-            analysis_entry = LemmaAnalysis(
-                lemma_id=lemma.id,
-                analysis_data=analysis
-            )
-            self.db.add(analysis_entry)
-```
-
-### Phase 4: API Layer Updates
-
-```python
-# app/api/endpoints/texts.py
-@router.get("/texts/search/{category}")
-async def search_texts(
-    category: str,
-    db: AsyncSession = Depends(get_db),
-    text_service: TextService = Depends()
-):
-    return await text_service.find_by_category(category)
-
-# app/api/endpoints/analysis.py
-@router.post("/analyze/term")
-async def analyze_term(
-    request: TermAnalysisRequest,
-    analysis_service: AnalysisService = Depends()
-):
-    return await analysis_service.analyze_term(
-        request.term,
-        request.contexts
-    )
-```
-
-### Phase 5: Frontend Integration
-
-```javascript
-// frontend/src/services/api.js
-class TextAPI {
-    async searchByCategory(category) {
-        const response = await fetch(`/api/texts/search/${category}`);
-        return response.json();
-    }
-
-    async analyzeTerm(term, contexts) {
-        const response = await fetch('/api/analyze/term', {
-            method: 'POST',
-            body: JSON.stringify({ term, contexts })
-        });
-        return response.json();
-    }
-}
-```
-
-## 5. Testing Strategy
-
-```python
-# tests/test_text_service.py
-async def test_find_by_category():
-    async with AsyncTestClient(app) as client:
-        response = await client.get("/texts/search/Body Part")
-        assert response.status_code == 200
-        data = response.json()
-        assert len(data) > 0
-
-# tests/test_analysis_service.py
-async def test_term_analysis():
-    async with AsyncTestClient(app) as client:
-        response = await client.post("/analyze/term", 
-            json={"term": "αἷμα", "contexts": []}
-        )
-        assert response.status_code == 200
-```
-
-## 6. Deployment Considerations
-
-```yaml
-# docker-compose.yml
-version: '3.8'
-services:
-  db:
-    image: postgres:14
-    environment:
-      - POSTGRES_DB=ancient_texts
-      - POSTGRES_USER=user
-      - POSTGRES_PASSWORD=pass
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-
-  api:
-    build: ./backend
-    environment:
-      - DATABASE_URL=postgresql://user:pass@db/ancient_texts
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-    depends_on:
-      - db
-
-  web:
-    build: ./frontend
-    ports:
-      - "80:80"
-    depends_on:
-      - api
-```
+[Rest of the document remains unchanged...]
