@@ -4,74 +4,105 @@ import React, { useState, useEffect } from 'react'
 import { Button } from '../../../components/ui/Button'
 import { ResultsDisplay } from '../../../components/ui/ResultsDisplay'
 import { useApi } from '../../../hooks/useApi'
-import { API } from '../../../utils/api'
-
-interface CorpusText {
-  id?: string
-  title: string
-  author?: string
-  language?: string
-  description?: string
-}
-
-type ApiResponse = CorpusText[] | { texts: CorpusText[] } | Record<string, never>
+import { API, Text, TextDivision } from '../../../utils/api'
 
 interface ListTextsProps {
   onTextSelect: (textId: string) => void
 }
 
 export function ListTexts({ onTextSelect }: ListTextsProps) {
-  const [texts, setTexts] = useState<CorpusText[]>([])
-  const { data, error, isLoading, execute } = useApi<ApiResponse>()
+  const [texts, setTexts] = useState<Text[]>([])
+  const { data, error, isLoading, execute } = useApi<Text[]>()
 
   useEffect(() => {
-    console.log('ListTexts component mounted')
     loadTexts()
   }, [])
 
   useEffect(() => {
-    console.log('Data received from API:', data)
     if (data) {
-      if (Array.isArray(data)) {
-        console.log('Setting texts from array:', data)
-        setTexts(data)
-      } else if (typeof data === 'object' && 'texts' in data && Array.isArray(data.texts)) {
-        console.log('Setting texts from object:', data.texts)
-        setTexts(data.texts)
-      } else if (typeof data === 'object' && Object.keys(data).length === 0) {
-        console.warn('API returned an empty object')
-        setTexts([])
-      } else {
-        console.error('Unexpected API response format:', data)
-        setTexts([])
-      }
+      setTexts(data)
     }
   }, [data])
 
   const loadTexts = async () => {
-    console.log('Executing API call')
     await execute(API.corpus.list)
   }
-
-  console.log('Current texts state:', texts)
 
   if (isLoading) {
     return (
       <div className="flex justify-center p-4">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+        <span className="loading loading-spinner loading-lg"></span>
       </div>
     )
   }
 
   if (error) {
-    console.error('Error loading texts:', error)
     return <ResultsDisplay error={`Error loading texts: ${error.message}`} content={null} />
   }
 
-  const getUniqueKey = (text: CorpusText, index: number) => {
-    if (text.id) return `text-${text.id}`
-    if (text.title) return `text-${text.title.slice(0, 20)}-${index}`
-    return `text-${index}`
+  const getUniqueKey = (text: Text) => {
+    return `text-${text.id}`
+  }
+
+  const renderMetadata = (text: Text) => {
+    if (!text.metadata) return null
+
+    const importantFields = ['language', 'period', 'genre', 'source']
+    const displayFields = Object.entries(text.metadata)
+      .filter(([key]) => importantFields.includes(key))
+
+    if (displayFields.length === 0) return null
+
+    return (
+      <div className="flex flex-wrap gap-2 mt-2">
+        {displayFields.map(([key, value]) => (
+          <div key={key} className="badge badge-outline badge-sm">
+            {key}: {String(value)}
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  const renderCitationInfo = (division: TextDivision) => {
+    const parts = []
+    
+    if (division.author_id_field) {
+      parts.push(`[${division.author_id_field}]`)
+    }
+    if (division.work_number_field) {
+      parts.push(`[${division.work_number_field}]`)
+    }
+    if (division.epithet_field) {
+      parts.push(`[${division.epithet_field}]`)
+    }
+    if (division.fragment_field) {
+      parts.push(`(fr. ${division.fragment_field})`)
+    }
+
+    return parts.join(' ')
+  }
+
+  const renderStructureInfo = (divisions: TextDivision[]) => {
+    const structure = new Set<string>()
+    
+    divisions.forEach(div => {
+      if (div.volume) structure.add('Volumes')
+      if (div.chapter) structure.add('Chapters')
+      if (div.section) structure.add('Sections')
+      if (div.line) structure.add('Lines')
+      if (div.is_title) structure.add('Titles')
+    })
+
+    return Array.from(structure).join(' • ')
+  }
+
+  const getDivisionCount = (divisions: TextDivision[]) => {
+    const counts = {
+      total: divisions.length,
+      titles: divisions.filter(d => d.is_title).length
+    }
+    return `${counts.total} divisions${counts.titles > 0 ? ` (${counts.titles} titles)` : ''}`
   }
 
   return (
@@ -82,33 +113,49 @@ export function ListTexts({ onTextSelect }: ListTextsProps) {
         </div>
       ) : (
         <div className="grid gap-4">
-          {texts.map((text, index) => (
-            <div key={getUniqueKey(text, index)} className="card bg-base-200">
+          {texts.map((text) => (
+            <div key={getUniqueKey(text)} className="card bg-base-200">
               <div className="card-body">
-                <h3 className="card-title text-lg">
-                  {text.title}
-                  {text.author && (
-                    <span className="text-base-content/70 text-sm">
-                      by {text.author}
-                    </span>
-                  )}
-                </h3>
-                <React.Fragment key={`details-${getUniqueKey(text, index)}`}>
-                  {text.description && (
-                    <p className="text-base-content/70">{text.description}</p>
-                  )}
-                  {text.language && (
-                    <div className="badge badge-outline">{text.language}</div>
-                  )}
-                </React.Fragment>
-                <div className="card-actions justify-end mt-2">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="card-title text-lg">
+                      {text.title}
+                      {text.author && (
+                        <span className="text-base-content/70 text-sm ml-2">
+                          by {text.author}
+                        </span>
+                      )}
+                    </h3>
+                    <div className="text-sm font-mono text-base-content/70 mt-1">
+                      {text.reference_code && (
+                        <div>Reference: {text.reference_code}</div>
+                      )}
+                      {text.divisions && text.divisions[0] && (
+                        <div>Citation: {renderCitationInfo(text.divisions[0])}</div>
+                      )}
+                    </div>
+                  </div>
                   <Button
-                    onClick={() => onTextSelect(text.id || `fallback-${index}`)}
+                    onClick={() => onTextSelect(text.id)}
                     variant="outline"
+                    className="btn-sm"
                   >
                     View Text
                   </Button>
                 </div>
+
+                {/* Metadata Display */}
+                {renderMetadata(text)}
+
+                {/* Division Summary */}
+                {text.divisions && text.divisions.length > 0 && (
+                  <div className="mt-4 text-sm text-base-content/70">
+                    <div className="font-medium">Structure: {renderStructureInfo(text.divisions)}</div>
+                    <div className="mt-1 text-xs">
+                      {getDivisionCount(text.divisions)}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           ))}
