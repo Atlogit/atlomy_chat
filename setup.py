@@ -12,8 +12,7 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/Atlogit/atlomy_chat",
-    packages=find_packages(where="src"),
-    package_dir={"": "src"},
+    packages=find_packages(include=["src.*", "app.*"]),
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Developers",
@@ -36,6 +35,14 @@ setup(
         "botocore",
         "pytest",
         "jupyter",
+        "fastapi",
+        "uvicorn",
+        "sqlalchemy",
+        "redis",
+        "aioredis",
+        "asyncpg",
+        "pydantic",
+        "pydantic-settings",
     ],
     entry_points={
         "console_scripts": [

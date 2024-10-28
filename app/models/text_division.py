@@ -36,6 +36,10 @@ class TextDivision(Base):
     epithet_field: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     fragment_field: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     
+    # Author and work names
+    author_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    work_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    
     # Structural components
     volume: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     chapter: Mapped[Optional[str]] = mapped_column(String, nullable=True)
@@ -59,10 +63,19 @@ class TextDivision(Base):
     lines = relationship("TextLine", back_populates="division", cascade="all, delete-orphan")
     
     def __repr__(self) -> str:
-        citation_parts = [
-            f"[{self.author_id_field}]",
-            f"[{self.work_number_field}]"
-        ]
+        citation_parts = []
+        
+        # Use author and work names if available, otherwise use ID fields
+        if self.author_name:
+            citation_parts.append(self.author_name)
+        else:
+            citation_parts.append(f"[{self.author_id_field}]")
+            
+        if self.work_name:
+            citation_parts.append(self.work_name)
+        else:
+            citation_parts.append(f"[{self.work_number_field}]")
+            
         if self.epithet_field:
             citation_parts.append(f"[{self.epithet_field}]")
         if self.fragment_field:
@@ -88,10 +101,34 @@ class TextDivision(Base):
         
         return (
             f"TextDivision(id={self.id}, "
-            f"citation={''.join(citation_parts)}"
+            f"citation={', '.join(citation_parts)}"
             + (f", {', '.join(structure_parts)}" if structure_parts else "")
             + ")"
         )
+
+    def format_citation(self) -> str:
+        """Format a full citation string using author and work names."""
+        # Use author and work names if available, otherwise use ID fields
+        author = self.author_name or f"[{self.author_id_field}]"
+        work = self.work_name or f"[{self.work_number_field}]"
+        
+        citation = f"{author}, {work}"
+        
+        # Add structural components if available
+        components = []
+        if self.volume:
+            components.append(f"Volume {self.volume}")
+        if self.chapter:
+            components.append(f"Chapter {self.chapter}")
+        if self.line:
+            components.append(f"Line {self.line}")
+        if self.section:
+            components.append(f"Section {self.section}")
+            
+        if components:
+            citation += f" ({', '.join(components)})"
+            
+        return citation
 
     def from_citation(self, citation) -> None:
         """Update division fields from a Citation object."""

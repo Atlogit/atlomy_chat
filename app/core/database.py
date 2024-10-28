@@ -34,3 +34,11 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
             yield session
         finally:
             await session.close()
+
+async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
+    """Get an async database session."""
+    async with async_session_maker() as session:
+        try:
+            yield session
+        finally:
+            await session.close()

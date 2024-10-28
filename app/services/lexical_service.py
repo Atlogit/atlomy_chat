@@ -1,181 +1,424 @@
 """
-Service layer for managing lexical operations.
-Handles lemma creation, retrieval, updates, and analysis management.
+Service layer for managing lexical values.
+Handles creation, retrieval, and management of lexical entries.
 """
 
-from typing import List, Dict, Optional, Any
+from typing import Dict, Any, Optional, List
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, or_
-from sqlalchemy.orm import joinedload
+from sqlalchemy import select, text
+import logging
+import json
+import time
 
-from app.models.lemma import Lemma
-from app.models.lemma_analysis import LemmaAnalysis
+from app.models.lexical_value import LexicalValue
+from app.models.text_division import TextDivision
+from app.services.llm_service import LLMService
+from app.services.json_storage_service import JSONStorageService
+from app.core.redis import redis_client
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class LexicalService:
+    """Service for managing lexical values."""
+    
     def __init__(self, session: AsyncSession):
-        """Initialize the lexical service with a database session."""
+        """Initialize the lexical service."""
         self.session = session
+        self.llm_service = LLMService(session)
+        self.json_storage = JSONStorageService()
+        self.cache_ttl = 3600  # 1 hour cache TTL
 
-    async def create_lemma(
+    async def _get_cached_value(self, lemma: str) -> Optional[Dict]:
+        """Get lexical value from cache if available."""
+        try:
+            cache_key = f"lexical_value:{lemma}"
+            cached = await redis_client.get(cache_key)
+            if cached:
+                logger.info(f"Cache hit for lexical value: {lemma}")
+                return json.loads(cached)
+            logger.info(f"Cache miss for lexical value: {lemma}")
+            return None
+        except Exception as e:
+            logger.error(f"Cache error for lexical value {lemma}: {str(e)}")
+            return None
+
+    async def _cache_value(self, lemma: str, data: Dict):
+        """Cache lexical value data."""
+        try:
+            cache_key = f"lexical_value:{lemma}"
+            await redis_client.set(
+                cache_key,
+                json.dumps(data),
+                ttl=self.cache_ttl
+            )
+            logger.info(f"Cached lexical value: {lemma}")
+        except Exception as e:
+            logger.error(f"Failed to cache lexical value {lemma}: {str(e)}")
+
+    async def _invalidate_cache(self, lemma: str):
+        """Invalidate lexical value cache."""
+        try:
+            cache_key = f"lexical_value:{lemma}"
+            await redis_client.delete(cache_key)
+            logger.info(f"Invalidated cache for lexical value: {lemma}")
+        except Exception as e:
+            logger.error(f"Failed to invalidate cache for {lemma}: {str(e)}")
+
+    async def _get_citations(self, word: str, search_lemma: bool) -> List[Dict[str, Any]]:
+        """Get citations with full sentence context for a word/lemma from the database."""
+        try:
+            # Enhanced query to get complete sentence context and proper grouping
+            if search_lemma:
+                query = """
+                WITH sentence_matches AS (
+                    SELECT DISTINCT ON (s.id)
+                        s.id as sentence_id,
+                        s.content as sentence_text,
+                        s.spacy_tokens as sentence_tokens,
+                        tl.id as line_id,
+                        tl.content as line_text,
+                        tl.line_number,
+                        td.id as division_id,
+                        td.author_name,
+                        td.work_name,
+                        td.volume,
+                        td.chapter,
+                        td.section,
+                        -- Get previous and next sentences for context
+                        LAG(s.content) OVER (
+                            PARTITION BY td.id 
+                            ORDER BY tl.line_number
+                        ) as prev_sentence,
+                        LEAD(s.content) OVER (
+                            PARTITION BY td.id 
+                            ORDER BY tl.line_number
+                        ) as next_sentence,
+                        -- Group line numbers for the sentence
+                        array_agg(tl.line_number) OVER (
+                            PARTITION BY s.id
+                        ) as line_numbers
+                    FROM sentences s
+                    JOIN text_lines tl ON s.text_line_id = tl.id
+                    JOIN text_divisions td ON tl.division_id = td.id
+                    WHERE CAST(s.spacy_tokens AS TEXT) ILIKE :pattern
+                )
+                SELECT * FROM sentence_matches
+                """
+                pattern = f'%"lemma":"{word}"%'
+            else:
+                query = """
+                WITH sentence_matches AS (
+                    SELECT DISTINCT ON (s.id)
+                        s.id as sentence_id,
+                        s.content as sentence_text,
+                        s.spacy_tokens as sentence_tokens,
+                        tl.id as line_id,
+                        tl.content as line_text,
+                        tl.line_number,
+                        td.id as division_id,
+                        td.author_name,
+                        td.work_name,
+                        td.volume,
+                        td.chapter,
+                        td.section,
+                        -- Get previous and next sentences for context
+                        LAG(s.content) OVER (
+                            PARTITION BY td.id 
+                            ORDER BY tl.line_number
+                        ) as prev_sentence,
+                        LEAD(s.content) OVER (
+                            PARTITION BY td.id 
+                            ORDER BY tl.line_number
+                        ) as next_sentence,
+                        -- Group line numbers for the sentence
+                        array_agg(tl.line_number) OVER (
+                            PARTITION BY s.id
+                        ) as line_numbers
+                    FROM sentences s
+                    JOIN text_lines tl ON s.text_line_id = tl.id
+                    JOIN text_divisions td ON tl.division_id = td.id
+                    WHERE s.content ILIKE :pattern
+                )
+                SELECT * FROM sentence_matches
+                """
+                pattern = f'%{word}%'
+
+            result = await self.session.execute(text(query), {"pattern": pattern})
+            citations = []
+            
+            for row in result.mappings():
+                # Get the text division for proper citation formatting
+                division_query = select(TextDivision).where(TextDivision.id == row['division_id'])
+                division_result = await self.session.execute(division_query)
+                division = division_result.scalar_one()
+                
+                # Enhanced citation structure with full sentence context
+                citation = {
+                    "sentence": {
+                        "id": str(row["sentence_id"]),
+                        "text": row["sentence_text"],
+                        "prev_sentence": row["prev_sentence"],
+                        "next_sentence": row["next_sentence"],
+                        "tokens": row["sentence_tokens"]
+                    },
+                    "citation": division.format_citation(),
+                    "context": {
+                        "line_id": row["line_id"],
+                        "line_text": row["line_text"],
+                        "line_numbers": row["line_numbers"]
+                    },
+                    "location": {
+                        "volume": row["volume"],
+                        "chapter": row["chapter"],
+                        "section": row["section"]
+                    },
+                    "source": {
+                        "author": row["author_name"],
+                        "work": row["work_name"]
+                    }
+                }
+                citations.append(citation)
+
+            logger.info(f"Found {len(citations)} citations with sentence context for {word}")
+            return citations
+
+        except Exception as e:
+            logger.error(f"Error getting citations for {word}: {str(e)}")
+            raise
+
+    def _validate_lexical_value(self, data: Dict[str, Any]):
+        """Validate lexical value data has all required fields."""
+        required_fields = ['lemma', 'translation', 'short_description', 
+                         'long_description', 'related_terms', 'citations_used']
+        missing_fields = [field for field in required_fields if field not in data]
+        
+        if missing_fields:
+            raise ValueError(f"Missing required fields: {', '.join(missing_fields)}")
+
+    async def create_lexical_entry(
         self,
         lemma: str,
-        language_code: Optional[str] = None,
-        categories: Optional[List[str]] = None,
-        translations: Optional[Dict[str, Any]] = None
-    ) -> Dict:
-        """Create a new lemma entry."""
-        # Check if lemma already exists
-        existing = await self.get_lemma_by_text(lemma)
-        if existing:
+        search_lemma: bool = False,
+        task_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Create a new lexical value entry with JSON storage."""
+        start_time = time.time()
+        
+        try:
+            # Check if entry already exists
+            existing = await self.get_lexical_value(lemma)
+            if existing:
+                return {
+                    "success": False,
+                    "message": "Lexical value already exists",
+                    "entry": existing.to_dict(),
+                    "action": "update"
+                }
+
+            # Get citations with enhanced sentence context
+            citations = await self._get_citations(lemma, search_lemma)
+            
+            # Generate lexical value using LLM
+            analysis = await self.llm_service.create_lexical_value(
+                word=lemma,
+                citations=citations
+            )
+            
+            # Validate the analysis data
+            self._validate_lexical_value(analysis)
+            
+            # Store citations and sentence contexts in structured format
+            analysis['references'] = {
+                'citations': citations,
+                'metadata': {
+                    'search_lemma': search_lemma,
+                    'total_citations': len(citations)
+                }
+            }
+            
+            # Extract sentence contexts and create direct links
+            sentence_contexts = {}
+            if citations:
+                # Use the first citation's sentence for direct linking
+                primary_citation = citations[0]
+                analysis['sentence_id'] = primary_citation['sentence']['id']
+                
+                # Store all sentence contexts
+                for citation in citations:
+                    sentence_id = citation['sentence']['id']
+                    sentence_contexts[sentence_id] = {
+                        'text': citation['sentence']['text'],
+                        'prev': citation['sentence']['prev_sentence'],
+                        'next': citation['sentence']['next_sentence'],
+                        'tokens': citation['sentence']['tokens']
+                    }
+            
+            analysis['sentence_contexts'] = sentence_contexts
+            
+            # Create new entry in database
+            entry = LexicalValue.from_dict(analysis)
+            self.session.add(entry)
+            await self.session.commit()
+            await self.session.refresh(entry)
+            
+            # Store in JSON format
+            entry_dict = entry.to_dict()
+            self.json_storage.save(lemma, entry_dict)
+            
+            # Cache the new entry
+            await self._cache_value(lemma, entry_dict)
+            
+            duration = time.time() - start_time
+            logger.info(f"Created lexical value for {lemma} in {duration:.2f}s")
+            
             return {
-                "success": False,
-                "message": "Lemma already exists",
-                "entry": self._format_lemma(existing),
+                "success": True,
+                "message": "Lexical value created successfully",
+                "entry": entry_dict,
+                "action": "create"
+            }
+            
+        except Exception as e:
+            logger.error(f"Error creating lexical value for {lemma}: {str(e)}")
+            raise
+
+    async def get_lexical_value(self, lemma: str) -> Optional[LexicalValue]:
+        """Get a lexical value by its lemma with linked citations."""
+        try:
+            # Try cache first
+            cached = await self._get_cached_value(lemma)
+            if cached:
+                return LexicalValue.from_dict(cached)
+
+            # Try JSON storage
+            json_data = self.json_storage.load(lemma)
+            if json_data:
+                await self._cache_value(lemma, json_data)
+                return LexicalValue.from_dict(json_data)
+
+            # Query database
+            query = select(LexicalValue).where(LexicalValue.lemma == lemma)
+            result = await self.session.execute(query)
+            entry = result.scalar_one_or_none()
+            
+            if entry:
+                # Cache and store in JSON for future requests
+                entry_dict = entry.to_dict()
+                await self._cache_value(lemma, entry_dict)
+                self.json_storage.save(lemma, entry_dict)
+                
+            return entry
+            
+        except Exception as e:
+            logger.error(f"Error getting lexical value for {lemma}: {str(e)}")
+            raise
+
+    async def update_lexical_value(
+        self,
+        lemma: str,
+        data: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Update an existing lexical value."""
+        try:
+            entry = await self.get_lexical_value(lemma)
+            if not entry:
+                return {
+                    "success": False,
+                    "message": "Lexical value not found",
+                    "action": "update"
+                }
+
+            # Update fields
+            for key, value in data.items():
+                if hasattr(entry, key):
+                    setattr(entry, key, value)
+
+            await self.session.commit()
+            await self.session.refresh(entry)
+            
+            # Update JSON storage
+            entry_dict = entry.to_dict()
+            self.json_storage.save(lemma, entry_dict)
+            
+            # Invalidate cache
+            await self._invalidate_cache(lemma)
+            
+            return {
+                "success": True,
+                "message": "Lexical value updated successfully",
+                "entry": entry_dict,
                 "action": "update"
             }
+            
+        except Exception as e:
+            logger.error(f"Error updating lexical value for {lemma}: {str(e)}")
+            raise
 
-        # Create new lemma
-        new_lemma = Lemma(
-            lemma=lemma,
-            language_code=language_code,
-            categories=categories or [],
-            translations=translations or {}
-        )
-        self.session.add(new_lemma)
-        await self.session.commit()
-        await self.session.refresh(new_lemma)
+    async def delete_lexical_value(self, lemma: str) -> bool:
+        """Delete a lexical value."""
+        try:
+            entry = await self.get_lexical_value(lemma)
+            if not entry:
+                return False
 
-        return {
-            "success": True,
-            "message": "Lexical value created successfully",
-            "entry": self._format_lemma(new_lemma),
-            "action": "create"
-        }
+            await self.session.delete(entry)
+            await self.session.commit()
+            
+            # Delete from JSON storage
+            self.json_storage.delete(lemma)
+            
+            # Invalidate cache
+            await self._invalidate_cache(lemma)
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error deleting lexical value for {lemma}: {str(e)}")
+            raise
 
-    async def get_lemma_by_text(self, lemma: str) -> Optional[Lemma]:
-        """Get a lemma by its text value."""
-        query = (
-            select(Lemma)
-            .options(joinedload(Lemma.analyses))
-            .filter(Lemma.lemma == lemma)
-        )
-        result = await self.session.execute(query)
-        return result.unique().scalar_one_or_none()
-
-    async def list_lemmas(
+    async def list_lexical_values(
         self,
-        language_code: Optional[str] = None,
-        category: Optional[str] = None
-    ) -> List[Dict]:
-        """List all lemmas with optional filtering."""
-        query = select(Lemma).options(joinedload(Lemma.analyses))
+        offset: int = 0,
+        limit: int = 100
+    ) -> List[Dict[str, Any]]:
+        """List lexical values with pagination."""
+        try:
+            query = select(LexicalValue).offset(offset).limit(limit)
+            result = await self.session.execute(query)
+            entries = result.scalars().all()
+            return [entry.to_dict() for entry in entries]
+            
+        except Exception as e:
+            logger.error(f"Error listing lexical values: {str(e)}")
+            raise
 
-        if language_code:
-            query = query.filter(Lemma.language_code == language_code)
-        if category:
-            query = query.filter(Lemma.categories.contains([category]))
+    async def get_linked_citations(self, lemma: str) -> List[Dict[str, Any]]:
+        """Get all citations directly linked to a lexical value."""
+        try:
+            entry = await self.get_lexical_value(lemma)
+            if not entry:
+                return []
+                
+            return entry.get_linked_citations()
+            
+        except Exception as e:
+            logger.error(f"Error getting linked citations for {lemma}: {str(e)}")
+            raise
 
-        result = await self.session.execute(query)
-        lemmas = result.unique().scalars().all()
-        return [self._format_lemma(lemma) for lemma in lemmas]
+    async def get_json_versions(self, lemma: str) -> List[str]:
+        """Get all available JSON versions for a lexical value."""
+        try:
+            return self.json_storage.list_versions(lemma)
+        except Exception as e:
+            logger.error(f"Error getting JSON versions for {lemma}: {str(e)}")
+            raise
 
-    async def update_lemma(
-        self,
-        lemma: str,
-        translations: Optional[Dict[str, Any]] = None,
-        categories: Optional[List[str]] = None,
-        language_code: Optional[str] = None
-    ) -> Dict:
-        """Update an existing lemma."""
-        existing = await self.get_lemma_by_text(lemma)
-        if not existing:
-            return {
-                "success": False,
-                "message": "Lemma not found",
-                "entry": None
-            }
-
-        # Update fields if provided
-        if translations is not None:
-            existing.translations = translations
-        if categories is not None:
-            existing.categories = categories
-        if language_code is not None:
-            existing.language_code = language_code
-
-        await self.session.commit()
-        await self.session.refresh(existing)
-
-        return {
-            "success": True,
-            "message": "Lemma updated successfully",
-            "entry": self._format_lemma(existing)
-        }
-
-    async def delete_lemma(self, lemma: str) -> bool:
-        """Delete a lemma and its analyses."""
-        existing = await self.get_lemma_by_text(lemma)
-        if not existing:
-            return False
-
-        await self.session.delete(existing)
-        await self.session.commit()
-        return True
-
-    async def create_analysis(
-        self,
-        lemma: str,
-        analysis_text: str,
-        created_by: str,
-        analysis_data: Optional[Dict[str, Any]] = None,
-        citations: Optional[Dict[str, Any]] = None
-    ) -> Dict:
-        """Create a new analysis for a lemma."""
-        lemma_obj = await self.get_lemma_by_text(lemma)
-        if not lemma_obj:
-            return {
-                "success": False,
-                "message": "Lemma not found",
-                "entry": None
-            }
-
-        analysis = LemmaAnalysis(
-            lemma_id=lemma_obj.id,
-            analysis_text=analysis_text,
-            created_by=created_by,
-            analysis_data=analysis_data or {},
-            citations=citations or {}
-        )
-        self.session.add(analysis)
-        await self.session.commit()
-        await self.session.refresh(analysis)
-
-        return {
-            "success": True,
-            "message": "Analysis created successfully",
-            "entry": self._format_analysis(analysis)
-        }
-
-    def _format_lemma(self, lemma: Lemma) -> Dict:
-        """Format a lemma object for API response."""
-        return {
-            "id": lemma.id,
-            "lemma": lemma.lemma,
-            "language_code": lemma.language_code,
-            "categories": lemma.categories,
-            "translations": lemma.translations,
-            "analyses": [
-                self._format_analysis(analysis)
-                for analysis in lemma.analyses
-            ]
-        }
-
-    def _format_analysis(self, analysis: LemmaAnalysis) -> Dict:
-        """Format a lemma analysis for API response."""
-        return {
-            "id": analysis.id,
-            "analysis_text": analysis.analysis_text,
-            "analysis_data": analysis.analysis_data,
-            "citations": analysis.citations,
-            "created_by": analysis.created_by
-        }
+    async def get_storage_info(self) -> Dict[str, Any]:
+        """Get information about JSON storage."""
+        try:
+            return self.json_storage.get_storage_info()
+        except Exception as e:
+            logger.error(f"Error getting storage info: {str(e)}")
+            raise

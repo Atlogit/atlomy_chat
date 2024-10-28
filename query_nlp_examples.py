@@ -1,87 +1,147 @@
 """
-Examples of common NLP result queries.
+Test script for NLP query examples.
+Tests various query patterns for searching spacy_tokens.
 """
 
 import asyncio
-from sqlalchemy import select, func
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
-from app.models.text_line import TextLine
+from sqlalchemy import text
+from app.core.database import async_session_maker
+import logging
 
-async def show_nlp_examples():
-    # Create async engine
-    engine = create_async_engine(
-        "postgresql+asyncpg://postgres:postgres@localhost/amta_greek",
-        echo=False
-    )
-    
-    # Create async session
-    async_session = sessionmaker(
-        engine, class_=AsyncSession, expire_on_commit=False
-    )
-    
-    async with async_session() as session:
-        # Example 1: Find lines by lemma
-        print("\nExample 1: Find lines containing lemma 'νόσος' (disease)")
-        stmt = select(TextLine).where(
-            func.jsonb_path_exists(
-                TextLine.spacy_tokens,
-                '$.tokens[*] ? (@.lemma == "νόσος")'
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+async def test_lemma_search():
+    """Test searching for lemmas in spacy_tokens."""
+    async with async_session_maker() as session:
+        # Example lemma search query
+        query = text("""
+            WITH matched_lines AS (
+                SELECT 
+                    tl.id,
+                    tl.content,
+                    tl.line_number,
+                    td.author_id_field,
+                    td.work_number_field,
+                    t.title,
+                    LAG(tl.content) OVER (PARTITION BY td.id ORDER BY tl.line_number) as prev_line,
+                    LEAD(tl.content) OVER (PARTITION BY td.id ORDER BY tl.line_number) as next_line
+                FROM text_lines tl
+                JOIN text_divisions td ON tl.division_id = td.id
+                JOIN texts t ON td.text_id = t.id
+                WHERE CAST(tl.spacy_tokens AS TEXT) ILIKE '%"lemma":"θερμός"%'
             )
-        )
-        result = await session.execute(stmt)
-        lines = result.scalars().all()
-        for line in lines[:3]:  # Show first 3 results
-            print(f"Line: {line.content}")
+            SELECT * FROM matched_lines;
+        """)
+        
+        try:
+            result = await session.execute(query)
+            rows = result.mappings().all()
             
-        # Example 2: Find lines by part of speech
-        print("\nExample 2: Find lines with nouns")
-        stmt = select(TextLine).where(
-            func.jsonb_path_exists(
-                TextLine.spacy_tokens,
-                '$.tokens[*] ? (@.pos == "NOUN")'
+            logger.info(f"Found {len(rows)} matches")
+            for row in rows:
+                logger.info("---")
+                logger.info(f"Text: {row['title']}")
+                logger.info(f"Citation: [{row['author_id_field']}] [{row['work_number_field']}]")
+                if row['prev_line']:
+                    logger.info(f"Previous: {row['prev_line']}")
+                logger.info(f"Current:  {row['content']}")
+                if row['next_line']:
+                    logger.info(f"Next:     {row['next_line']}")
+        
+        except Exception as e:
+            logger.error(f"Query error: {str(e)}")
+            raise
+
+async def test_category_search():
+    """Test searching for categories in spacy_tokens."""
+    async with async_session_maker() as session:
+        # Example category search query with proper type casting
+        query = text("""
+            SELECT DISTINCT 
+                tl.content,
+                td.author_id_field,
+                td.work_number_field,
+                t.title
+            FROM text_lines tl
+            JOIN text_divisions td ON tl.division_id = td.id
+            JOIN texts t ON td.text_id = t.id
+            WHERE tl.categories @> ARRAY[:category]
+            ORDER BY t.title, td.author_id_field;
+        """)
+        
+        try:
+            result = await session.execute(
+                query,
+                {"category": "Adjectives/Qualities"}
             )
-        )
-        result = await session.execute(stmt)
-        lines = result.scalars().all()
-        for line in lines[:3]:  # Show first 3 results
-            print(f"Line: {line.content}")
-            # Extract nouns
-            nouns = [
-                token['text'] 
-                for token in line.spacy_tokens['tokens'] 
-                if token['pos'] == 'NOUN'
-            ]
-            print(f"Nouns: {nouns}")
+            rows = result.mappings().all()
             
-        # Example 3: Find lines by multiple categories
-        print("\nExample 3: Find lines with both MEDICAL and BODY categories")
-        stmt = select(TextLine).where(
-            TextLine.categories.contains(['MEDICAL', 'BODY'])
-        )
-        result = await session.execute(stmt)
-        lines = result.scalars().all()
-        for line in lines[:3]:  # Show first 3 results
-            print(f"Line: {line.content}")
-            print(f"Categories: {line.categories}")
+            logger.info(f"Found {len(rows)} matches")
+            for row in rows:
+                logger.info("---")
+                logger.info(f"Text: {row['title']}")
+                logger.info(f"Citation: [{row['author_id_field']}] [{row['work_number_field']}]")
+                logger.info(f"Content: {row['content']}")
+        
+        except Exception as e:
+            logger.error(f"Query error: {str(e)}")
+            raise
+
+async def test_token_category_search():
+    """Test searching for categories in spacy_tokens tokens array."""
+    async with async_session_maker() as session:
+        # Example token category search query
+        query = text("""
+            SELECT DISTINCT 
+                tl.content,
+                td.author_id_field,
+                td.work_number_field,
+                t.title
+            FROM text_lines tl
+            JOIN text_divisions td ON tl.division_id = td.id
+            JOIN texts t ON td.text_id = t.id
+            WHERE CAST(tl.spacy_tokens AS TEXT) ILIKE :pattern
+            ORDER BY t.title, td.author_id_field;
+        """)
+        
+        try:
+            result = await session.execute(
+                query,
+                {"pattern": '%"category":"Adjectives/Qualities"%'}
+            )
+            rows = result.mappings().all()
             
-        # Example 4: Get token analysis
-        print("\nExample 4: Detailed token analysis for a line")
-        stmt = select(TextLine).limit(1)  # Get any line
-        result = await session.execute(stmt)
-        line = result.scalar_one_or_none()
-        if line and line.spacy_tokens:
-            print(f"Line: {line.content}")
-            for token in line.spacy_tokens['tokens']:
-                print(f"""
-Token: {token['text']}
-  Lemma: {token['lemma']}
-  POS: {token['pos']}
-  Tag: {token['tag']}
-  Dep: {token['dep']}
-  Morph: {token['morph']}
-  Category: {token['category']}
-""")
+            logger.info(f"Found {len(rows)} matches")
+            for row in rows:
+                logger.info("---")
+                logger.info(f"Text: {row['title']}")
+                logger.info(f"Citation: [{row['author_id_field']}] [{row['work_number_field']}]")
+                logger.info(f"Content: {row['content']}")
+        
+        except Exception as e:
+            logger.error(f"Query error: {str(e)}")
+            raise
+
+async def main():
+    """Run all test queries."""
+    try:
+        logger.info("Testing lemma search...")
+        await test_lemma_search()
+        
+        logger.info("\nTesting category search (using categories array)...")
+        await test_category_search()
+        
+        logger.info("\nTesting category search (using spacy_tokens)...")
+        await test_token_category_search()
+        
+    except Exception as e:
+        logger.error(f"Error running tests: {str(e)}")
+        raise
 
 if __name__ == "__main__":
-    asyncio.run(show_nlp_examples())
+    asyncio.run(main())

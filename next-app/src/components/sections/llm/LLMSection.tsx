@@ -4,32 +4,30 @@ import { useState, useEffect } from 'react'
 import { Button } from '../../../components/ui/Button'
 import { ResultsDisplay } from '../../../components/ui/ResultsDisplay'
 import { useApi } from '../../../hooks/useApi'
-import { API } from '../../../utils/api'
+import { API, AnalysisRequest, AnalysisResponse, TokenCountResponse } from '../../../utils/api'
 
-interface LLMResponse {
-  result?: any[];
-  answer?: string;
-  stage?: string;
+interface Context {
+  text: string;
+  author?: string;
+  reference?: string;
 }
-
-const RESULTS_PER_PAGE = 10;
 
 /**
  * LLMSection Component
  * 
  * This component represents the LLM (Language Model) Assistant section of the application.
- * It provides an interface for users to input queries and receive responses from the LLM.
+ * It provides an interface for analyzing terms using context from the corpus.
  * 
  * @component
  */
 export function LLMSection() {
-  const [query, setQuery] = useState('')
+  const [term, setTerm] = useState('')
+  const [contexts, setContexts] = useState<Context[]>([])
   const [response, setResponse] = useState('')
-  const [fullResult, setFullResult] = useState<any[] | null>(null)
+  const [tokenCount, setTokenCount] = useState<TokenCountResponse | null>(null)
+  const [isStreaming, setIsStreaming] = useState(false)
   const [processingStage, setProcessingStage] = useState<string | null>(null)
-  const [isHtmlResponse, setIsHtmlResponse] = useState(false)
-  const [currentPage, setCurrentPage] = useState(1)
-  const { data, error, isLoading, execute } = useApi<LLMResponse>()
+  const { data, error, isLoading, execute } = useApi<AnalysisResponse>()
 
   useEffect(() => {
     if (data) {
@@ -37,149 +35,246 @@ export function LLMSection() {
     }
   }, [data])
 
-  useEffect(() => {
-    if (fullResult) {
-      displayPaginatedResults();
-    }
-  }, [fullResult, currentPage]);
-
   /**
-   * Handles the submission of the query to the LLM API.
-   * 
-   * @async
-   * @function
+   * Checks the token count for the current term and contexts
    */
-  const handleSubmit = async () => {
-    if (!query.trim()) return
+  const checkTokenCount = async () => {
+    if (!term || contexts.length === 0) return
 
-    setProcessingStage('Initializing query...')
-    setIsHtmlResponse(false)
-    setCurrentPage(1)
+    const request: AnalysisRequest = {
+      term,
+      contexts,
+      stream: false
+    }
 
-    await execute(API.llm.query, {
-      method: 'POST',
-      body: JSON.stringify({ query }),
-    })
+    try {
+      const response = await fetch(API.llm.tokenCount, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(request)
+      })
 
-    // Clear query after submission
-    setQuery('')
+      if (!response.ok) throw new Error('Failed to get token count')
+
+      const tokenData: TokenCountResponse = await response.json()
+      setTokenCount(tokenData)
+    } catch (error) {
+      console.error('Error checking token count:', error)
+    }
   }
 
-  const handleApiResponse = (result: LLMResponse) => {
-    console.log('API response:', result)
+  /**
+   * Handles the submission of the term analysis request
+   */
+  const handleSubmit = async () => {
+    if (!term.trim() || contexts.length === 0) return
 
-    if (result && typeof result === 'object') {
-      if ('answer' in result && typeof result.answer === 'string') {
-        setResponse(result.answer)
-        setFullResult(null)
-      } else if ('result' in result && Array.isArray(result.result)) {
-        const summary = `The query returned ${result.result.length} results.`
-        setResponse(summary)
-        setFullResult(result.result)
-      } else {
-        console.warn('Unexpected API response format:', result)
-        setResponse('The API response was in an unexpected format. Please try again.')
-        setFullResult(null)
-      }
-    } else {
-      console.error('Unexpected API response format:', result)
-      setResponse('An error occurred while processing your query. Please try again.')
-      setFullResult(null)
+    setProcessingStage('Initializing analysis...')
+    setResponse('')
+
+    const request: AnalysisRequest = {
+      term,
+      contexts,
+      stream: isStreaming
     }
 
+    if (isStreaming) {
+      await handleStreamingAnalysis(request)
+    } else {
+      await execute(API.llm.analyze, {
+        method: 'POST',
+        body: JSON.stringify(request),
+      })
+    }
+  }
+
+  /**
+   * Handles streaming analysis responses
+   */
+  const handleStreamingAnalysis = async (request: AnalysisRequest) => {
+    try {
+      const response = await fetch(API.llm.analyzeStream, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(request)
+      })
+
+      if (!response.ok) throw new Error('Streaming request failed')
+      
+      const reader = response.body?.getReader()
+      if (!reader) throw new Error('Failed to get response reader')
+
+      setResponse('')
+      
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        // Decode and handle the chunk
+        const chunk = new TextDecoder().decode(value)
+        setResponse(prev => prev + chunk)
+      }
+
+      setProcessingStage(null)
+    } catch (error) {
+      console.error('Streaming error:', error)
+      setResponse('Error during streaming analysis')
+      setProcessingStage(null)
+    }
+  }
+
+  const handleApiResponse = (result: AnalysisResponse) => {
+    setResponse(result.text)
     setProcessingStage(null)
   }
 
-  const displayPaginatedResults = () => {
-    if (fullResult) {
-      const startIndex = (currentPage - 1) * RESULTS_PER_PAGE;
-      const endIndex = startIndex + RESULTS_PER_PAGE;
-      const paginatedResults = fullResult.slice(startIndex, endIndex);
-
-      const formattedResult = paginatedResults.map((item, index) => (
-        `<div class="mb-4 p-4 bg-base-200 rounded shadow">
-          <strong class="text-lg">${startIndex + index + 1}.</strong>
-          <p class="mt-2">${item}</p>
-        </div>`
-      )).join('')
-
-      const paginationInfo = `<div class="mt-4 text-center">
-        Showing results ${startIndex + 1} - ${Math.min(endIndex, fullResult.length)} of ${fullResult.length}
-      </div>`
-
-      setResponse(formattedResult + paginationInfo)
-      setIsHtmlResponse(true)
-    }
+  /**
+   * Adds a new context for analysis
+   */
+  const addContext = () => {
+    setContexts([...contexts, { text: '', author: '', reference: '' }])
   }
 
-  const handleViewFullResult = () => {
-    setCurrentPage(1)
-    displayPaginatedResults()
+  /**
+   * Updates a context at the specified index
+   */
+  const updateContext = (index: number, field: keyof Context, value: string) => {
+    const newContexts = [...contexts]
+    newContexts[index] = { ...newContexts[index], [field]: value }
+    setContexts(newContexts)
+    checkTokenCount()
   }
 
-  const handleNextPage = () => {
-    if (fullResult && currentPage < Math.ceil(fullResult.length / RESULTS_PER_PAGE)) {
-      setCurrentPage(currentPage + 1)
-    }
-  }
-
-  const handlePrevPage = () => {
-    if (currentPage > 1) {
-      setCurrentPage(currentPage - 1)
-    }
+  /**
+   * Removes a context at the specified index
+   */
+  const removeContext = (index: number) => {
+    setContexts(contexts.filter((_, i) => i !== index))
+    checkTokenCount()
   }
 
   return (
     <div className="card bg-base-100 shadow-xl">
       <div className="card-body">
-        <h2 className="card-title">LLM Assistant</h2>
+        <h2 className="card-title">Term Analysis</h2>
+        
+        {/* Term Input */}
         <div className="form-control">
-          <textarea
-            className="textarea textarea-bordered h-32 w-full"
-            placeholder="Ask a question about the texts..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            spellCheck={false}
-            data-ms-editor={true}
-            suppressHydrationWarning
+          <label className="label">
+            <span className="label-text">Term to Analyze</span>
+          </label>
+          <input
+            type="text"
+            className="input input-bordered"
+            value={term}
+            onChange={(e) => {
+              setTerm(e.target.value)
+              checkTokenCount()
+            }}
+            placeholder="Enter a term..."
           />
-          <div className="flex gap-2 mt-4">
-            <Button
-              onClick={handleSubmit}
-              isLoading={isLoading}
-              disabled={!query.trim()}
-              className="flex-1"
-            >
-              Ask Question
-            </Button>
-            {fullResult && (
-              <Button onClick={handleViewFullResult} variant="outline">
-                View Full Result
-              </Button>
-            )}
-          </div>
         </div>
+
+        {/* Contexts Section */}
+        <div className="mt-4">
+          <div className="flex justify-between items-center mb-2">
+            <label className="label-text">Contexts</label>
+            <Button onClick={addContext} variant="outline" className="btn-sm">
+              Add Context
+            </Button>
+          </div>
+          
+          {contexts.map((context, index) => (
+            <div key={index} className="card bg-base-200 p-4 mb-4">
+              <div className="flex justify-between items-start">
+                <span className="font-medium">Context {index + 1}</span>
+                <Button
+                  onClick={() => removeContext(index)}
+                  variant="outline"
+                  className="btn-sm text-error"
+                >
+                  Remove
+                </Button>
+              </div>
+              
+              <div className="space-y-4 mt-2">
+                <textarea
+                  className="textarea textarea-bordered w-full"
+                  value={context.text}
+                  onChange={(e) => updateContext(index, 'text', e.target.value)}
+                  placeholder="Enter context text..."
+                  rows={3}
+                />
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <input
+                    type="text"
+                    className="input input-bordered"
+                    value={context.author || ''}
+                    onChange={(e) => updateContext(index, 'author', e.target.value)}
+                    placeholder="Author (optional)"
+                  />
+                  <input
+                    type="text"
+                    className="input input-bordered"
+                    value={context.reference || ''}
+                    onChange={(e) => updateContext(index, 'reference', e.target.value)}
+                    placeholder="Reference (optional)"
+                  />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Token Count Display */}
+        {tokenCount && (
+          <div className={`alert ${tokenCount.within_limits ? 'alert-success' : 'alert-warning'} mt-4`}>
+            <div className="flex justify-between items-center w-full">
+              <span>Tokens: {tokenCount.count}</span>
+              <span>{tokenCount.within_limits ? 'Within limits' : 'Exceeds limits'}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Controls */}
+        <div className="flex gap-4 mt-4">
+          <div className="form-control">
+            <label className="label cursor-pointer">
+              <span className="label-text mr-2">Stream Response</span>
+              <input
+                type="checkbox"
+                className="toggle"
+                checked={isStreaming}
+                onChange={(e) => setIsStreaming(e.target.checked)}
+              />
+            </label>
+          </div>
+          
+          <Button
+            onClick={handleSubmit}
+            isLoading={isLoading}
+            disabled={!term.trim() || contexts.length === 0 || (tokenCount && !tokenCount.within_limits)}
+            className="flex-1"
+          >
+            Analyze Term
+          </Button>
+        </div>
+
+        {/* Processing Status */}
         {(isLoading || processingStage) && (
           <div className="mt-4 flex items-center">
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900 mr-2"></div>
             <span>{processingStage || 'Processing...'}</span>
           </div>
         )}
+
+        {/* Results Display */}
         <ResultsDisplay
+          title="Analysis Results"
           content={error ? null : response}
-          error={error ? error.message : null}
-          isHtml={isHtmlResponse}
+          error={error ? error.message : undefined}
         />
-        {fullResult && fullResult.length > RESULTS_PER_PAGE && (
-          <div className="flex justify-center gap-2 mt-4">
-            <Button onClick={handlePrevPage} disabled={currentPage === 1} variant="outline">
-              Previous
-            </Button>
-            <Button onClick={handleNextPage} disabled={currentPage >= Math.ceil(fullResult.length / RESULTS_PER_PAGE)} variant="outline">
-              Next
-            </Button>
-          </div>
-        )}
       </div>
     </div>
   )

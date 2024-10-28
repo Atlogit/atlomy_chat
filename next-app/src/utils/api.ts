@@ -29,177 +29,160 @@ export async function fetchApi<T>(
     const responseText = await response.text();
     console.log('API Response Text:', responseText);
 
+    // Handle non-ok responses
     if (!response.ok) {
       let errorMessage = `HTTP error! status: ${response.status}`;
       let errorDetail = '';
       
-      try {
-        const errorJson = JSON.parse(responseText);
-        if (errorJson.detail) {
-          errorDetail = errorJson.detail;
+      // Try to parse error response if it exists
+      if (responseText) {
+        try {
+          const errorJson = JSON.parse(responseText);
+          if (errorJson.detail) {
+            errorDetail = errorJson.detail;
+          } else if (errorJson.message) {
+            errorDetail = errorJson.message;
+          }
+        } catch (e) {
+          // If response is not JSON, use the raw text
+          errorDetail = responseText;
         }
-      } catch (e) {
-        // If response is not JSON, use the raw text
-        errorDetail = responseText;
       }
 
-      const error: ApiError = {
+      throw {
         message: errorMessage,
         status: response.status,
-        detail: errorDetail
-      };
-
-      console.error('API Error:', error);
-      console.error('Response details:', {
-        status: response.status,
-        statusText: response.statusText,
-        headers: Object.fromEntries(response.headers.entries()),
-        body: responseText,
-      });
-      throw error;
+        detail: errorDetail || 'No additional error details available'
+      } as ApiError;
     }
 
-    // Parse the response text as JSON
-    let jsonResponse;
+    // Handle empty but successful responses
+    if (!responseText || !responseText.trim()) {
+      console.log('Empty but successful response');
+      return null as unknown as T;
+    }
+
+    // Parse non-empty responses
     try {
-      jsonResponse = responseText ? JSON.parse(responseText) : null;
+      const jsonResponse = JSON.parse(responseText);
+      onProgress?.('Finalizing results...');
+      return jsonResponse as T;
     } catch (parseError) {
       console.error('Error parsing JSON response:', parseError);
       console.error('Raw response:', responseText);
-      throw new Error('Invalid JSON response from server');
+      throw {
+        message: 'Invalid JSON response from server',
+        detail: responseText
+      } as ApiError;
     }
-
-    onProgress?.('Finalizing results...');
-
-    return jsonResponse as T;
   } catch (error) {
     console.error('API Error:', error);
-    if (error instanceof Error) {
-      console.error('Error details:', {
-        name: error.name,
-        message: error.message,
-        stack: error.stack,
-      });
-      throw {
-        message: error.message,
-        status: (error as ApiError).status,
-        detail: (error as ApiError).detail
-      };
+    
+    // If it's already an ApiError, rethrow it
+    if ((error as ApiError).status !== undefined || (error as ApiError).message) {
+      throw error as ApiError;
     }
-    throw { message: 'An unknown error occurred', details: JSON.stringify(error) };
+    
+    // Otherwise wrap it in an ApiError
+    throw {
+      message: error instanceof Error ? error.message : 'An unknown error occurred',
+      detail: error instanceof Error ? error.stack : JSON.stringify(error)
+    } as ApiError;
   }
 }
 
-export function formatResults(data: unknown): string {
-  try {
-    return typeof data === 'string' ? data : JSON.stringify(data, null, 2);
-  } catch (error) {
-    return `Error formatting results: ${(error as Error).message}`;
-  }
-}
+// Type for UUID
+export type UUID = string;
 
-// Enhanced types for the new database schema
-export interface TextDivision {
-  id: string;
-  // Citation components
-  author_id_field: string;
-  work_number_field: string;
-  epithet_field?: string;
-  fragment_field?: string;
-  // Structural components
-  volume?: string;
-  chapter?: string;
-  line?: string;
-  section?: string;
-  // Title components
-  is_title: boolean;
-  title_number?: string;
-  title_text?: string;
-  // Additional data
-  metadata?: Record<string, unknown>;
-  lines: TextLine[];
-}
-
-export interface TextLine {
-  line_number: number;
-  content: string;
-  categories: string[];
-  spacy_tokens?: Record<string, unknown>;
-}
-
-export interface Text {
-  id: string;
-  title: string;
-  author?: string;
-  reference_code?: string;
-  metadata?: Record<string, unknown>;
-  divisions?: TextDivision[];
-}
-
-export interface SearchResult {
-  text_id: string;
-  text_title: string;
-  author?: string;
-  division: {
-    author_id_field: string;
-    work_number_field: string;
-    epithet_field?: string;
-    fragment_field?: string;
-    volume?: string;
-    chapter?: string;
-    line?: string;
-    section?: string;
-    is_title: boolean;
-    title_number?: string;
-    title_text?: string;
-  };
-  line_number: number;
-  content: string;
-  categories: string[];
-  spacy_data?: Record<string, unknown>;
+// Lexical Value Types
+export interface LemmaAnalysis {
+  id: UUID;
+  analysis_text: string;
+  analysis_data?: Record<string, any>;
+  citations?: Record<string, any>;
+  created_by: string;
 }
 
 export interface LexicalValue {
+  id: UUID;
   lemma: string;
-  translation: string;
-  references?: string[];
+  language_code?: string;
+  categories: string[];
+  translations?: Record<string, any>;
+  analyses: LemmaAnalysis[];
 }
 
-export interface TextSearchRequest {
-  query: string;
+export interface LemmaCreate {
+  lemma: string;
   searchLemma?: boolean;
+  language_code?: string;
   categories?: string[];
+  translations?: Record<string, any>;
+  analyze?: boolean;
 }
 
-export interface LexicalBatchCreateRequest {
-  words: string[];
-  searchLemma?: boolean;
+export interface LemmaBatchCreate {
+  lemmas: LemmaCreate[];
 }
 
-export interface LexicalBatchUpdateRequest {
-  updates: Array<{
+export interface BatchCreateResponse {
+  successful: LexicalValue[];
+  failed: Array<{
     lemma: string;
-    translation: string;
+    error: string;
   }>;
+  total: number;
 }
 
 export interface CreateResponse {
-  task_id: string;
+  task_id: UUID;
   message: string;
 }
 
 export interface TaskStatus {
   status: 'in_progress' | 'completed' | 'error';
-  success?: boolean;
   message: string;
   entry?: LexicalValue;
   action?: 'create' | 'update';
 }
 
+export interface QueryGenerationRequest {
+  question: string;
+  max_tokens?: number;
+}
+
+export interface PreciseQueryRequest {
+  query_type: 'lemma_search' | 'category_search' | 'citation_search';
+  parameters: {
+    lemma?: string;
+    category?: string;
+    author_id?: string;
+    work_number?: string;
+    [key: string]: any;
+  };
+  max_tokens?: number;
+}
+
+export interface QueryResponse {
+  sql: string;
+  results: any[];
+  usage: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  };
+  model: string;
+  raw_response?: Record<string, unknown>;
+}
+
 // API endpoints
 export const API = {
   llm: {
-    query: '/api/v1/llm/query',
+    analyze: '/api/v1/llm/analyze',
+    analyzeStream: '/api/v1/llm/analyze/stream',
+    tokenCount: '/api/v1/llm/token-count',
+    generateQuery: '/api/v1/llm/generate-query',
+    generatePreciseQuery: '/api/v1/llm/generate-precise-query',
   },
   lexical: {
     create: '/api/v1/lexical/create',
@@ -209,7 +192,7 @@ export const API = {
     update: '/api/v1/lexical/update',
     batchUpdate: '/api/v1/lexical/batch-update',
     delete: (lemma: string) => `/api/v1/lexical/delete/${encodeURIComponent(lemma)}`,
-    status: (taskId: string) => `/api/v1/lexical/status/${encodeURIComponent(taskId)}`,
+    status: (taskId: UUID) => `/api/v1/lexical/status/${encodeURIComponent(taskId)}`,
   },
   corpus: {
     list: '/api/v1/corpus/list',

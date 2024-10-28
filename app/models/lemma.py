@@ -1,6 +1,8 @@
 from typing import Optional, Dict, Any, List
 from sqlalchemy import String, ARRAY, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.dialects.postgresql import UUID
+import uuid
 from . import Base
 
 class Lemma(Base):
@@ -12,8 +14,12 @@ class Lemma(Base):
     """
     __tablename__ = "lemmas"
 
-    # Primary key
-    id: Mapped[int] = mapped_column(primary_key=True)
+    # Primary key using UUID
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4
+    )
     
     # Required fields
     lemma: Mapped[str] = mapped_column(

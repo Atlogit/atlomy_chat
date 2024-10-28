@@ -18,11 +18,28 @@ class AnalysisRequest(BaseModel):
     max_tokens: Optional[int] = None
     stream: bool = False
 
+class QueryGenerationRequest(BaseModel):
+    question: str
+    max_tokens: Optional[int] = None
+
+class PreciseQueryRequest(BaseModel):
+    """Request model for precise SQL query generation."""
+    query_type: str  # Type of query (e.g., "lemma_search", "category_search", "citation_search")
+    parameters: Dict[str, Any]  # Query-specific parameters
+    max_tokens: Optional[int] = None
+
 class TokenCountRequest(BaseModel):
     text: str
 
 class AnalysisResponse(BaseModel):
     text: str
+    usage: Dict[str, int]
+    model: str
+    raw_response: Optional[Dict[str, Any]]
+
+class QueryResponse(BaseModel):
+    sql: str
+    results: List[Dict[str, Any]]
     usage: Dict[str, int]
     model: str
     raw_response: Optional[Dict[str, Any]]
@@ -61,6 +78,110 @@ async def analyze_term(
             "model": response.model,
             "raw_response": response.raw_response
         }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/generate-query", response_model=QueryResponse)
+async def generate_query(
+    data: QueryGenerationRequest,
+    llm_service: LLMServiceDep
+) -> Dict:
+    """Generate and execute a SQL query from a natural language question."""
+    try:
+        sql_query, results = await llm_service.generate_and_execute_query(
+            question=data.question,
+            max_tokens=data.max_tokens
+        )
+        
+        # Get the LLM response for usage info
+        llm_response = await llm_service.generate_query(
+            question=data.question,
+            max_tokens=data.max_tokens
+        )
+        
+        return {
+            "sql": sql_query,
+            "results": results,
+            "usage": llm_response.usage,
+            "model": llm_response.model,
+            "raw_response": llm_response.raw_response
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/generate-precise-query", response_model=QueryResponse)
+async def generate_precise_query(
+    data: PreciseQueryRequest,
+    llm_service: LLMServiceDep
+) -> Dict:
+    """Generate and execute a precise SQL query based on specific parameters."""
+    try:
+        # Validate query type
+        valid_query_types = ["lemma_search", "category_search", "citation_search"]
+        if data.query_type not in valid_query_types:
+            raise ValueError(f"Invalid query type. Must be one of: {valid_query_types}")
+
+        # Generate query based on type
+        if data.query_type == "lemma_search":
+            if "lemma" not in data.parameters:
+                raise ValueError("Lemma parameter is required for lemma_search")
+            
+            # Example prompt for lemma search
+            question = f"""
+            Find all occurrences of the lemma '{data.parameters['lemma']}' in text_lines,
+            including citation information and surrounding context.
+            Include text_division and text information.
+            Order by text_id and line_number.
+            """
+
+        elif data.query_type == "category_search":
+            if "category" not in data.parameters:
+                raise ValueError("Category parameter is required for category_search")
+            
+            # Example prompt for category search
+            question = f"""
+            Find all text_lines with category '{data.parameters['category']}',
+            including citation information.
+            Group by text and division.
+            Include text title and author information.
+            """
+
+        elif data.query_type == "citation_search":
+            required_fields = ["author_id", "work_number"]
+            if not all(field in data.parameters for field in required_fields):
+                raise ValueError(f"Required parameters missing. Need: {required_fields}")
+            
+            # Example prompt for citation search
+            question = f"""
+            Find text_lines matching citation:
+            author_id_field = '{data.parameters['author_id']}',
+            work_number_field = '{data.parameters['work_number']}'
+            Include full citation information and text content.
+            """
+
+        # Generate and execute the query
+        sql_query, results = await llm_service.generate_and_execute_query(
+            question=question,
+            max_tokens=data.max_tokens
+        )
+        
+        # Get LLM response for usage info
+        llm_response = await llm_service.generate_query(
+            question=question,
+            max_tokens=data.max_tokens
+        )
+        
+        return {
+            "sql": sql_query,
+            "results": results,
+            "usage": llm_response.usage,
+            "model": llm_response.model,
+            "raw_response": llm_response.raw_response
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

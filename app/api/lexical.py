@@ -1,131 +1,183 @@
 """
-API routes for lexical operations.
+API endpoints for lexical value operations.
 """
 
-from typing import Dict, List, Optional, Any
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Dict, Any, Optional, List
 from pydantic import BaseModel
+import time
+import logging
 
-from app.dependencies import LexicalServiceDep
+from app.core.database import get_db
+from app.services.lexical_service import LexicalService
+from app.models.lexical_value import LexicalValue
 
-router = APIRouter()
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# Request/Response Models
-class LemmaCreate(BaseModel):
+router = APIRouter(prefix="/lexical", tags=["lexical"])
+
+# In-memory storage for task status
+task_status = {}
+
+class LexicalCreateSchema(BaseModel):
+    """Schema for lexical value creation request."""
     lemma: str
-    language_code: Optional[str] = None
-    categories: Optional[List[str]] = None
-    translations: Optional[Dict[str, Any]] = None
+    search_lemma: bool = False
 
-class LemmaBatchCreate(BaseModel):
-    lemmas: List[LemmaCreate]
-
-class LemmaUpdate(BaseModel):
-    lemma: str
-    translations: Optional[Dict[str, Any]] = None
-    categories: Optional[List[str]] = None
-    language_code: Optional[str] = None
-
-class LemmaResponse(BaseModel):
-    id: int
-    lemma: str
-    language_code: Optional[str]
-    categories: List[str]
-    translations: Optional[Dict[str, Any]]
-    analyses: List[Dict[str, Any]]
-
-class CreateResponse(BaseModel):
-    success: bool
-    message: str
-    entry: Optional[Dict[str, Any]]
-    action: str
-
-# Routes
-@router.post("/create", response_model=CreateResponse)
-async def create_lexical_value(
-    data: LemmaCreate,
-    lexical_service: LexicalServiceDep
-) -> Dict:
-    """Create a new lexical value."""
+async def create_lexical_value_task(
+    lemma: str,
+    search_lemma: bool,
+    task_id: str,
+    db: AsyncSession
+):
+    """Background task for lexical value creation."""
     try:
-        return await lexical_service.create_lemma(
-            lemma=data.lemma,
-            language_code=data.language_code,
-            categories=data.categories,
-            translations=data.translations
+        logger.info(f"Starting lexical value creation task for: {lemma}")
+        task_status[task_id] = {
+            "status": "in_progress",
+            "message": "Creating lexical value"
+        }
+        
+        lexical_service = LexicalService(db)
+        result = await lexical_service.create_lexical_entry(
+            lemma=lemma,
+            search_lemma=search_lemma,
+            task_id=task_id
         )
+        
+        task_status[task_id] = {
+            "status": "completed",
+            "success": result["success"],
+            "message": result["message"],
+            "entry": result.get("entry"),
+            "action": result["action"]
+        }
+        
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error in lexical value creation task: {str(e)}")
+        task_status[task_id] = {
+            "status": "error",
+            "message": str(e)
+        }
 
-@router.post("/batch-create", response_model=List[CreateResponse])
-async def batch_create_lexical_values(
-    data: LemmaBatchCreate,
-    lexical_service: LexicalServiceDep
-) -> List[Dict]:
-    """Create multiple lexical values in a batch."""
-    try:
-        results = []
-        for lemma_data in data.lemmas:
-            result = await lexical_service.create_lemma(
-                lemma=lemma_data.lemma,
-                language_code=lemma_data.language_code,
-                categories=lemma_data.categories,
-                translations=lemma_data.translations
-            )
-            results.append(result)
-        return results
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+@router.post("/create")
+async def create_lexical_value(
+    data: LexicalCreateSchema,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db)
+):
+    """Create a new lexical value entry."""
+    task_id = f"create_{data.lemma}_{time.time()}"
+    background_tasks.add_task(
+        create_lexical_value_task,
+        data.lemma,
+        data.search_lemma,
+        task_id,
+        db
+    )
+    return {
+        "task_id": task_id,
+        "message": "Lexical value creation started"
+    }
 
-@router.get("/get/{lemma}", response_model=LemmaResponse)
+@router.get("/status/{task_id}")
+async def get_task_status(task_id: str):
+    """Get the status of a lexical value creation task."""
+    if task_id not in task_status:
+        raise HTTPException(
+            status_code=404,
+            detail="Task not found"
+        )
+    return task_status[task_id]
+
+@router.get("/get/{lemma}")
 async def get_lexical_value(
     lemma: str,
-    lexical_service: LexicalServiceDep
-) -> Dict:
+    db: AsyncSession = Depends(get_db)
+):
     """Get a lexical value by its lemma."""
-    result = await lexical_service.get_lemma_by_text(lemma)
-    if not result:
-        raise HTTPException(status_code=404, detail="Lemma not found")
-    return result
-
-@router.get("/list", response_model=List[LemmaResponse])
-async def list_lexical_values(
-    lexical_service: LexicalServiceDep,
-    language_code: Optional[str] = None,
-    category: Optional[str] = None
-) -> List[Dict]:
-    """List all lexical values with optional filtering."""
     try:
-        return await lexical_service.list_lemmas(
-            language_code=language_code,
-            category=category
+        lexical_service = LexicalService(db)
+        entry = await lexical_service.get_lexical_value(lemma)
+        if entry:
+            return entry.to_dict()
+        raise HTTPException(
+            status_code=404,
+            detail="Lexical value not found"
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error getting lexical value: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
 
-@router.put("/update", response_model=CreateResponse)
+@router.get("/list")
+async def list_lexical_values(
+    offset: int = 0,
+    limit: int = 100,
+    db: AsyncSession = Depends(get_db)
+):
+    """List lexical values with pagination."""
+    try:
+        lexical_service = LexicalService(db)
+        values = await lexical_service.list_lexical_values(offset, limit)
+        return {"values": values}
+    except Exception as e:
+        logger.error(f"Error listing lexical values: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
+
+@router.put("/update/{lemma}")
 async def update_lexical_value(
-    data: LemmaUpdate,
-    lexical_service: LexicalServiceDep
-) -> Dict:
+    lemma: str,
+    data: Dict[str, Any],
+    db: AsyncSession = Depends(get_db)
+):
     """Update an existing lexical value."""
     try:
-        return await lexical_service.update_lemma(
-            lemma=data.lemma,
-            translations=data.translations,
-            categories=data.categories,
-            language_code=data.language_code
-        )
+        lexical_service = LexicalService(db)
+        result = await lexical_service.update_lexical_value(lemma, data)
+        if not result["success"]:
+            raise HTTPException(
+                status_code=404,
+                detail=result["message"]
+            )
+        return result
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error updating lexical value: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
 
 @router.delete("/delete/{lemma}")
 async def delete_lexical_value(
     lemma: str,
-    lexical_service: LexicalServiceDep
-) -> Dict:
+    db: AsyncSession = Depends(get_db)
+):
     """Delete a lexical value."""
-    success = await lexical_service.delete_lemma(lemma)
-    if not success:
-        raise HTTPException(status_code=404, detail="Lemma not found")
-    return {"success": True, "message": "Lemma deleted successfully"}
+    try:
+        lexical_service = LexicalService(db)
+        success = await lexical_service.delete_lexical_value(lemma)
+        if not success:
+            raise HTTPException(
+                status_code=404,
+                detail="Lexical value not found"
+            )
+        return {"success": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting lexical value: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )

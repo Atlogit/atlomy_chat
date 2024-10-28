@@ -338,9 +338,18 @@ class CorpusProcessor:
         Returns:
             Dictionary containing NLP analysis data
         """
-        # Get NLP data from first source line
-        stmt = select(TextLine).where(TextLine.id == sentence.source_lines[0].id)
-        result = await self.session.execute(stmt)
-        line = result.scalar_one()
+        # Get NLP data by finding the line with matching content
+        if not sentence.source_lines:
+            return None
+            
+        # Get the first source line's content
+        line_content = sentence.source_lines[0].content
         
-        return line.spacy_tokens
+        # Find the TextLine with matching content
+        stmt = select(TextLine).where(TextLine.content == line_content)
+        result = await self.session.execute(stmt)
+        line = result.scalar_one_or_none()
+        
+        if line:
+            return line.spacy_tokens
+        return None

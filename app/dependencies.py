@@ -40,9 +40,11 @@ async def get_lexical_service(
     """Get LexicalService instance."""
     return LexicalService(session)
 
-async def get_llm_service() -> LLMService:
+async def get_llm_service(
+    session: AsyncSession = Depends(get_db)
+) -> LLMService:
     """Get LLMService instance."""
-    return LLMService()
+    return LLMService(session)
 
 # Type annotations for dependency injection
 CorpusServiceDep = Annotated[CorpusService, Depends(get_corpus_service)]

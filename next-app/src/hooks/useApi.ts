@@ -1,9 +1,15 @@
 import { useState, useCallback } from 'react';
 import { fetchApi } from '../utils/api';
 
+interface ApiError {
+  message: string;
+  status?: number;
+  detail?: string;
+}
+
 interface ApiHookResult<T> {
   data: T | null;
-  error: Error | null;
+  error: ApiError | null;
   isLoading: boolean;
   progress: { current: number; total: number };
   execute: (endpoint: string, options?: RequestInit, timeout?: number) => Promise<T | null>;
@@ -15,13 +21,14 @@ const INITIAL_BACKOFF = 1000; // 1 second
 
 export function useApi<T>(): ApiHookResult<T> {
   const [data, setData] = useState<T | null>(null);
-  const [error, setError] = useState<Error | null>(null);
+  const [error, setError] = useState<ApiError | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [progress, setProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
 
   const execute = useCallback(async (endpoint: string, options?: RequestInit, timeout: number = DEFAULT_TIMEOUT): Promise<T | null> => {
     setIsLoading(true);
     setError(null);
+    setData(null); // Clear previous data when starting new request
     setProgress({ current: 0, total: 0 });
 
     let retries = 0;
@@ -41,14 +48,21 @@ export function useApi<T>(): ApiHookResult<T> {
             setProgress({ current: parseInt(match[1]), total: parseInt(match[2]) });
           }
         });
-        setData(result);
+
+        if (result !== null) {  // Only set data if we got a valid result
+          setData(result);
+        }
+        
         setIsLoading(false);
+        clearTimeout(timeoutId);
         return result;
       } catch (err) {
         console.error(`API Error (attempt ${retries + 1}):`, err);
+        clearTimeout(timeoutId);
         
         if (retries === MAX_RETRIES) {
-          setError(err instanceof Error ? err : new Error('An unknown error occurred'));
+          const apiError: ApiError = err as ApiError;
+          setError(apiError);
           setIsLoading(false);
           return null;
         }
@@ -58,8 +72,6 @@ export function useApi<T>(): ApiHookResult<T> {
         await new Promise(resolve => setTimeout(resolve, backoff));
         
         retries++;
-      } finally {
-        clearTimeout(timeoutId);
       }
     }
 

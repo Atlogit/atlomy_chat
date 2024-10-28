@@ -6,7 +6,7 @@ Handles text retrieval, searching, and metadata management with Redis caching.
 from typing import List, Dict, Optional, Union
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_, cast, JSON, String, and_
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 import logging
 
 from app.models.text import Text
@@ -96,18 +96,20 @@ class CorpusService:
                 logger.debug("Returning cached search results")
                 return cached_data
             
+            # Build query with eager loading
             base_query = (
                 select(TextLine)
-                .join(TextDivision)
-                .join(Text)
-                .join(Author)
+                .options(
+                    selectinload(TextLine.division)
+                    .selectinload(TextDivision.text)
+                    .selectinload(Text.author)
+                )
             )
 
             filters = []
             
             if search_lemma:
                 # Search in spacy_tokens JSON for lemmas
-                # Only search non-null spacy_tokens
                 filters.append(
                     and_(
                         TextLine.spacy_tokens.isnot(None),
@@ -126,7 +128,7 @@ class CorpusService:
             logger.debug(f"Executing search query: {str(search_query)}")
             
             result = await self.session.execute(search_query)
-            lines = result.scalars().all()
+            lines = result.unique().scalars().all()
             logger.debug(f"Found {len(lines)} matching lines")
 
             data = [
@@ -178,8 +180,8 @@ class CorpusService:
         query = (
             select(Text)
             .options(
-                joinedload(Text.author),
-                joinedload(Text.divisions).joinedload(TextDivision.lines)
+                selectinload(Text.author),
+                selectinload(Text.divisions).selectinload(TextDivision.lines)
             )
             .filter(Text.id == text_id)
         )
@@ -244,14 +246,16 @@ class CorpusService:
             
         query = (
             select(TextLine)
-            .join(TextDivision)
-            .join(Text)
-            .join(Author)
+            .options(
+                selectinload(TextLine.division)
+                .selectinload(TextDivision.text)
+                .selectinload(Text.author)
+            )
             .filter(TextLine.categories.contains([category]))
         )
         
         result = await self.session.execute(query)
-        lines = result.scalars().all()
+        lines = result.unique().scalars().all()
         
         data = [
             {

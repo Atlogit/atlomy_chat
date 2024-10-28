@@ -9,9 +9,10 @@ class LLMConfig(BaseSettings):
     # AWS Bedrock settings
     AWS_ACCESS_KEY_ID: Optional[str] = os.getenv("AWS_ACCESS_KEY_ID")
     AWS_SECRET_ACCESS_KEY: Optional[str] = os.getenv("AWS_SECRET_ACCESS_KEY")
-    AWS_REGION: str = os.getenv("AWS_REGION", "us-east-1")
-    BEDROCK_MODEL_ID: str = os.getenv("BEDROCK_MODEL_ID", "anthropic.claude-3-sonnet-20240229-v1:0")
-    
+    #AWS_REGION: str = os.getenv("AWS_REGION", "us-east-1")
+    #BEDROCK_MODEL_ID: str = os.getenv("BEDROCK_MODEL_ID", "anthropic.claude-3-5-sonnet-20240620-v1:0")
+    BEDROCK_MODEL_ID: str = os.getenv("BEDROCK_MODEL_ID", "anthropic.claude-3-5-sonnet-20241022-v2:0")
+    AWS_REGION: str = os.getenv("AWS_REGION", "us-west-2")
     # OpenAI settings (for future use)
     OPENAI_API_KEY: Optional[str] = os.getenv("OPENAI_API_KEY")
     OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4")
@@ -20,7 +21,7 @@ class LLMConfig(BaseSettings):
     LOCAL_MODEL_PATH: Optional[str] = os.getenv("LOCAL_MODEL_PATH")
     
     # Common LLM parameters
-    MAX_TOKENS: int = int(os.getenv("LLM_MAX_TOKENS", "4096"))
+    MAX_TOKENS: int = int(os.getenv("LLM_MAX_TOKENS", "8192"))
     TEMPERATURE: float = float(os.getenv("LLM_TEMPERATURE", "0.7"))
     TOP_P: float = float(os.getenv("LLM_TOP_P", "0.95"))
     FREQUENCY_PENALTY: float = float(os.getenv("LLM_FREQUENCY_PENALTY", "0.0"))

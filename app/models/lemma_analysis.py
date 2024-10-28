@@ -1,22 +1,29 @@
 from typing import Optional, Dict, Any
 from sqlalchemy import String, ForeignKey, JSON, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.dialects.postgresql import UUID
+import uuid
 from . import Base
 
 class LemmaAnalysis(Base):
     """Model for storing LLM-generated analyses of lemmas.
     
     This model stores both the raw text analysis and structured data from
-    AWS Bedrock (Claude-3) analysis of lemmas, including citations and
+    AWS Bedrock (Claude-3.5) analysis of lemmas, including citations and
     references to support the analysis.
     """
     __tablename__ = "lemma_analyses"
 
-    # Primary key
-    id: Mapped[int] = mapped_column(primary_key=True)
+    # Primary key using UUID
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4
+    )
     
-    # Foreign key to Lemma
-    lemma_id: Mapped[int] = mapped_column(
+    # Foreign key to Lemma using UUID
+    lemma_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
         ForeignKey("lemmas.id", ondelete="CASCADE"),
         nullable=False
     )
