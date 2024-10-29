@@ -18,13 +18,12 @@
             "stream": "ext://sys.stdout"
         },
         "file": {
-            "class": "logging.handlers.TimedRotatingFileHandler",
+            "class": "logging.handlers.RotatingFileHandler",
             "level": "DEBUG",
             "formatter": "standard",
             "filename": "logs/fastapi_debug.log",
-            "when": "midnight",
-            "interval": 1,
-            "backupCount": 7,
+            "maxBytes": 5242880,
+            "backupCount": 5,
             "encoding": "utf8"
         }
     },

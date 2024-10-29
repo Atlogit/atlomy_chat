@@ -74,11 +74,137 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // Format JSON results
-    const formatResults = (data) => {
+    // Format citation with sentence context
+    const formatCitation = (citation) => {
+        const authorWork = `${citation.source.author}, ${citation.source.work}`;
+        const location = [
+            citation.location.volume && `Volume ${citation.location.volume}`,
+            citation.location.chapter && `Chapter ${citation.location.chapter}`,
+            citation.location.section && `Section ${citation.location.section}`
+        ].filter(Boolean).join(', ');
+        
+        return `${authorWork} (${location})`;
+    };
+
+    // Create citation element with context preview
+    const createCitationElement = (citation) => {
+        const div = document.createElement('div');
+        div.className = 'citation-entry card bg-base-200 p-4';
+        
+        const citationText = formatCitation(citation);
+        const sentencePreview = citation.sentence.text.length > 100 
+            ? citation.sentence.text.substring(0, 100) + '...'
+            : citation.sentence.text;
+            
+        div.innerHTML = `
+            <div class="flex justify-between items-start">
+                <div class="citation-text font-medium">${citationText}</div>
+                <button class="btn btn-sm btn-ghost show-context" data-citation-id="${citation.sentence.id}">
+                    Show Context
+                </button>
+            </div>
+            <div class="mt-2 text-sm">${sentencePreview}</div>
+        `;
+        
+        // Add click handler for context preview
+        const contextBtn = div.querySelector('.show-context');
+        contextBtn.addEventListener('click', () => {
+            showCitationContext(citation);
+        });
+        
+        return div;
+    };
+
+    // Show citation context in modal
+    const showCitationContext = (citation) => {
+        const modal = document.getElementById('citation-preview-modal');
+        const prevSentence = modal.querySelector('.prev-sentence');
+        const currentSentence = modal.querySelector('.current-sentence');
+        const nextSentence = modal.querySelector('.next-sentence');
+        
+        prevSentence.textContent = citation.sentence.prev_sentence || '';
+        currentSentence.textContent = citation.sentence.text;
+        nextSentence.textContent = citation.sentence.next_sentence || '';
+        
+        modal.showModal();
+    };
+
+    // Format lexical value display
+    const formatLexicalValue = (data) => {
+        const display = document.querySelector('.lexical-value-display');
+        const rawDisplay = document.querySelector('.raw-results');
+        
+        if (!display || !rawDisplay) return;
+        
         try {
-            return typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+            // Show structured display
+            display.classList.remove('hidden');
+            rawDisplay.classList.add('hidden');
+            
+            // Set basic information
+            display.querySelector('.lemma-title').textContent = data.lemma;
+            display.querySelector('.translation').textContent = data.translation;
+            display.querySelector('.short-description').textContent = data.short_description;
+            display.querySelector('.long-description').textContent = data.long_description;
+            
+            // Clear and populate citations
+            const citationsList = display.querySelector('.citations-list');
+            citationsList.innerHTML = '';
+            if (data.citations_used) {
+                data.citations_used.forEach(citation => {
+                    citationsList.appendChild(createCitationElement(citation));
+                });
+            }
+            
+            // Add related terms
+            const relatedTerms = display.querySelector('.related-terms');
+            relatedTerms.innerHTML = '';
+            if (data.related_terms) {
+                data.related_terms.forEach(term => {
+                    const badge = document.createElement('div');
+                    badge.className = 'badge badge-primary';
+                    badge.textContent = term;
+                    relatedTerms.appendChild(badge);
+                });
+            }
+            
+            // Add version info
+            const versionInfo = display.querySelector('.version-info');
+            if (data.metadata) {
+                versionInfo.innerHTML = `
+                    <div>Created: ${new Date(data.metadata.created_at).toLocaleString()}</div>
+                    <div>Updated: ${new Date(data.metadata.updated_at).toLocaleString()}</div>
+                    <div>Version: ${data.metadata.version}</div>
+                `;
+            }
         } catch (error) {
+            // Fallback to raw display
+            console.error('Error formatting lexical value:', error);
+            display.classList.add('hidden');
+            rawDisplay.classList.remove('hidden');
+            rawDisplay.textContent = JSON.stringify(data, null, 2);
+        }
+    };
+
+    // Format JSON results
+    const formatResults = (data, type = 'raw') => {
+        try {
+            if (type === 'lexical' && typeof data === 'object') {
+                formatLexicalValue(data);
+                return;
+            }
+            
+            // Default to raw JSON display
+            const display = document.querySelector('.lexical-value-display');
+            const rawDisplay = document.querySelector('.raw-results');
+            
+            if (display) display.classList.add('hidden');
+            if (rawDisplay) {
+                rawDisplay.classList.remove('hidden');
+                rawDisplay.textContent = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+            }
+        } catch (error) {
+            console.error('Error formatting results:', error);
             return `Error formatting results: ${error.message}`;
         }
     };
@@ -168,11 +294,11 @@ document.addEventListener('DOMContentLoaded', () => {
                             
                             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                             const data = await response.json();
-                            if (lexicalResults) lexicalResults.textContent = formatResults(data);
+                            formatResults(data.entry, 'lexical');
                         });
                     } catch (error) {
                         if (error.name !== 'AbortError' && lexicalResults) {
-                            lexicalResults.textContent = `Error: ${error.message}`;
+                            formatResults(`Error: ${error.message}`);
                         }
                     }
                 });
@@ -190,7 +316,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const searchLemma = document.querySelector('#batch-create-lemma')?.checked || false;
                     
                     if (words.length === 0) {
-                        if (lexicalResults) lexicalResults.textContent = 'Error: No words provided';
+                        formatResults('Error: No words provided');
                         return;
                     }
 
@@ -211,11 +337,11 @@ document.addEventListener('DOMContentLoaded', () => {
                             const results = data.results || {};
                             updateProgress(batchCreateForm, Object.keys(results).length, total);
                             
-                            if (lexicalResults) lexicalResults.textContent = formatResults(data);
+                            formatResults(data);
                         });
                     } catch (error) {
-                        if (error.name !== 'AbortError' && lexicalResults) {
-                            lexicalResults.textContent = `Error: ${error.message}`;
+                        if (error.name !== 'AbortError') {
+                            formatResults(`Error: ${error.message}`);
                         }
                     }
                 });
@@ -235,11 +361,11 @@ document.addEventListener('DOMContentLoaded', () => {
                             const response = await fetch(`/api/lexical/get/${encodeURIComponent(lemma)}`, { signal });
                             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                             const data = await response.json();
-                            if (lexicalResults) lexicalResults.textContent = formatResults(data);
+                            formatResults(data, 'lexical');
                         });
                     } catch (error) {
-                        if (error.name !== 'AbortError' && lexicalResults) {
-                            lexicalResults.textContent = `Error: ${error.message}`;
+                        if (error.name !== 'AbortError') {
+                            formatResults(`Error: ${error.message}`);
                         }
                     }
                 });
@@ -266,11 +392,11 @@ document.addEventListener('DOMContentLoaded', () => {
                             
                             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                             const data = await response.json();
-                            if (lexicalResults) lexicalResults.textContent = formatResults(data);
+                            formatResults(data.entry, 'lexical');
                         });
                     } catch (error) {
-                        if (error.name !== 'AbortError' && lexicalResults) {
-                            lexicalResults.textContent = `Error: ${error.message}`;
+                        if (error.name !== 'AbortError') {
+                            formatResults(`Error: ${error.message}`);
                         }
                     }
                 });
@@ -321,7 +447,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         })).filter(update => update.lemma && update.translation);
 
                         if (updates.length === 0) {
-                            if (lexicalResults) lexicalResults.textContent = 'Error: No valid updates provided';
+                            formatResults('Error: No valid updates provided');
                             return;
                         }
 
@@ -342,11 +468,11 @@ document.addEventListener('DOMContentLoaded', () => {
                                 const results = data.results || {};
                                 updateProgress(batchUpdateForm, Object.keys(results).length, total);
                                 
-                                if (lexicalResults) lexicalResults.textContent = formatResults(data);
+                                formatResults(data);
                             });
                         } catch (error) {
-                            if (error.name !== 'AbortError' && lexicalResults) {
-                                lexicalResults.textContent = `Error: ${error.message}`;
+                            if (error.name !== 'AbortError') {
+                                formatResults(`Error: ${error.message}`);
                             }
                         }
                     });
@@ -371,11 +497,71 @@ document.addEventListener('DOMContentLoaded', () => {
                             
                             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                             const data = await response.json();
-                            if (lexicalResults) lexicalResults.textContent = formatResults(data);
+                            formatResults(data);
                         });
                     } catch (error) {
-                        if (error.name !== 'AbortError' && lexicalResults) {
-                            lexicalResults.textContent = `Error: ${error.message}`;
+                        if (error.name !== 'AbortError') {
+                            formatResults(`Error: ${error.message}`);
+                        }
+                    }
+                });
+            }
+        }
+
+        // Versions management
+        const versionsForm = document.querySelector('#versions-form');
+        if (versionsForm) {
+            const versionsButton = versionsForm.querySelector('.submit-btn');
+            const versionsList = versionsForm.querySelector('#versions-list');
+            const versionsTable = versionsList?.querySelector('tbody');
+            
+            if (versionsButton && versionsList && versionsTable) {
+                versionsButton.addEventListener('click', async () => {
+                    const lemma = document.querySelector('#versions-lemma')?.value || '';
+                    
+                    try {
+                        await withLoading(versionsButton, async (signal) => {
+                            const response = await fetch(`/api/lexical/versions/${encodeURIComponent(lemma)}`, { signal });
+                            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                            const data = await response.json();
+                            
+                            // Clear and populate versions table
+                            versionsTable.innerHTML = '';
+                            versionsList.classList.remove('hidden');
+                            
+                            data.versions.forEach(version => {
+                                const row = document.createElement('tr');
+                                row.innerHTML = `
+                                    <td>${version.version}</td>
+                                    <td>${new Date(version.date).toLocaleString()}</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-primary view-version" data-version="${version.version}">
+                                            View
+                                        </button>
+                                    </td>
+                                `;
+                                versionsTable.appendChild(row);
+                            });
+                            
+                            // Add click handlers for version buttons
+                            versionsTable.querySelectorAll('.view-version').forEach(btn => {
+                                btn.addEventListener('click', async () => {
+                                    const version = btn.dataset.version;
+                                    try {
+                                        const response = await fetch(`/api/lexical/get/${encodeURIComponent(lemma)}/${version}`);
+                                        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                                        const data = await response.json();
+                                        formatResults(data, 'lexical');
+                                    } catch (error) {
+                                        formatResults(`Error: ${error.message}`);
+                                    }
+                                });
+                            });
+                        });
+                    } catch (error) {
+                        if (error.name !== 'AbortError') {
+                            formatResults(`Error: ${error.message}`);
+                            versionsList.classList.add('hidden');
                         }
                     }
                 });
@@ -389,11 +575,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     const response = await fetch('/api/lexical/list', { signal });
                     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                     const data = await response.json();
-                    if (resultsElement) resultsElement.textContent = formatResults(data);
+                    formatResults(data);
                 });
             } catch (error) {
-                if (error.name !== 'AbortError' && resultsElement) {
-                    resultsElement.textContent = `Error: ${error.message}`;
+                if (error.name !== 'AbortError') {
+                    formatResults(`Error: ${error.message}`);
                 }
             }
         }
@@ -447,11 +633,11 @@ document.addEventListener('DOMContentLoaded', () => {
                             
                             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                             const data = await response.json();
-                            if (corpusResults) corpusResults.textContent = formatResults(data);
+                            formatResults(data);
                         });
                     } catch (error) {
-                        if (error.name !== 'AbortError' && corpusResults) {
-                            corpusResults.textContent = `Error: ${error.message}`;
+                        if (error.name !== 'AbortError') {
+                            formatResults(`Error: ${error.message}`);
                         }
                     }
                 });
@@ -465,11 +651,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     const response = await fetch('/api/corpus/list', { signal });
                     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                     const data = await response.json();
-                    if (resultsElement) resultsElement.textContent = formatResults(data);
+                    formatResults(data);
                 });
             } catch (error) {
-                if (error.name !== 'AbortError' && resultsElement) {
-                    resultsElement.textContent = `Error: ${error.message}`;
+                if (error.name !== 'AbortError') {
+                    formatResults(`Error: ${error.message}`);
                 }
             }
         }
@@ -481,11 +667,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     const response = await fetch('/api/corpus/all', { signal });
                     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                     const data = await response.json();
-                    if (resultsElement) resultsElement.textContent = formatResults(data);
+                    formatResults(data);
                 });
             } catch (error) {
-                if (error.name !== 'AbortError' && resultsElement) {
-                    resultsElement.textContent = `Error: ${error.message}`;
+                if (error.name !== 'AbortError') {
+                    formatResults(`Error: ${error.message}`);
                 }
             }
         }

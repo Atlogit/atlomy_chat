@@ -5,7 +5,7 @@ Handles text retrieval, searching, and metadata management with Redis caching.
 
 from typing import List, Dict, Optional, Union
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, or_, cast, JSON, String, and_
+from sqlalchemy import select, or_, cast, JSON, String, and_, text
 from sqlalchemy.orm import joinedload, selectinload
 import logging
 
@@ -15,6 +15,12 @@ from app.models.text_line import TextLine
 from app.models.author import Author
 from app.core.redis import redis_client
 from app.core.config import settings
+from app.core.citation_queries import (
+    LEMMA_CITATION_QUERY,
+    TEXT_CITATION_QUERY,
+    CATEGORY_CITATION_QUERY,
+    CITATION_SEARCH_QUERY
+)
 
 logger = logging.getLogger(__name__)
 
@@ -75,11 +81,7 @@ class CorpusService:
     ) -> List[Dict]:
         """
         Search texts in the corpus by content, lemma, or categories (cached).
-        
-        Args:
-            query: Search query string
-            search_lemma: Whether to search by lemma
-            categories: Optional list of categories to filter by
+        Returns results with consistent citation formatting.
         """
         try:
             logger.debug(f"Starting search with query: {query}, lemma: {search_lemma}, categories: {categories}")
@@ -95,68 +97,60 @@ class CorpusService:
             if cached_data:
                 logger.debug("Returning cached search results")
                 return cached_data
-            
-            # Build query with eager loading
-            base_query = (
-                select(TextLine)
-                .options(
-                    selectinload(TextLine.division)
-                    .selectinload(TextDivision.text)
-                    .selectinload(Text.author)
-                )
-            )
 
-            filters = []
-            
-            if search_lemma:
-                # Search in spacy_tokens JSON for lemmas
-                filters.append(
-                    and_(
-                        TextLine.spacy_tokens.isnot(None),
-                        cast(TextLine.spacy_tokens, String).ilike(f'%"lemma":"%{query}%"%')
-                    )
-                )
-            else:
-                # Full text search in content
-                filters.append(TextLine.content.ilike(f'%{query}%'))
-
+            # Choose appropriate query based on search type
             if categories:
-                # Filter by any of the specified categories
-                filters.append(TextLine.categories.overlap(categories))
+                # Category search
+                search_query = CATEGORY_CITATION_QUERY
+                params = {"category": categories[0]}  # Currently only supports one category
+            elif search_lemma:
+                # Lemma search
+                search_query = LEMMA_CITATION_QUERY
+                params = {"pattern": f'%"lemma":"{query}"%'}
+            else:
+                # Text content search
+                search_query = TEXT_CITATION_QUERY
+                params = {"pattern": f'%{query}%'}
 
-            search_query = base_query.filter(or_(*filters))
-            logger.debug(f"Executing search query: {str(search_query)}")
+            # Execute query
+            result = await self.session.execute(text(search_query), params)
+            rows = result.mappings().all()
             
-            result = await self.session.execute(search_query)
-            lines = result.unique().scalars().all()
-            logger.debug(f"Found {len(lines)} matching lines")
-
-            data = [
-                {
-                    "text_id": str(line.division.text.id),
-                    "text_title": line.division.text.title,
-                    "author": line.division.text.author.name if line.division.text.author else None,
-                    "division": {
-                        "author_id_field": line.division.author_id_field,
-                        "work_number_field": line.division.work_number_field,
-                        "epithet_field": line.division.epithet_field,
-                        "fragment_field": line.division.fragment_field,
-                        "volume": line.division.volume,
-                        "chapter": line.division.chapter,
-                        "section": line.division.section,
-                        "is_title": line.division.is_title,
-                        "title_number": line.division.title_number,
-                        "title_text": line.division.title_text
+            # Format results with consistent citation structure
+            data = []
+            for row in rows:
+                # Get the text division for citation formatting
+                division_query = select(TextDivision).where(TextDivision.id == row['division_id'])
+                division_result = await self.session.execute(division_query)
+                division = division_result.scalar_one()
+                
+                citation = {
+                    "sentence": {
+                        "id": str(row["sentence_id"]),
+                        "text": row["sentence_text"],
+                        "prev_sentence": row["prev_sentence"],
+                        "next_sentence": row["next_sentence"],
+                        "tokens": row["sentence_tokens"]
                     },
-                    "line_number": line.line_number,
-                    "content": line.content,
-                    "categories": line.categories or [],
-                    "spacy_data": line.spacy_tokens
+                    "citation": division.format_citation(),
+                    "context": {
+                        "line_id": str(row["line_id"]),
+                        "line_text": row["line_text"],
+                        "line_numbers": row["line_numbers"]
+                    },
+                    "location": {
+                        "volume": row["volume"],
+                        "chapter": row["chapter"],
+                        "section": row["section"]
+                    },
+                    "source": {
+                        "author": row["author_name"],
+                        "work": row["work_name"]
+                    }
                 }
-                for line in lines
-            ]
+                data.append(citation)
             
-            # Cache search results with shorter TTL
+            # Cache search results
             await self.redis.set(
                 cache_key,
                 data,
@@ -164,6 +158,7 @@ class CorpusService:
             )
             
             return data
+            
         except Exception as e:
             logger.error(f"Error in search_texts: {str(e)}", exc_info=True)
             raise
@@ -201,10 +196,7 @@ class CorpusService:
             "divisions": [
                 {
                     "id": str(div.id),
-                    "author_id_field": div.author_id_field,
-                    "work_number_field": div.work_number_field,
-                    "epithet_field": div.epithet_field,
-                    "fragment_field": div.fragment_field,
+                    "citation": div.format_citation(),
                     "volume": div.volume,
                     "chapter": div.chapter,
                     "section": div.section,
@@ -244,43 +236,45 @@ class CorpusService:
         if cached_data:
             return cached_data
             
-        query = (
-            select(TextLine)
-            .options(
-                selectinload(TextLine.division)
-                .selectinload(TextDivision.text)
-                .selectinload(Text.author)
-            )
-            .filter(TextLine.categories.contains([category]))
+        # Use the category citation query
+        result = await self.session.execute(
+            text(CATEGORY_CITATION_QUERY),
+            {"category": category}
         )
+        rows = result.mappings().all()
         
-        result = await self.session.execute(query)
-        lines = result.unique().scalars().all()
-        
-        data = [
-            {
-                "text_id": str(line.division.text.id),
-                "text_title": line.division.text.title,
-                "author": line.division.text.author.name if line.division.text.author else None,
-                "division": {
-                    "author_id_field": line.division.author_id_field,
-                    "work_number_field": line.division.work_number_field,
-                    "epithet_field": line.division.epithet_field,
-                    "fragment_field": line.division.fragment_field,
-                    "volume": line.division.volume,
-                    "chapter": line.division.chapter,
-                    "section": line.division.section,
-                    "is_title": line.division.is_title,
-                    "title_number": line.division.title_number,
-                    "title_text": line.division.title_text
+        # Format results with consistent citation structure
+        data = []
+        for row in rows:
+            division_query = select(TextDivision).where(TextDivision.id == row['division_id'])
+            division_result = await self.session.execute(division_query)
+            division = division_result.scalar_one()
+            
+            citation = {
+                "sentence": {
+                    "id": str(row["sentence_id"]),
+                    "text": row["sentence_text"],
+                    "prev_sentence": row["prev_sentence"],
+                    "next_sentence": row["next_sentence"],
+                    "tokens": row["sentence_tokens"]
                 },
-                "line_number": line.line_number,
-                "content": line.content,
-                "categories": line.categories or [],
-                "spacy_data": line.spacy_tokens
+                "citation": division.format_citation(),
+                "context": {
+                    "line_id": str(row["line_id"]),
+                    "line_text": row["line_text"],
+                    "line_numbers": row["line_numbers"]
+                },
+                "location": {
+                    "volume": row["volume"],
+                    "chapter": row["chapter"],
+                    "section": row["section"]
+                },
+                "source": {
+                    "author": row["author_name"],
+                    "work": row["work_name"]
+                }
             }
-            for line in lines
-        ]
+            data.append(citation)
         
         # Cache category search results
         await self.redis.set(

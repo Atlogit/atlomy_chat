@@ -7,10 +7,33 @@ from typing import Dict, Any, Optional, AsyncGenerator, Type, Union, List, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 import json
+import logging
 
 from app.core.config import settings
 from app.services.llm.base import BaseLLMClient, LLMResponse
-from app.services.llm.bedrock import BedrockClient
+from app.services.llm.bedrock import BedrockClient, BedrockClientError
+from app.services.llm.prompts import (
+    LEXICAL_VALUE_TEMPLATE,
+    ANALYSIS_TEMPLATE,
+    QUERY_TEMPLATE,
+    LEMMA_QUERY_TEMPLATE,
+    CATEGORY_QUERY_TEMPLATE
+)
+from app.core.citation_queries import CITATION_QUERY
+from app.models.text_division import TextDivision
+
+# Configure logging
+logger = logging.getLogger(__name__)
+
+class LLMServiceError(Exception):
+    """Custom exception for LLM service errors."""
+    def __init__(self, message: str, detail: Optional[Dict[str, Any]] = None):
+        super().__init__(message)
+        self.detail = detail or {
+            "message": message,
+            "service": "LLM Service",
+            "error_type": "llm_service_error"
+        }
 
 class LLMService:
     """Service for managing LLM operations."""
@@ -23,226 +46,45 @@ class LLMService:
         # "local": LocalLLMClient,
     }
     
-    # Template for term analysis
-    ANALYSIS_TEMPLATE = """You are an expert in ancient medical texts analysis.
-        
-Term to analyze: {term}
-
-Here are the contexts where this term appears:
-
-{context_str}
-
-Please provide a comprehensive analysis of this term, including:
-1. Its meaning and usage in medical contexts
-2. Any variations in meaning across different texts or authors
-3. The medical concepts or theories it relates to
-4. Its significance in ancient medical thought
-
-Format your response as a scholarly analysis, citing specific examples from the provided contexts.
-"""
-
-    # Template for SQL query generation
-    QUERY_TEMPLATE = """You are an AI assistant that generates SQL queries for a PostgreSQL database. 
-The database contains ancient texts with the following schema:
-
-text_lines:
-- id: UUID
-- content: TEXT (the actual text content)
-- line_number: INTEGER
-- division_id: UUID (foreign key to text_divisions)
-- categories: TEXT[] (array of categories the line belongs to)
-- spacy_tokens: JSON (contains text and tokens array, stored as a JSON string)
-
-text_divisions:
-- id: UUID
-- text_id: UUID (foreign key to texts)
-- author_id_field: TEXT (e.g., [0086])
-- work_number_field: TEXT (e.g., [055])
-- epithet_field: TEXT (optional, e.g., [Divis])
-- fragment_field: TEXT (optional)
-- volume: TEXT (optional)
-- chapter: TEXT (optional)
-- line: TEXT (optional)
-- section: TEXT (optional, e.g., 847a)
-- is_title: BOOLEAN
-- title_number: TEXT (optional)
-- title_text: TEXT (optional)
-
-texts:
-- id: UUID
-- title: TEXT
-- author_id: UUID (foreign key to authors)
-- reference_code: TEXT (optional)
-- text_metadata: JSON (optional)
-
-authors:
-- id: UUID
-- name: TEXT
-- normalized_name: TEXT
-- language_code: TEXT
-- reference_code: TEXT
-
-The spacy_tokens field is a JSON string with this structure:
-{{
-    "text": "full text content",
-    "tokens": [
-        {{
-            "text": "word text",
-            "lemma": "word lemma",
-            "pos": "part of speech",
-            "tag": "detailed tag",
-            "dep": "dependency",
-            "morph": "morphology",
-            "category": "category if any"
-        }},
-        ...more tokens...
-    ]
-}}
-
-Important notes:
-1. For searching in spacy_tokens JSON string, use CAST(spacy_tokens AS TEXT) ILIKE '%pattern%'
-2. Use array operators (@>) for searching in text_lines.categories
-3. Use proper text search functions (to_tsquery, to_tsvector) for text search
-4. Include JOINs with text_divisions and texts tables when needed
-5. For lemma searches, use: CAST(spacy_tokens AS TEXT) ILIKE '%"lemma":"desired_lemma"%'
-6. For category searches, use: categories @> ARRAY['category_name']
-7. For citation searches, combine author_id_field, work_number_field, etc.
-
-Task: Generate a SQL query that answers this question: {question}
-
-Only output the SQL query, no explanations.
-"""
-
-    # Template for specialized lemma search
-    LEMMA_QUERY_TEMPLATE = """Generate a SQL query to find all occurrences of the lemma '{lemma}' 
-in the text_lines table, including surrounding context (previous and next lines where available).
-Include citation information from text_divisions and texts tables.
-
-Use this schema:
-- text_lines (id, content, line_number, division_id, categories, spacy_tokens)
-- text_divisions (id, text_id, author_id_field, work_number_field, etc.)
-- texts (id, title, author_id)
-- authors (id, name, reference_code)
-
-The spacy_tokens field is a JSON string containing tokens array. Search for lemma using:
-CAST(spacy_tokens AS TEXT) ILIKE '%"lemma":"{lemma}"%'
-
-The query should:
-1. Find lines where the lemma appears in the tokens array
-2. Include the previous and next lines for context using window functions
-3. Include citation information (author_id_field, work_number_field, etc.)
-4. Include the text title and author name
-5. Order by text_id and line_number
-
-Only output the SQL query, no explanations.
-"""
-
-    # Template for category search
-    CATEGORY_QUERY_TEMPLATE = """Generate a SQL query to find all text lines in the category '{category}'.
-Include citation information and group by text/division.
-
-Use this schema:
-- text_lines (id, content, line_number, division_id, categories, spacy_tokens)
-- text_divisions (id, text_id, author_id_field, work_number_field, etc.)
-- texts (id, title, author_id)
-- authors (id, name, reference_code)
-
-The query should:
-1. Find lines where '{category}' is in the categories array using @>
-2. Include citation information from text_divisions
-3. Include text title and author name
-4. Group results by text and division
-5. Order by text title and division order
-
-Only output the SQL query, no explanations.
-"""
-
-    # Template for lexical value analysis
-    LEXICAL_VALUE_TEMPLATE = """
-    You are an AI assistant specializing in ancient Greek lexicography and philology. You will build a lexcial value based on validatd texts analysis on a PhD level. Analyze the following word or lemma and its usage in the given citations.
-    
-    Word to analyze (lemma): 
-    {word}
-    
-    Citations:
-    {citations}
-    
-    Task: Based on these citations, provide:
-    1. A concise translation of the word.
-    2. A short description (up to 2000 words) of its meaning and usage. This is a summary of the long description.
-    3. A longer, more detailed description.
-    4. A list of related terms or concepts.
-    5. A list of citations you used in the short or long descriptions
-    
-    Formatting Instructions:
-    Ensure your response is a valid JSON object.
-    Properly escape all special characters (e.g., quotes, backslashes) to avoid JSON formatting errors.
-    Ensure no truncation occurs.
-    Double-check that your JSON is well-formed and escaped correctly according to the JSON specification.
-    
-    Example JSON Format:
-
-    {{
-    "lemma": "{word}",
-    "translation": "Your translation here",
-    "short_description": "Your short description here",
-    "long_description": "Your long description here, ensuring that all special characters are properly escaped.",
-    "related_terms": ["term1", "term2", "term3"],
-    "citations_used": ["Citation 1", "Citation 2", "Citation 3"],
-    }}
-
-    Detailed Long Description:
-    The description should include information derived from text analysis, covering meaning, usage, notable connotations, context, and any contradictions or variations in usage across different authors or texts. If no citations are provided, use your expertise in ancient Greek to provide the best possible analysis.
-
-    If citations are provided, make sure to:
-    * Reference them in the text to support your claims.
-    * Cite them in the accustomed abbreviations. use the full citation in the citations_used section.
-    * Make sure to close citations_used list with the brackets.
-    
-    References
-    If citations are provided, you must use them in your analysis. Do not make up citations, don't use extrenal resources, only use what you are given by the user. Use the referencs to support your analysis, and cite them in the description when they prove a claim you make. When citing, do so in the accustomed abbreviations. Provide the full citations you used in the citations_used section. If no citations are provided, use your knowledge of ancient Greek to provide the best possible analysis.
-    """
-    
     def __init__(self, session: AsyncSession):
         """Initialize the LLM service."""
-        self.session = session
-        provider = settings.llm.PROVIDER
-        if provider not in self.PROVIDERS:
-            raise ValueError(f"Unsupported LLM provider: {provider}")
-        
-        self.client = self.PROVIDERS[provider]()
-        
-    async def analyze_term(
-        self,
-        term: str,
-        contexts: list[Dict[str, Any]],
-        max_tokens: Optional[int] = None,
-        stream: bool = False
-    ) -> Union[LLMResponse, AsyncGenerator[str, None]]:
-        """Analyze a term using its contexts."""
-        context_str = "\n\n".join(
-            f"Context {i+1}:\n"
-            f"Text: {ctx['text']}\n"
-            f"Author: {ctx.get('author', 'Unknown')}\n"
-            f"Reference: {ctx.get('reference', 'N/A')}"
-            for i, ctx in enumerate(contexts)
-        )
-        
-        prompt = self.ANALYSIS_TEMPLATE.format(
-            term=term,
-            context_str=context_str
-        )
-        
-        if stream:
-            return self.client.stream_generate(
-                prompt=prompt,
-                max_tokens=max_tokens
+        try:
+            self.session = session
+            provider = settings.llm.PROVIDER
+            if provider not in self.PROVIDERS:
+                raise LLMServiceError(
+                    f"Unsupported LLM provider: {provider}",
+                    {
+                        "message": f"Provider {provider} not supported",
+                        "error_type": "configuration_error",
+                        "available_providers": list(self.PROVIDERS.keys())
+                    }
+                )
+            
+            logger.info(f"Initializing LLM service with provider: {provider}")
+            self.client = self.PROVIDERS[provider]()
+            
+        except BedrockClientError as e:
+            logger.error(f"Bedrock client initialization error: {str(e)}", exc_info=True)
+            raise LLMServiceError(
+                "Failed to initialize LLM provider",
+                {
+                    "message": str(e),
+                    "error_type": "provider_initialization_error",
+                    "provider": settings.llm.PROVIDER,
+                    "provider_error": e.detail
+                }
             )
-        
-        return await self.client.generate(
-            prompt=prompt,
-            max_tokens=max_tokens
-        )
+        except Exception as e:
+            logger.error(f"LLM service initialization error: {str(e)}", exc_info=True)
+            raise LLMServiceError(
+                "Failed to initialize LLM service",
+                {
+                    "message": str(e),
+                    "error_type": "initialization_error",
+                    "service": "LLM Service"
+                }
+            )
 
     async def create_lexical_value(
         self,
@@ -252,63 +94,188 @@ Only output the SQL query, no explanations.
         stream: bool = False
     ) -> Union[Dict[str, Any], AsyncGenerator[str, None]]:
         """Generate a lexical value analysis for a word/lemma."""
-        # Format citations into a string
-        citations_text = "\n\n".join(
-            f"Citation {i+1}:\n{ctx.get('text', '')}\n"
-            f"Reference: {ctx.get('citation', 'N/A')}"
-            for i, ctx in enumerate(citations)
-        )
-        
-        # Format the prompt
-        prompt = self.LEXICAL_VALUE_TEMPLATE.format(
-            word=word,
-            citations=citations_text
-        )
-        
-        # Get response from LLM
-        if stream:
-            return self.client.stream_generate(
+        try:
+            logger.info(f"Creating lexical value for word: {word}")
+            logger.debug(f"Number of citations: {len(citations)}")
+            
+            # Format citations into a string using proper citation structure
+            citations_text = "\n\n".join(
+                f"Citation {i+1}:\n"
+                f"Text: {ctx['sentence']['text']}\n"
+                f"Citation: {ctx['citation']}\n"
+                f"Author: {ctx['source']['author']}\n"
+                f"Work: {ctx['source']['work']}\n"
+                f"Location: {', '.join(filter(None, [ctx['location']['chapter'], ctx['location']['section']]))}"
+                for i, ctx in enumerate(citations)
+            )
+            
+            logger.debug(f"Formatted citations text:\n{citations_text}")
+            
+            # Format the prompt using template from prompts.py
+            prompt = LEXICAL_VALUE_TEMPLATE.format(
+                word=word,
+                citations=citations_text
+            )
+            
+            logger.debug(f"Complete prompt:\n{prompt}")
+            
+            # Get response from LLM
+            if stream:
+                return self.client.stream_generate(
+                    prompt=prompt,
+                    max_tokens=max_tokens
+                )
+            
+            response = await self.client.generate(
                 prompt=prompt,
                 max_tokens=max_tokens
             )
-        
-        response = await self.client.generate(
-            prompt=prompt,
-            max_tokens=max_tokens
-        )
-        
-        # Parse the JSON response
-        try:
-            result = json.loads(response.text.strip())
             
-            # Validate required fields
-            required_fields = ['lemma', 'translation', 'short_description', 
-                             'long_description', 'related_terms', 'citations_used']
-            missing_fields = [field for field in required_fields if field not in result]
+            logger.debug(f"Raw LLM response:\n{response.text}")
             
-            if missing_fields:
-                raise ValueError(f"Missing required fields: {', '.join(missing_fields)}")
-            
-            return result
-            
-        except json.JSONDecodeError as e:
-            raise ValueError(f"Invalid JSON response from LLM: {str(e)}")
+            # Parse the JSON response
+            try:
+                result = json.loads(response.text.strip())
+                logger.debug(f"Parsed JSON result:\n{json.dumps(result, indent=2)}")
+                
+                # Validate required fields
+                required_fields = ['lemma', 'translation', 'short_description', 
+                                'long_description', 'related_terms', 'citations_used']
+                missing_fields = [field for field in required_fields if field not in result]
+                
+                if missing_fields:
+                    logger.error(f"Missing required fields in LLM response: {missing_fields}")
+                    raise LLMServiceError(
+                        "Invalid LLM response format",
+                        {
+                            "message": "Missing required fields in LLM response",
+                            "error_type": "validation_error",
+                            "missing_fields": missing_fields,
+                            "received_fields": list(result.keys()),
+                            "word": word
+                        }
+                    )
+                
+                return result
+                
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse JSON from LLM response: {str(e)}")
+                logger.error(f"Invalid JSON response:\n{response.text}")
+                raise LLMServiceError(
+                    "Invalid JSON response from LLM",
+                    {
+                        "message": "Failed to parse JSON response",
+                        "error_type": "json_parse_error",
+                        "parse_error": str(e),
+                        "response_text": response.text[:1000],  # First 1000 chars
+                        "response_length": len(response.text),
+                        "word": word
+                    }
+                )
+                
+        except BedrockClientError as e:
+            logger.error(f"Bedrock client error creating lexical value: {str(e)}", exc_info=True)
+            raise LLMServiceError(
+                "LLM provider error",
+                {
+                    "message": str(e),
+                    "error_type": "provider_error",
+                    "provider": settings.llm.PROVIDER,
+                    "provider_error": e.detail,
+                    "word": word
+                }
+            )
+        except LLMServiceError:
+            raise
+        except Exception as e:
+            logger.error(f"Error creating lexical value: {str(e)}", exc_info=True)
+            raise LLMServiceError(
+                "Failed to create lexical value",
+                {
+                    "message": str(e),
+                    "error_type": "creation_error",
+                    "word": word,
+                    "citations_count": len(citations)
+                }
+            )
 
     async def generate_and_execute_query(
-        self,
-        question: str,
-        max_tokens: Optional[int] = None
-    ) -> Tuple[str, List[Dict[str, Any]]]:
-        """Generate and execute a SQL query based on a natural language question."""
-        response = await self.generate_query(question, max_tokens)
-        sql_query = response.text.strip()
+            self,
+            question: str,
+            max_tokens: Optional[int] = None
+        ) -> Tuple[str, List[Dict[str, Any]]]:
+            """Generate and execute a SQL query based on a natural language question."""
+            try:
+                response = await self.generate_query(question, max_tokens)
+                sql_query = response.text.strip()
 
-        try:
-            result = await self.session.execute(text(sql_query))
-            rows = result.mappings().all()
-            return sql_query, [dict(row) for row in rows]
-        except Exception as e:
-            raise ValueError(f"Error executing SQL query: {str(e)}")
+                logger.debug(f"Executing SQL query: {sql_query}")
+                result = await self.session.execute(text(sql_query))
+                rows = result.mappings().all()
+                
+                # Format results using proper citation structure
+                formatted_results = []
+                for row in rows:
+                    # Get the text division for citation formatting
+                    division_query = text("SELECT * FROM text_divisions WHERE id = :id")
+                    division_result = await self.session.execute(division_query, {"id": row['division_id']})
+                    division_data = division_result.mappings().one()
+                    division = TextDivision()
+                    for key, value in division_data.items():
+                        setattr(division, key, value)
+
+                    citation = {
+                        "sentence": {
+                            "id": str(row["sentence_id"]),
+                            "text": row["sentence_text"],
+                            "prev_sentence": row.get("prev_sentence"),
+                            "next_sentence": row.get("next_sentence"),
+                            "tokens": row.get("sentence_tokens")
+                        },
+                        "citation": division.format_citation(),
+                        "context": {
+                            "line_id": str(row["line_id"]),
+                            "line_text": row["line_text"],
+                            "line_numbers": row.get("line_numbers", [])
+                        },
+                        "location": {
+                            "volume": division.volume,
+                            "chapter": division.chapter,
+                            "section": division.section
+                        },
+                        "source": {
+                            "author": division.author_name,
+                            "work": division.work_name
+                        }
+                    }
+                    formatted_results.append(citation)
+
+                logger.debug(f"Query returned {len(formatted_results)} formatted results")
+                return sql_query, formatted_results
+
+            except BedrockClientError as e:
+                logger.error(f"LLM provider error generating query: {str(e)}", exc_info=True)
+                raise LLMServiceError(
+                    "LLM provider error",
+                    {
+                        "message": str(e),
+                        "error_type": "provider_error",
+                        "provider": settings.llm.PROVIDER,
+                        "provider_error": e.detail,
+                        "question": question
+                    }
+                )
+            except Exception as e:
+                logger.error(f"Error executing SQL query: {str(e)}", exc_info=True)
+                raise LLMServiceError(
+                    "Error executing SQL query",
+                    {
+                        "message": str(e),
+                        "error_type": "query_execution_error",
+                        "question": question,
+                        "sql_query": sql_query if 'sql_query' in locals() else None
+                    }
+                )
 
     async def generate_query(
         self,
@@ -316,17 +283,50 @@ Only output the SQL query, no explanations.
         max_tokens: Optional[int] = None
     ) -> LLMResponse:
         """Generate a SQL query based on a natural language question."""
-        prompt = self.QUERY_TEMPLATE.format(question=question)
+        prompt = QUERY_TEMPLATE.format(question=question)
         return await self.client.generate(
             prompt=prompt,
             max_tokens=max_tokens
-        )
-    
+            )
+        
     async def get_token_count(self, text: str) -> int:
         """Get the token count for a text."""
-        return await self.client.count_tokens(text)
+        try:
+            return await self.client.count_tokens(text)
+        except BedrockClientError as e:
+            logger.error(f"Bedrock client error counting tokens: {str(e)}", exc_info=True)
+            raise LLMServiceError(
+                "Error counting tokens",
+                {
+                    "message": str(e),
+                    "error_type": "token_count_error",
+                    "provider": settings.llm.PROVIDER,
+                    "provider_error": e.detail
+                }
+            )
+        except Exception as e:
+            logger.error(f"Error counting tokens: {str(e)}", exc_info=True)
+            raise LLMServiceError(
+                "Failed to count tokens",
+                {
+                    "message": str(e),
+                    "error_type": "token_count_error",
+                    "text_length": len(text)
+                }
+            )
     
     async def check_context_length(self, prompt: str) -> bool:
         """Check if a prompt is within the context length limit."""
-        token_count = await self.get_token_count(prompt)
-        return token_count <= settings.llm.MAX_CONTEXT_LENGTH
+        try:
+            token_count = await self.get_token_count(prompt)
+            return token_count <= settings.llm.MAX_CONTEXT_LENGTH
+        except Exception as e:
+            logger.error(f"Error checking context length: {str(e)}", exc_info=True)
+            raise LLMServiceError(
+                "Failed to check context length",
+                {
+                    "message": str(e),
+                    "error_type": "context_length_error",
+                    "prompt_length": len(prompt)
+                }
+            )

@@ -27,7 +27,7 @@ export function LLMSection() {
   const [tokenCount, setTokenCount] = useState<TokenCountResponse | null>(null)
   const [isStreaming, setIsStreaming] = useState(false)
   const [processingStage, setProcessingStage] = useState<string | null>(null)
-  const { data, error, isLoading, execute } = useApi<AnalysisResponse>()
+  const { data, error, isLoading = false, execute } = useApi<AnalysisResponse>()
 
   useEffect(() => {
     if (data) {
@@ -172,6 +172,8 @@ export function LLMSection() {
               checkTokenCount()
             }}
             placeholder="Enter a term..."
+            spellCheck={false}
+            autoComplete="off"
           />
         </div>
 
@@ -204,6 +206,8 @@ export function LLMSection() {
                   onChange={(e) => updateContext(index, 'text', e.target.value)}
                   placeholder="Enter context text..."
                   rows={3}
+                  spellCheck={false}
+                  autoComplete="off"
                 />
                 
                 <div className="grid grid-cols-2 gap-4">
@@ -213,6 +217,8 @@ export function LLMSection() {
                     value={context.author || ''}
                     onChange={(e) => updateContext(index, 'author', e.target.value)}
                     placeholder="Author (optional)"
+                    spellCheck={false}
+                    autoComplete="off"
                   />
                   <input
                     type="text"
@@ -220,6 +226,8 @@ export function LLMSection() {
                     value={context.reference || ''}
                     onChange={(e) => updateContext(index, 'reference', e.target.value)}
                     placeholder="Reference (optional)"
+                    spellCheck={false}
+                    autoComplete="off"
                   />
                 </div>
               </div>

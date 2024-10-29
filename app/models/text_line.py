@@ -1,8 +1,8 @@
 from typing import Optional, Dict, Any, List
 from sqlalchemy import String, Integer, ForeignKey, JSON
-from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from . import Base
+from app.models import Base
 
 class TextLine(Base):
     """Model for storing individual lines of text with their NLP annotations.
@@ -16,6 +16,9 @@ class TextLine(Base):
 
     # Primary key
     id: Mapped[int] = mapped_column(primary_key=True)
+    
+    # Sentence ID for lexical value relationships
+    sentence_id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), unique=True, nullable=False)
     
     # Foreign key to TextDivision
     division_id: Mapped[int] = mapped_column(
@@ -46,8 +49,9 @@ class TextLine(Base):
         comment="Complete spaCy token data including lemmas, POS tags, etc."
     )
     
-    # Relationship
+    # Relationships
     division = relationship("TextDivision", back_populates="lines")
+    lexical_values = relationship("LexicalValue", back_populates="sentence")
     
     def __repr__(self) -> str:
         return f"TextLine(id={self.id}, division_id={self.division_id}, line={self.line_number}, categories={self.categories})"

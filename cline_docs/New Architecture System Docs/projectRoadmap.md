@@ -33,6 +33,10 @@
   - [x] Enhance metadata presentation
   - [x] Add spaCy token visualization
   - [x] Improve navigation and error handling
+  - [x] Enhanced citation display with author/work names
+  - [x] Sentence context preview modal
+  - [x] Version management UI
+  - [x] Direct citation linking interface
 - [ ] Implement real-time progress updates
 - [ ] Add new analysis features
 
@@ -59,6 +63,7 @@
 - [x] Improved query performance with Redis caching
 - [x] Enhanced user experience with improved UI components
 - [x] Maintained compatibility with existing features
+- [x] Frontend integration with new architecture features
 - [ ] Comprehensive testing coverage
 - [ ] Performance validation under load
 
@@ -79,6 +84,10 @@
   - TextDisplay component with citation and structural info
   - SearchForm with improved search capabilities
   - CorpusSection with better navigation
+  - Enhanced citation display with author/work names
+  - Sentence context preview functionality
+  - Version management interface
+  - Direct citation linking system
 - API layer updates for new schema
 - Service layer with Redis caching
 
@@ -110,6 +119,8 @@
 ### Performance
 - [x] Implement Redis caching strategies
 - [x] Optimize frontend component rendering
+- [x] Implement efficient citation display
+- [x] Optimize version management UI
 - [ ] Monitor cache hit rates
 - [ ] Profile component performance
 - [ ] Analyze memory usage patterns

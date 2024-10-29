@@ -1,7 +1,7 @@
 import logging
 import os
 import json
-from logging.handlers import RotatingFileHandler, TimedRotatingFileHandler
+from logging.handlers import RotatingFileHandler
 from datetime import datetime
 
 def json_formatter(record):
@@ -29,6 +29,9 @@ class EnvConfig:
         self.FILE_OUTPUT = os.environ.get('FILE_OUTPUT', 'true').lower() == 'true'
         self.LOG_FILE = os.environ.get('LOG_FILE', 'atlomy_chat.log')
         self.JSON_LOGGING = os.environ.get('JSON_LOGGING', 'false').lower() == 'true'
+        # New configuration options for log rotation with stricter defaults
+        self.MAX_BYTES = int(os.environ.get('LOG_MAX_BYTES', 5242880))  # 5MB default
+        self.BACKUP_COUNT = int(os.environ.get('LOG_BACKUP_COUNT', 5))
 
 def setup_logging(config=None, **kwargs):
     """
@@ -72,11 +75,15 @@ def setup_logging(config=None, **kwargs):
     handlers = []
     if config.CONSOLE_OUTPUT:
         console_handler = logging.StreamHandler()
-        console_handler.setLevel(config.LOG_LEVEL.upper())  # Set console handler level to user-defined level
+        console_handler.setLevel(config.LOG_LEVEL.upper())
         print(f"Console handler level set to: {console_handler.level} ({logging.getLevelName(console_handler.level)})")
         handlers.append(console_handler)
     if config.FILE_OUTPUT:
-        file_handler = TimedRotatingFileHandler(log_path, when="midnight", interval=1, backupCount=7)
+        file_handler = RotatingFileHandler(
+            log_path,
+            maxBytes=config.MAX_BYTES,
+            backupCount=config.BACKUP_COUNT
+        )
         file_handler.setLevel(logging.DEBUG)  # File handler set to DEBUG to capture all logs
         handlers.append(file_handler)
     

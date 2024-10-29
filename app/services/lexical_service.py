@@ -17,7 +17,6 @@ from app.services.json_storage_service import JSONStorageService
 from app.core.redis import redis_client
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class LexicalService:
@@ -29,6 +28,7 @@ class LexicalService:
         self.llm_service = LLMService(session)
         self.json_storage = JSONStorageService()
         self.cache_ttl = 3600  # 1 hour cache TTL
+        logger.info("Initialized LexicalService")
 
     async def _get_cached_value(self, lemma: str) -> Optional[Dict]:
         """Get lexical value from cache if available."""
@@ -69,6 +69,8 @@ class LexicalService:
     async def _get_citations(self, word: str, search_lemma: bool) -> List[Dict[str, Any]]:
         """Get citations with full sentence context for a word/lemma from the database."""
         try:
+            logger.info(f"Getting citations for word: {word} (search_lemma: {search_lemma})")
+            
             # Enhanced query to get complete sentence context and proper grouping
             if search_lemma:
                 query = """
@@ -76,7 +78,7 @@ class LexicalService:
                     SELECT DISTINCT ON (s.id)
                         s.id as sentence_id,
                         s.content as sentence_text,
-                        s.spacy_tokens as sentence_tokens,
+                        s.spacy_data as sentence_tokens,
                         tl.id as line_id,
                         tl.content as line_text,
                         tl.line_number,
@@ -102,7 +104,7 @@ class LexicalService:
                     FROM sentences s
                     JOIN text_lines tl ON s.text_line_id = tl.id
                     JOIN text_divisions td ON tl.division_id = td.id
-                    WHERE CAST(s.spacy_tokens AS TEXT) ILIKE :pattern
+                    WHERE CAST(s.spacy_data AS TEXT) ILIKE :pattern
                 )
                 SELECT * FROM sentence_matches
                 """
@@ -113,7 +115,7 @@ class LexicalService:
                     SELECT DISTINCT ON (s.id)
                         s.id as sentence_id,
                         s.content as sentence_text,
-                        s.spacy_tokens as sentence_tokens,
+                        s.spacy_data as sentence_tokens,
                         tl.id as line_id,
                         tl.content as line_text,
                         tl.line_number,
@@ -145,10 +147,17 @@ class LexicalService:
                 """
                 pattern = f'%{word}%'
 
+            logger.debug(f"Executing citation query with pattern: {pattern}")
+            logger.debug(f"Full SQL query:\n{query}")
+
             result = await self.session.execute(text(query), {"pattern": pattern})
+            raw_results = result.mappings().all()
+            logger.debug(f"Raw query results: {raw_results}")
+
             citations = []
             
-            for row in result.mappings():
+            for row in raw_results:
+                logger.debug(f"Processing row: {row}")
                 # Get the text division for proper citation formatting
                 division_query = select(TextDivision).where(TextDivision.id == row['division_id'])
                 division_result = await self.session.execute(division_query)
@@ -165,27 +174,28 @@ class LexicalService:
                     },
                     "citation": division.format_citation(),
                     "context": {
-                        "line_id": row["line_id"],
+                        "line_id": str(row["line_id"]),
                         "line_text": row["line_text"],
                         "line_numbers": row["line_numbers"]
                     },
                     "location": {
-                        "volume": row["volume"],
-                        "chapter": row["chapter"],
-                        "section": row["section"]
+                        "volume": row["volume"] or '',
+                        "chapter": row["chapter"] or '',
+                        "section": row["section"] or ''
                     },
                     "source": {
-                        "author": row["author_name"],
-                        "work": row["work_name"]
+                        "author": row["author_name"] or 'Unknown',
+                        "work": row["work_name"] or 'Unknown Work'
                     }
                 }
+                logger.debug(f"Formatted citation: {citation}")
                 citations.append(citation)
 
             logger.info(f"Found {len(citations)} citations with sentence context for {word}")
             return citations
 
         except Exception as e:
-            logger.error(f"Error getting citations for {word}: {str(e)}")
+            logger.error(f"Error getting citations for {word}: {str(e)}", exc_info=True)
             raise
 
     def _validate_lexical_value(self, data: Dict[str, Any]):
@@ -195,6 +205,7 @@ class LexicalService:
         missing_fields = [field for field in required_fields if field not in data]
         
         if missing_fields:
+            logger.error(f"Missing required fields in lexical value data: {missing_fields}")
             raise ValueError(f"Missing required fields: {', '.join(missing_fields)}")
 
     async def create_lexical_entry(
@@ -205,11 +216,13 @@ class LexicalService:
     ) -> Dict[str, Any]:
         """Create a new lexical value entry with JSON storage."""
         start_time = time.time()
+        logger.info(f"Starting creation of lexical entry for lemma: {lemma}")
         
         try:
             # Check if entry already exists
             existing = await self.get_lexical_value(lemma)
             if existing:
+                logger.info(f"Lexical value already exists for {lemma}")
                 return {
                     "success": False,
                     "message": "Lexical value already exists",
@@ -218,15 +231,20 @@ class LexicalService:
                 }
 
             # Get citations with enhanced sentence context
+            logger.info(f"Getting citations for {lemma}")
             citations = await self._get_citations(lemma, search_lemma)
+            logger.debug(f"Retrieved {len(citations)} citations")
             
             # Generate lexical value using LLM
+            logger.info(f"Generating lexical value using LLM for {lemma}")
             analysis = await self.llm_service.create_lexical_value(
                 word=lemma,
                 citations=citations
             )
+            logger.debug(f"LLM analysis result: {analysis}")
             
             # Validate the analysis data
+            logger.info(f"Validating analysis data for {lemma}")
             self._validate_lexical_value(analysis)
             
             # Store citations and sentence contexts in structured format
@@ -258,6 +276,7 @@ class LexicalService:
             analysis['sentence_contexts'] = sentence_contexts
             
             # Create new entry in database
+            logger.info(f"Creating database entry for {lemma}")
             entry = LexicalValue.from_dict(analysis)
             self.session.add(entry)
             await self.session.commit()
@@ -265,6 +284,7 @@ class LexicalService:
             
             # Store in JSON format
             entry_dict = entry.to_dict()
+            logger.debug(f"Entry dictionary: {entry_dict}")
             self.json_storage.save(lemma, entry_dict)
             
             # Cache the new entry
@@ -281,7 +301,7 @@ class LexicalService:
             }
             
         except Exception as e:
-            logger.error(f"Error creating lexical value for {lemma}: {str(e)}")
+            logger.error(f"Error creating lexical value for {lemma}: {str(e)}", exc_info=True)
             raise
 
     async def get_lexical_value(self, lemma: str) -> Optional[LexicalValue]:
@@ -312,7 +332,7 @@ class LexicalService:
             return entry
             
         except Exception as e:
-            logger.error(f"Error getting lexical value for {lemma}: {str(e)}")
+            logger.error(f"Error getting lexical value for {lemma}: {str(e)}", exc_info=True)
             raise
 
     async def update_lexical_value(
@@ -353,7 +373,7 @@ class LexicalService:
             }
             
         except Exception as e:
-            logger.error(f"Error updating lexical value for {lemma}: {str(e)}")
+            logger.error(f"Error updating lexical value for {lemma}: {str(e)}", exc_info=True)
             raise
 
     async def delete_lexical_value(self, lemma: str) -> bool:
@@ -375,7 +395,7 @@ class LexicalService:
             return True
             
         except Exception as e:
-            logger.error(f"Error deleting lexical value for {lemma}: {str(e)}")
+            logger.error(f"Error deleting lexical value for {lemma}: {str(e)}", exc_info=True)
             raise
 
     async def list_lexical_values(
@@ -391,7 +411,7 @@ class LexicalService:
             return [entry.to_dict() for entry in entries]
             
         except Exception as e:
-            logger.error(f"Error listing lexical values: {str(e)}")
+            logger.error(f"Error listing lexical values: {str(e)}", exc_info=True)
             raise
 
     async def get_linked_citations(self, lemma: str) -> List[Dict[str, Any]]:
@@ -404,7 +424,7 @@ class LexicalService:
             return entry.get_linked_citations()
             
         except Exception as e:
-            logger.error(f"Error getting linked citations for {lemma}: {str(e)}")
+            logger.error(f"Error getting linked citations for {lemma}: {str(e)}", exc_info=True)
             raise
 
     async def get_json_versions(self, lemma: str) -> List[str]:
@@ -412,7 +432,7 @@ class LexicalService:
         try:
             return self.json_storage.list_versions(lemma)
         except Exception as e:
-            logger.error(f"Error getting JSON versions for {lemma}: {str(e)}")
+            logger.error(f"Error getting JSON versions for {lemma}: {str(e)}", exc_info=True)
             raise
 
     async def get_storage_info(self) -> Dict[str, Any]:
@@ -420,5 +440,5 @@ class LexicalService:
         try:
             return self.json_storage.get_storage_info()
         except Exception as e:
-            logger.error(f"Error getting storage info: {str(e)}")
+            logger.error(f"Error getting storage info: {str(e)}", exc_info=True)
             raise

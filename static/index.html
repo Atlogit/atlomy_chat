@@ -73,6 +73,7 @@
                             <button class="join-item btn" data-action="update">Update</button>
                             <button class="join-item btn" data-action="batch-update">Batch Update</button>
                             <button class="join-item btn" data-action="delete">Delete</button>
+                            <button class="join-item btn" data-action="versions">Versions</button>
                         </div>
                         
                         <!-- Create Form -->
@@ -194,9 +195,59 @@
                             </div>
                         </div>
 
+                        <!-- Versions Form -->
+                        <div class="action-form collapse" id="versions-form">
+                            <div class="form-control mt-4">
+                                <input type="text" id="versions-lemma" placeholder="Enter lemma" class="input input-bordered w-full">
+                                <div class="flex gap-2 mt-4">
+                                    <button class="submit-btn btn btn-primary flex-1">
+                                        <span class="loading loading-spinner loading-xs hidden"></span>
+                                        <span class="button-text">Get Versions</span>
+                                    </button>
+                                    <button class="cancel-btn btn btn-error hidden">Cancel</button>
+                                </div>
+                                <div id="versions-list" class="mt-4 hidden">
+                                    <h3 class="font-bold mb-2">Available Versions</h3>
+                                    <div class="overflow-x-auto">
+                                        <table class="table w-full">
+                                            <thead>
+                                                <tr>
+                                                    <th>Version</th>
+                                                    <th>Date</th>
+                                                    <th>Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody></tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <div id="lexical-results" class="mt-6">
                             <h3 class="font-bold mb-2">Results</h3>
-                            <div class="results-content mockup-code"></div>
+                            <div class="results-content">
+                                <!-- Enhanced Results Display -->
+                                <div class="lexical-value-display hidden">
+                                    <div class="card bg-base-100 shadow-lg">
+                                        <div class="card-body">
+                                            <h2 class="card-title lemma-title"></h2>
+                                            <p class="translation"></p>
+                                            <div class="divider">Description</div>
+                                            <p class="short-description"></p>
+                                            <p class="long-description"></p>
+                                            <div class="divider">Citations</div>
+                                            <div class="citations-list space-y-4"></div>
+                                            <div class="divider">Related Terms</div>
+                                            <div class="related-terms flex flex-wrap gap-2"></div>
+                                            <div class="divider">Version Info</div>
+                                            <div class="version-info text-sm"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Fallback for raw JSON display -->
+                                <div class="mockup-code raw-results"></div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -242,7 +293,6 @@
                                 <div class="flex gap-2 mt-4">
                                     <button class="submit-btn btn btn-primary flex-1">
                                         <span class="loading loading-spinner loading-xs hidden"></span>
-                                        <span class="loading loading-spinner loading-xs hidden"></span>
                                         <span class="button-text">Search</span>
                                     </button>
                                     <button class="cancel-btn btn btn-error hidden">Cancel</button>
@@ -258,5 +308,22 @@
                 </section>
             </main>
         </div>
+
+        <!-- Citation Preview Modal -->
+        <dialog id="citation-preview-modal" class="modal">
+            <div class="modal-box">
+                <h3 class="font-bold text-lg">Citation Context</h3>
+                <div class="py-4">
+                    <div class="prev-sentence text-sm opacity-70"></div>
+                    <div class="current-sentence font-medium"></div>
+                    <div class="next-sentence text-sm opacity-70"></div>
+                </div>
+                <div class="modal-action">
+                    <form method="dialog">
+                        <button class="btn">Close</button>
+                    </form>
+                </div>
+            </div>
+        </dialog>
     </body>
-    </html>
+</html>

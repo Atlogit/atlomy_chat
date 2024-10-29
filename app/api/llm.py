@@ -8,6 +8,8 @@ from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
 from app.dependencies import LLMServiceDep
+from app.services.llm_service import LLMServiceError
+from app.api.corpus import Citation, SentenceContext, CitationContext, CitationLocation, CitationSource
 
 router = APIRouter()
 
@@ -39,10 +41,11 @@ class AnalysisResponse(BaseModel):
 
 class QueryResponse(BaseModel):
     sql: str
-    results: List[Dict[str, Any]]
+    results: List[Dict[str, Any]]  # Changed from List[Citation] to handle warnings
     usage: Dict[str, int]
     model: str
     raw_response: Optional[Dict[str, Any]]
+    error: Optional[str] = None  # Added error field
 
 class TokenCountResponse(BaseModel):
     count: int
@@ -78,8 +81,24 @@ async def analyze_term(
             "model": response.model,
             "raw_response": response.raw_response
         }
+    except LLMServiceError as e:
+        # Convert error to string format
+        error_msg = str(e.detail) if hasattr(e, 'detail') else str(e)
+        return {
+            "text": "",
+            "usage": {},
+            "model": "",
+            "raw_response": None,
+            "error": error_msg
+        }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return {
+            "text": "",
+            "usage": {},
+            "model": "",
+            "raw_response": None,
+            "error": str(e)
+        }
 
 @router.post("/generate-query", response_model=QueryResponse)
 async def generate_query(
@@ -99,17 +118,55 @@ async def generate_query(
             max_tokens=data.max_tokens
         )
         
+        # Convert results to proper format
+        formatted_results = []
+        for result in results:
+            if isinstance(result, dict):
+                # Handle warning messages
+                if 'warning' in result:
+                    formatted_results.append({
+                        'type': 'warning',
+                        'message': result['warning']
+                    })
+                    # Remove warning and add the rest of the data
+                    result_copy = result.copy()
+                    del result_copy['warning']
+                    if result_copy:  # If there's other data besides warning
+                        formatted_results.append(result_copy)
+                else:
+                    formatted_results.append(result)
+            else:
+                # Handle Citation objects or other types
+                formatted_results.append(dict(result))
+        
         return {
             "sql": sql_query,
-            "results": results,
+            "results": formatted_results,
             "usage": llm_response.usage,
             "model": llm_response.model,
-            "raw_response": llm_response.raw_response
+            "raw_response": llm_response.raw_response,
+            "error": None
         }
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except LLMServiceError as e:
+        # Convert error to string format
+        error_msg = str(e.detail) if hasattr(e, 'detail') else str(e)
+        return {
+            "sql": "",
+            "results": [],
+            "usage": {},
+            "model": "",
+            "raw_response": None,
+            "error": error_msg
+        }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return {
+            "sql": "",
+            "results": [],
+            "usage": {},
+            "model": "",
+            "raw_response": None,
+            "error": str(e)
+        }
 
 @router.post("/generate-precise-query", response_model=QueryResponse)
 async def generate_precise_query(
@@ -128,7 +185,6 @@ async def generate_precise_query(
             if "lemma" not in data.parameters:
                 raise ValueError("Lemma parameter is required for lemma_search")
             
-            # Example prompt for lemma search
             question = f"""
             Find all occurrences of the lemma '{data.parameters['lemma']}' in text_lines,
             including citation information and surrounding context.
@@ -140,7 +196,6 @@ async def generate_precise_query(
             if "category" not in data.parameters:
                 raise ValueError("Category parameter is required for category_search")
             
-            # Example prompt for category search
             question = f"""
             Find all text_lines with category '{data.parameters['category']}',
             including citation information.
@@ -153,7 +208,6 @@ async def generate_precise_query(
             if not all(field in data.parameters for field in required_fields):
                 raise ValueError(f"Required parameters missing. Need: {required_fields}")
             
-            # Example prompt for citation search
             question = f"""
             Find text_lines matching citation:
             author_id_field = '{data.parameters['author_id']}',
@@ -173,17 +227,55 @@ async def generate_precise_query(
             max_tokens=data.max_tokens
         )
         
+        # Convert results to proper format
+        formatted_results = []
+        for result in results:
+            if isinstance(result, dict):
+                # Handle warning messages
+                if 'warning' in result:
+                    formatted_results.append({
+                        'type': 'warning',
+                        'message': result['warning']
+                    })
+                    # Remove warning and add the rest of the data
+                    result_copy = result.copy()
+                    del result_copy['warning']
+                    if result_copy:  # If there's other data besides warning
+                        formatted_results.append(result_copy)
+                else:
+                    formatted_results.append(result)
+            else:
+                # Handle Citation objects or other types
+                formatted_results.append(dict(result))
+        
         return {
             "sql": sql_query,
-            "results": results,
+            "results": formatted_results,
             "usage": llm_response.usage,
             "model": llm_response.model,
-            "raw_response": llm_response.raw_response
+            "raw_response": llm_response.raw_response,
+            "error": None
         }
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except (LLMServiceError, ValueError) as e:
+        # Convert error to string format
+        error_msg = str(e.detail) if hasattr(e, 'detail') else str(e)
+        return {
+            "sql": "",
+            "results": [],
+            "usage": {},
+            "model": "",
+            "raw_response": None,
+            "error": error_msg
+        }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return {
+            "sql": "",
+            "results": [],
+            "usage": {},
+            "model": "",
+            "raw_response": None,
+            "error": str(e)
+        }
 
 @router.post("/token-count", response_model=TokenCountResponse)
 async def count_tokens(
@@ -198,8 +290,20 @@ async def count_tokens(
             "count": count,
             "within_limits": within_limits
         }
+    except LLMServiceError as e:
+        # Convert error to string format
+        error_msg = str(e.detail) if hasattr(e, 'detail') else str(e)
+        return {
+            "count": 0,
+            "within_limits": False,
+            "error": error_msg
+        }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return {
+            "count": 0,
+            "within_limits": False,
+            "error": str(e)
+        }
 
 @router.post("/analyze/stream")
 async def analyze_term_stream(
@@ -222,5 +326,13 @@ async def analyze_term_stream(
                 stream=True
             )
         )
+    except LLMServiceError as e:
+        # Convert error to string format
+        error_msg = str(e.detail) if hasattr(e, 'detail') else str(e)
+        return {
+            "error": error_msg
+        }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return {
+            "error": str(e)
+        }

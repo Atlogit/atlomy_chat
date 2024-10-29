@@ -23,6 +23,7 @@ from .text_division import TextDivision
 from .text_line import TextLine
 from .lemma import Lemma
 from .lemma_analysis import LemmaAnalysis
+from .lexical_value import LexicalValue
 
 # List of all models for easy access
 __all__ = [
@@ -32,5 +33,6 @@ __all__ = [
     "TextDivision",
     "TextLine",
     "Lemma",
-    "LemmaAnalysis"
+    "LemmaAnalysis",
+    "LexicalValue"
 ]

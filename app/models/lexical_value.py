@@ -5,10 +5,8 @@ Database models for lexical values and their analyses.
 from sqlalchemy import Column, String, Text, DateTime, func, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID, ARRAY, JSONB
 from sqlalchemy.orm import relationship, Mapped
-from sqlalchemy.ext.declarative import declarative_base
 import uuid
-
-Base = declarative_base()
+from app.models import Base
 
 class LexicalValue(Base):
     """Model for storing lexical values with their analyses and sentence contexts."""
@@ -29,7 +27,7 @@ class LexicalValue(Base):
 
     # Direct relationship with sentences through text_lines
     sentence_id = Column(UUID(as_uuid=True), ForeignKey('text_lines.sentence_id'), nullable=True)
-    sentence = relationship("TextLine", foreign_keys=[sentence_id], backref="lexical_values")
+    sentence = relationship("TextLine", foreign_keys=[sentence_id], back_populates="lexical_values")
 
     __table_args__ = {
         'comment': 'Stores lexical values with their analyses, citations, and sentence contexts'
@@ -74,7 +72,7 @@ class LexicalValue(Base):
         return self.sentence_contexts[sentence_id]
 
     def get_citations_with_context(self) -> list:
-        """Get citations with their full sentence contexts."""
+        """Get citations with their full sentence contexts in standard format."""
         if not self.references or 'citations' not in self.references:
             return []
 
@@ -83,8 +81,32 @@ class LexicalValue(Base):
             sentence_id = citation['sentence']['id']
             context = self.get_sentence_context(sentence_id)
             if context:
-                citation['sentence'].update(context)
-            citations.append(citation)
+                # Format citation in standard format
+                formatted_citation = {
+                    "sentence": {
+                        "id": sentence_id,
+                        "text": context.get('text', ''),
+                        "prev_sentence": context.get('prev', ''),
+                        "next_sentence": context.get('next', ''),
+                        "tokens": context.get('tokens', {})
+                    },
+                    "citation": citation.get('citation', ''),
+                    "context": {
+                        "line_id": citation['context']['line_id'],
+                        "line_text": citation['context']['line_text'],
+                        "line_numbers": citation['context']['line_numbers']
+                    },
+                    "location": {
+                        "volume": citation['location'].get('volume', ''),
+                        "chapter": citation['location'].get('chapter', ''),
+                        "section": citation['location'].get('section', '')
+                    },
+                    "source": {
+                        "author": citation['source'].get('author', 'Unknown'),
+                        "work": citation['source'].get('work', '')
+                    }
+                }
+                citations.append(formatted_citation)
 
         return citations
 
@@ -93,17 +115,42 @@ class LexicalValue(Base):
         self.sentence_id = uuid.UUID(sentence_id)
         if not self.sentence_contexts:
             self.sentence_contexts = {}
-        self.sentence_contexts[sentence_id] = context
+        self.sentence_contexts[sentence_id] = {
+            'text': context.get('text', ''),
+            'prev': context.get('prev_sentence', ''),
+            'next': context.get('next_sentence', ''),
+            'tokens': context.get('tokens', {})
+        }
 
     def get_linked_citations(self) -> list:
-        """Get all citations directly linked to this lexical value."""
-        if not self.sentence:
+        """Get all citations directly linked to this lexical value in standard format."""
+        if not self.sentence or not self.sentence.division:
             return []
             
+        division = self.sentence.division
+        context = self.sentence_contexts.get(str(self.sentence_id), {})
+        
         return [{
-            'sentence_id': str(self.sentence_id),
-            'text': self.sentence.content,
-            'context': self.sentence_contexts.get(str(self.sentence_id), {}),
-            'line_number': self.sentence.line_number,
-            'division': self.sentence.division.format_citation() if self.sentence.division else None
+            "sentence": {
+                "id": str(self.sentence_id),
+                "text": context.get('text', self.sentence.content),
+                "prev_sentence": context.get('prev', ''),
+                "next_sentence": context.get('next', ''),
+                "tokens": context.get('tokens', {})
+            },
+            "citation": division.format_citation(),
+            "context": {
+                "line_id": f"{self.sentence.division.text.id}-{self.sentence.line_number}",
+                "line_text": self.sentence.content,
+                "line_numbers": [self.sentence.line_number]
+            },
+            "location": {
+                "volume": division.volume or '',
+                "chapter": division.chapter or '',
+                "section": division.section or ''
+            },
+            "source": {
+                "author": division.author_name or 'Unknown',
+                "work": division.work_name or ''
+            }
         }]

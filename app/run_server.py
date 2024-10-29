@@ -5,17 +5,26 @@ Main FastAPI application entry point.
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-import logging
+import json
+import logging.config
+import os
 
 from app.core.config import settings
 from app.api import api_router
 
-# Initialize basic logging
-logging.basicConfig(
-    level=settings.LOG_LEVEL,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+# Load logging configuration from JSON file
+with open('logging_config.json', 'r') as f:
+    logging_config = json.load(f)
+
+# Ensure logs directory exists
+os.makedirs('logs', exist_ok=True)
+
+# Configure logging
+logging.config.dictConfig(logging_config)
 logger = logging.getLogger(__name__)
+
+logger.info("Starting application with DEBUG logging enabled")
+logger.debug("Debug logging is active")
 
 # Create FastAPI app
 app = FastAPI(
@@ -41,6 +50,16 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 # Include API router
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
+@app.on_event("startup")
+async def startup_event():
+    """Log startup information."""
+    logger.info("Application startup")
+    logger.debug("Debug logging confirmed active at startup")
+    logger.info(f"API Version: {settings.API_V1_STR}")
+    logger.info(f"Debug Mode: {settings.DEBUG}")
+    logger.info(f"LLM Provider: {settings.llm.PROVIDER}")
+    logger.info(f"Database URL: {settings.DATABASE_URL.split('@')[1]}")  # Log only host part for security
+
 if __name__ == "__main__":
     import uvicorn
     logger.info("Starting Uvicorn server")
@@ -48,5 +67,6 @@ if __name__ == "__main__":
         "app.run_server:app",
         host="0.0.0.0",
         port=8000,
-        reload=settings.DEBUG
+        reload=settings.DEBUG,
+        log_config=logging_config  # Use our logging config for uvicorn too
     )

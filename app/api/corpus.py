@@ -25,15 +25,33 @@ class TextResponse(BaseModel):
     reference_code: Optional[str]
     metadata: Optional[Dict]
 
-class SearchResult(BaseModel):
-    text_id: str
-    text_title: str
-    author: Optional[str]
-    division: Dict
-    line_number: int
-    content: str
-    categories: List[str]
-    spacy_data: Optional[Dict]
+class SentenceContext(BaseModel):
+    id: str
+    text: str
+    prev_sentence: Optional[str]
+    next_sentence: Optional[str]
+    tokens: Optional[Dict]
+
+class CitationContext(BaseModel):
+    line_id: str
+    line_text: str
+    line_numbers: List[int]
+
+class CitationLocation(BaseModel):
+    volume: Optional[str]
+    chapter: Optional[str]
+    section: Optional[str]
+
+class CitationSource(BaseModel):
+    author: str
+    work: str
+
+class Citation(BaseModel):
+    sentence: SentenceContext
+    citation: str
+    context: CitationContext
+    location: CitationLocation
+    source: CitationSource
 
 # Routes
 @router.get("/list", response_model=List[TextResponse])
@@ -43,7 +61,7 @@ async def list_texts(
     """List all texts in the corpus."""
     return await corpus_service.list_texts()
 
-@router.post("/search", response_model=List[SearchResult])
+@router.post("/search", response_model=List[Citation])
 async def search_texts(
     data: TextSearch,
     corpus_service: CorpusServiceDep
@@ -76,7 +94,7 @@ async def get_text(
         raise HTTPException(status_code=404, detail="Text not found")
     return text
 
-@router.get("/category/{category}", response_model=List[SearchResult])
+@router.get("/category/{category}", response_model=List[Citation])
 async def search_by_category(
     category: str,
     corpus_service: CorpusServiceDep
