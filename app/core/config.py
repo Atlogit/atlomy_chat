@@ -57,7 +57,7 @@ class Settings(BaseSettings):
     # Database settings
     DATABASE_URL: str = os.getenv(
         "DATABASE_URL",
-        "postgresql+asyncpg://postgres:postgres@localhost/ancient_texts_db"
+        "postgresql+asyncpg://postgres:postgres@localhost/amta_greek"
     )
     DB_POOL_SIZE: int = 20
     DB_MAX_OVERFLOW: int = 10

@@ -29,6 +29,8 @@ Formatting Instructions:
 3. For arrays (related_terms, citations_used):
    - Each element should be a simple string
    - No special characters or line breaks in array elements
+   - For citations_used, use the full citation format as provided in the input
+     Example: "Galenus Med., De sanitate tuenda libri vi, Volume 6: Chapter 135: Lines 12-15"
 4. Ensure the entire response is one continuous JSON object
 5. Test that your JSON is valid before completing the response
 
@@ -39,7 +41,7 @@ Required JSON Format:
     "short_description": "Your single-paragraph description here",
     "long_description": "Your longer description here with \\n for line breaks",
     "related_terms": ["term1", "term2", "term3"],
-    "citations_used": ["Citation 1", "Citation 2"]
+    "citations_used": ["Full citation 1", "Full citation 2"]
 }}
 
 Content Guidelines:
@@ -47,9 +49,9 @@ Content Guidelines:
 - Cover meaning, usage, notable connotations, context
 - Note any contradictions or variations in usage
 - If citations are provided:
-  * Reference them in the text to support claims
+  * Reference them in the text to support claims using the standard abbreviated format
   * Use accustomed abbreviations
-  * Include full citations in citations_used
+  * Include full citations in citations_used exactly as they appear in the input
 - If no citations are provided, use your expertise in ancient Greek
 - Do not make up citations or use external resources
 - Only use provided citations to support your analysis
@@ -85,7 +87,7 @@ WITH sentence_matches AS (
     SELECT DISTINCT ON (s.id)
         s.id as sentence_id,
         s.content as sentence_text,
-        tl.spacy_tokens as sentence_tokens,
+        s.spacy_data as sentence_tokens,
         tl.id as line_id,
         tl.content as line_text,
         tl.line_number,
@@ -107,7 +109,8 @@ WITH sentence_matches AS (
             PARTITION BY s.id
         ) as line_numbers
     FROM sentences s
-    JOIN text_lines tl ON s.text_line_id = tl.id
+    JOIN sentence_text_lines stl ON stl.sentence_id = s.id
+    JOIN text_lines tl ON tl.id = stl.text_line_id
     JOIN text_divisions td ON tl.division_id = td.id
     WHERE -- Your WHERE clause here based on the question
 )
@@ -143,7 +146,7 @@ WITH sentence_matches AS (
     SELECT DISTINCT ON (s.id)
         s.id as sentence_id,
         s.content as sentence_text,
-        tl.spacy_tokens as sentence_tokens,
+        s.spacy_data as sentence_tokens,
         tl.id as line_id,
         tl.content as line_text,
         tl.line_number,
@@ -165,7 +168,8 @@ WITH sentence_matches AS (
             PARTITION BY s.id
         ) as line_numbers
     FROM sentences s
-    JOIN text_lines tl ON s.text_line_id = tl.id
+    JOIN sentence_text_lines stl ON stl.sentence_id = s.id
+    JOIN text_lines tl ON tl.id = stl.text_line_id
     JOIN text_divisions td ON tl.division_id = td.id
     WHERE CAST(tl.spacy_tokens AS TEXT) ILIKE '%"lemma":"{lemma}"%'
 )
@@ -186,7 +190,7 @@ WITH sentence_matches AS (
     SELECT DISTINCT ON (s.id)
         s.id as sentence_id,
         s.content as sentence_text,
-        tl.spacy_tokens as sentence_tokens,
+        s.spacy_data as sentence_tokens,
         tl.id as line_id,
         tl.content as line_text,
         tl.line_number,
@@ -208,7 +212,8 @@ WITH sentence_matches AS (
             PARTITION BY s.id
         ) as line_numbers
     FROM sentences s
-    JOIN text_lines tl ON s.text_line_id = tl.id
+    JOIN sentence_text_lines stl ON stl.sentence_id = s.id
+    JOIN text_lines tl ON tl.id = stl.text_line_id
     JOIN text_divisions td ON tl.division_id = td.id
     WHERE tl.categories @> ARRAY[CAST('{category}' AS VARCHAR)]::VARCHAR[]
 )

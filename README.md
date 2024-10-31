@@ -72,7 +72,7 @@ BEDROCK_MODEL_ID=anthropic.claude-3-sonnet-20240229-v1:0
 
 1. Create the PostgreSQL database:
 ```bash
-createdb ancient_texts_db
+createdb amta
 ```
 
 2. Run database migrations:

@@ -4,7 +4,7 @@ API endpoints for lexical value operations.
 
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Union
 from pydantic import BaseModel
 import time
 import logging
@@ -21,13 +21,89 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["lexical"])
 
-# In-memory storage for task status
+# In-memory storage for task status and delete triggers
 task_status = {}
+delete_triggers = {}
 
 class LexicalCreateSchema(BaseModel):
     """Schema for lexical value creation request."""
     lemma: str
-    search_lemma: bool = False
+    search_lemma: bool = True  # Default to True since all inputs are lemmas
+
+def format_entry_for_response(entry: Dict[str, Any]) -> Dict[str, Any]:
+    """Format entry data to match frontend expectations."""
+    if not entry:
+        return None
+        
+    # Create a deep copy to avoid modifying the original
+    formatted_entry = json.loads(json.dumps(entry))
+        
+    # Ensure citations_used is properly formatted
+    if 'citations_used' not in formatted_entry and 'references' in formatted_entry and 'citations' in formatted_entry['references']:
+        formatted_entry['citations_used'] = formatted_entry['references']['citations']
+    
+    # Ensure each citation has the required structure
+    if 'citations_used' in formatted_entry:
+        formatted_citations = []
+        for citation in formatted_entry['citations_used']:
+            if isinstance(citation, str):
+                # If citation is a string, create a basic citation object
+                formatted_citation = {
+                    "sentence": {
+                        "id": "",
+                        "text": citation,
+                        "prev_sentence": None,
+                        "next_sentence": None,
+                        "tokens": {}
+                    },
+                    "citation": citation,
+                    "context": {
+                        "line_id": "",
+                        "line_text": citation,
+                        "line_numbers": []
+                    },
+                    "location": {
+                        "volume": "",
+                        "chapter": "",
+                        "section": ""
+                    },
+                    "source": {
+                        "author": "Unknown",
+                        "work": "Unknown Work"
+                    }
+                }
+            else:
+                # If citation is an object, ensure it has all required fields
+                formatted_citation = citation.copy() if isinstance(citation, dict) else {}
+                if 'source' not in formatted_citation:
+                    formatted_citation['source'] = {
+                        'author': 'Unknown',
+                        'work': 'Unknown Work'
+                    }
+                if 'location' not in formatted_citation:
+                    formatted_citation['location'] = {
+                        'volume': '',
+                        'chapter': '',
+                        'section': ''
+                    }
+                if 'context' not in formatted_citation:
+                    formatted_citation['context'] = {
+                        'line_id': '',
+                        'line_text': citation.get('sentence', {}).get('text', '') if isinstance(citation, dict) else '',
+                        'line_numbers': []
+                    }
+                if 'sentence' not in formatted_citation:
+                    formatted_citation['sentence'] = {
+                        'id': '',
+                        'text': '',
+                        'prev_sentence': None,
+                        'next_sentence': None,
+                        'tokens': {}
+                    }
+            formatted_citations.append(formatted_citation)
+        formatted_entry['citations_used'] = formatted_citations
+    
+    return formatted_entry
 
 async def create_lexical_value_task(
     lemma: str,
@@ -59,11 +135,14 @@ async def create_lexical_value_task(
         end_time = time.time()
         duration = end_time - task_status[task_id]["start_time"]
         
+        # Format entry for frontend
+        formatted_entry = format_entry_for_response(result.get("entry"))
+        
         task_status[task_id] = {
             "status": "completed",
             "success": result["success"],
             "message": result["message"],
-            "entry": result.get("entry"),
+            "entry": formatted_entry,
             "action": result["action"],
             "duration": f"{duration:.2f}s"
         }
@@ -144,6 +223,11 @@ async def get_task_status(task_id: str):
         )
     
     status = task_status[task_id]
+    
+    # Format entry if present
+    if "entry" in status:
+        status["entry"] = format_entry_for_response(status["entry"])
+    
     logger.debug(f"Task status for {task_id}: {json.dumps(status, indent=2)}")
     return status
 
@@ -160,7 +244,7 @@ async def get_lexical_value(
         
         if entry:
             logger.debug(f"Found lexical value for {lemma}")
-            return entry.to_dict()
+            return format_entry_for_response(entry.to_dict())
             
         logger.warning(f"Lexical value not found for: {lemma}")
         raise HTTPException(
@@ -192,8 +276,9 @@ async def list_lexical_values(
         logger.info(f"Listing lexical values - offset: {offset}, limit: {limit}")
         lexical_service = LexicalService(db)
         values = await lexical_service.list_lexical_values(offset, limit)
+        formatted_values = [format_entry_for_response(v) for v in values]
         logger.debug(f"Found {len(values)} lexical values")
-        return {"values": values}
+        return {"values": formatted_values}
     except Exception as e:
         logger.error(f"Error listing lexical values: {str(e)}", exc_info=True)
         raise HTTPException(
@@ -229,6 +314,10 @@ async def update_lexical_value(
                     "lemma": lemma
                 }
             )
+        
+        # Format entry for frontend
+        if "entry" in result:
+            result["entry"] = format_entry_for_response(result["entry"])
             
         logger.info(f"Successfully updated lexical value for {lemma}")
         return result
@@ -245,14 +334,107 @@ async def update_lexical_value(
             }
         )
 
-@router.delete("/delete/{lemma}")
-async def delete_lexical_value(
+@router.post("/delete/{lemma}/trigger")
+async def trigger_delete_lexical_value(
     lemma: str,
     db: AsyncSession = Depends(get_db)
 ):
-    """Delete a lexical value."""
+    """Trigger deletion of a lexical value."""
+    try:
+        logger.info(f"Triggering deletion for lexical value: {lemma}")
+        
+        # Check if lexical value exists
+        lexical_service = LexicalService(db)
+        entry = await lexical_service.get_lexical_value(lemma)
+        
+        if not entry:
+            logger.warning(f"Lexical value not found for deletion trigger: {lemma}")
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "message": "Lexical value not found",
+                    "lemma": lemma
+                }
+            )
+        
+        # Store trigger in memory with timestamp
+        trigger_id = f"delete_{lemma}_{time.time()}"
+        delete_triggers[trigger_id] = {
+            "lemma": lemma,
+            "timestamp": time.time(),
+            "entry": entry.to_dict()
+        }
+        
+        logger.info(f"Created delete trigger {trigger_id} for {lemma}")
+        return {
+            "trigger_id": trigger_id,
+            "message": "Delete trigger created",
+            "entry": format_entry_for_response(entry.to_dict())
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating delete trigger for {lemma}: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "message": str(e),
+                "type": type(e).__name__,
+                "lemma": lemma
+            }
+        )
+
+@router.delete("/delete/{lemma}")
+async def delete_lexical_value(
+    lemma: str,
+    trigger_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """Delete a lexical value (requires prior trigger)."""
     try:
         logger.info(f"Deleting lexical value for: {lemma}")
+        
+        # Verify trigger exists and is valid
+        if trigger_id not in delete_triggers:
+            logger.warning(f"Delete trigger not found: {trigger_id}")
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "message": "Delete trigger not found",
+                    "trigger_id": trigger_id,
+                    "lemma": lemma
+                }
+            )
+        
+        trigger = delete_triggers[trigger_id]
+        
+        # Verify trigger matches lemma
+        if trigger["lemma"] != lemma:
+            logger.warning(f"Delete trigger lemma mismatch: {trigger['lemma']} != {lemma}")
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "message": "Delete trigger lemma mismatch",
+                    "trigger_lemma": trigger["lemma"],
+                    "request_lemma": lemma
+                }
+            )
+        
+        # Verify trigger hasn't expired (30 minute timeout)
+        if time.time() - trigger["timestamp"] > 1800:
+            logger.warning(f"Delete trigger expired: {trigger_id}")
+            del delete_triggers[trigger_id]
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "message": "Delete trigger expired",
+                    "trigger_id": trigger_id,
+                    "lemma": lemma
+                }
+            )
+        
+        # Perform deletion
         lexical_service = LexicalService(db)
         success = await lexical_service.delete_lexical_value(lemma)
         
@@ -265,9 +447,17 @@ async def delete_lexical_value(
                     "lemma": lemma
                 }
             )
+        
+        # Clean up trigger
+        del delete_triggers[trigger_id]
             
         logger.info(f"Successfully deleted lexical value for {lemma}")
-        return {"success": True}
+        return {
+            "success": True,
+            "message": "Lexical value deleted successfully",
+            "lemma": lemma
+        }
+        
     except HTTPException:
         raise
     except Exception as e:

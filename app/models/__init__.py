@@ -24,6 +24,7 @@ from .text_line import TextLine
 from .lemma import Lemma
 from .lemma_analysis import LemmaAnalysis
 from .lexical_value import LexicalValue
+from .sentence import Sentence
 
 # List of all models for easy access
 __all__ = [
@@ -34,5 +35,6 @@ __all__ = [
     "TextLine",
     "Lemma",
     "LemmaAnalysis",
-    "LexicalValue"
+    "LexicalValue",
+    "Sentence"
 ]

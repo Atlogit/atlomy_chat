@@ -61,6 +61,50 @@ class TextDivision(Base):
     # Relationships
     text = relationship("Text", back_populates="divisions")
     lines = relationship("TextLine", back_populates="division", cascade="all, delete-orphan")
+
+    def _get_abbreviated_author_name(self) -> str:
+        """Get abbreviated author name (e.g., 'Galenus Med.' -> 'Gal.')."""
+        if not self.author_name:
+            return f"[{self.author_id_field}]"
+        
+        # Split author name and take first word
+        parts = self.author_name.split()
+        if not parts:
+            return f"[{self.author_id_field}]"
+            
+        # Get first 3 letters of first word
+        abbrev = parts[0][:3] + "."
+        
+        # Add designation if present (e.g., "Med.", "Phil.")
+        if len(parts) > 1 and len(parts[-1]) <= 4:
+            abbrev += f" {parts[-1]}"
+            
+        return abbrev
+
+    def _get_abbreviated_work_name(self) -> str:
+        """Get abbreviated work name."""
+        if not self.work_name:
+            return f"[{self.work_number_field}]"
+            
+        # Split work name into words
+        words = self.work_name.split()
+        if not words:
+            return f"[{self.work_number_field}]"
+            
+        # Take first letter of each significant word
+        abbrev = ""
+        for word in words:
+            # Skip common words like "de", "in", etc.
+            if word.lower() in ["de", "in", "et", "ad", "the", "a", "an"]:
+                continue
+            if word:
+                abbrev += word[0].upper()
+                
+        # If no abbreviation was created, use first 3 letters of first word
+        if not abbrev and words:
+            abbrev = words[0][:3].capitalize()
+            
+        return abbrev + "."
     
     def __repr__(self) -> str:
         citation_parts = []
@@ -106,29 +150,54 @@ class TextDivision(Base):
             + ")"
         )
 
-    def format_citation(self) -> str:
-        """Format a full citation string using author and work names."""
-        # Use author and work names if available, otherwise use ID fields
-        author = self.author_name or f"[{self.author_id_field}]"
-        work = self.work_name or f"[{self.work_number_field}]"
+    def format_citation(self, abbreviated: bool = False) -> str:
+        """Format a citation string.
         
-        citation = f"{author}, {work}"
-        
-        # Add structural components if available
-        components = []
-        if self.volume:
-            components.append(f"Volume {self.volume}")
-        if self.chapter:
-            components.append(f"Chapter {self.chapter}")
-        if self.line:
-            components.append(f"Line {self.line}")
-        if self.section:
-            components.append(f"Section {self.section}")
+        Args:
+            abbreviated: If True, returns abbreviated format (e.g., "Gal. San. 6.135")
+                       If False, returns full format (e.g., "Galenus Med., De sanitate tuenda libri vi, Volume 6: Chapter 135")
+        """
+        if abbreviated:
+            # Get abbreviated author and work names
+            author = self._get_abbreviated_author_name()
+            work = self._get_abbreviated_work_name()
             
-        if components:
-            citation += f" ({', '.join(components)})"
+            # Start with author and work
+            citation = f"{author} {work}"
             
-        return citation
+            # Add location components with minimal formatting
+            if self.volume:
+                citation += f" {self.volume}"
+            if self.chapter:
+                citation += f".{self.chapter}"
+            if self.line:
+                citation += f".{self.line}"
+            if self.section:
+                citation += f".{self.section}"
+                
+            return citation.strip()
+        else:
+            # Use author and work names if available, otherwise use ID fields
+            author = self.author_name or f"[{self.author_id_field}]"
+            work = self.work_name or f"[{self.work_number_field}]"
+            
+            citation = f"{author}, {work}"
+            
+            # Add structural components if available
+            components = []
+            if self.volume:
+                components.append(f"Volume {self.volume}")
+            if self.chapter:
+                components.append(f"Chapter {self.chapter}")
+            if self.line:
+                components.append(f"Line {self.line}")
+            if self.section:
+                components.append(f"Section {self.section}")
+                
+            if components:
+                citation += f", {', '.join(components)}"
+                
+            return citation
 
     def from_citation(self, citation) -> None:
         """Update division fields from a Citation object."""

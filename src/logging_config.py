@@ -29,20 +29,12 @@ class EnvConfig:
         self.FILE_OUTPUT = os.environ.get('FILE_OUTPUT', 'true').lower() == 'true'
         self.LOG_FILE = os.environ.get('LOG_FILE', 'atlomy_chat.log')
         self.JSON_LOGGING = os.environ.get('JSON_LOGGING', 'false').lower() == 'true'
-        # New configuration options for log rotation with stricter defaults
         self.MAX_BYTES = int(os.environ.get('LOG_MAX_BYTES', 5242880))  # 5MB default
         self.BACKUP_COUNT = int(os.environ.get('LOG_BACKUP_COUNT', 5))
 
 def setup_logging(config=None, **kwargs):
     """
     Set up logging configuration for the application.
-    
-    Args:
-    config (dict, optional): Configuration dictionary. If not provided, environment variables will be used.
-    kwargs: Additional keyword arguments to override configuration.
-
-    Returns:
-    logging.Logger: Configured logger object
     """
     if config is None:
         config = EnvConfig()
@@ -52,9 +44,6 @@ def setup_logging(config=None, **kwargs):
         if hasattr(config, key):
             setattr(config, key, value)
 
-    # Print the configuration to verify
-    print("Using environment variables for configuration", config.__dict__)
-
     # Create logs directory if it doesn't exist
     log_dir = 'logs'
     if not os.path.exists(log_dir):
@@ -62,21 +51,15 @@ def setup_logging(config=None, **kwargs):
     
     log_path = os.path.join(log_dir, config.LOG_FILE)
     
-    # Create a logger
-    logger = logging.getLogger('atlomy_chat')
-    logger.setLevel(config.LOG_LEVEL.upper())
-    print(f"Logger level set to: {logger.level} ({logging.getLevelName(logger.level)})")
-
-    # Remove any existing handlers
-    for handler in logger.handlers[:]:
-        logger.removeHandler(handler)
+    # Configure root logger to prevent duplicate logging
+    root_logger = logging.getLogger()
+    root_logger.handlers = []  # Remove any existing handlers
     
     # Create handlers
     handlers = []
     if config.CONSOLE_OUTPUT:
         console_handler = logging.StreamHandler()
         console_handler.setLevel(config.LOG_LEVEL.upper())
-        print(f"Console handler level set to: {console_handler.level} ({logging.getLevelName(console_handler.level)})")
         handlers.append(console_handler)
     if config.FILE_OUTPUT:
         file_handler = RotatingFileHandler(
@@ -84,52 +67,62 @@ def setup_logging(config=None, **kwargs):
             maxBytes=config.MAX_BYTES,
             backupCount=config.BACKUP_COUNT
         )
-        file_handler.setLevel(logging.DEBUG)  # File handler set to DEBUG to capture all logs
+        file_handler.setLevel(logging.DEBUG)
         handlers.append(file_handler)
     
-    # Create formatters and add it to handlers
+    # Create formatter
     if config.LOG_FORMAT == 'json':
         formatter = logging.Formatter(json_formatter)
     else:
         formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(module)s:%(funcName)s:%(lineno)d - %(message)s')
     
+    # Configure root logger
+    root_logger.setLevel(config.LOG_LEVEL.upper())
     for handler in handlers:
         handler.setFormatter(formatter)
-        logger.addHandler(handler)
+        root_logger.addHandler(handler)
     
-    return logger
+    # Configure FastAPI logger
+    fastapi_logger = logging.getLogger("fastapi")
+    fastapi_logger.handlers = []  # Remove any existing handlers
+    fastapi_logger.propagate = True  # Let it propagate to root logger
+    
+    # Configure uvicorn logger
+    uvicorn_logger = logging.getLogger("uvicorn")
+    uvicorn_logger.handlers = []  # Remove any existing handlers
+    uvicorn_logger.propagate = True  # Let it propagate to root logger
+    
+    # Configure our app logger
+    app_logger = logging.getLogger('atlomy_chat')
+    app_logger.handlers = []  # Remove any existing handlers
+    app_logger.propagate = True  # Let it propagate to root logger
+    
+    return app_logger
 
 # Global logger instance
 logger = None
 
 def initialize_logger(log_level=None):
+    """Initialize the global logger instance."""
     global logger
     if logger is None:
-        print("Initializing logger...")
         if log_level is not None:
-            print(f"Setting log level to: {log_level}")
             logger = setup_logging(LOG_LEVEL=log_level)
-            print("Logger initialized")
         else:
-            print("Logger already initialized")
             logger = setup_logging()
-            print("Logger already initialized")
                     
 def change_log_level(level):
     """
     Dynamically change the log level at runtime.
-    
-    Args:
-    level (str): The new log level (e.g., 'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL')
     """
-    logger.setLevel(logging.getLevelName(level.upper()))
-    logger.info(f"Log level changed to {level.upper()}")
+    if logger:
+        logger.setLevel(logging.getLevelName(level.upper()))
+        # Also update root logger to maintain consistency
+        logging.getLogger().setLevel(logging.getLevelName(level.upper()))
+        logger.info(f"Log level changed to {level.upper()}")
 
 def get_logger():
     """
     Get the configured logger instance.
-    
-    Returns:
-    logging.Logger: The configured logger object
     """
     return logger

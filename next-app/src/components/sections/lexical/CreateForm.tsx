@@ -249,7 +249,7 @@ export function CreateForm() {
    * Renders a citation with context preview
    */
   const renderCitation = (citation: Citation) => (
-    <div className="card bg-base-200 p-4 mb-4">
+    <div key={citation.sentence.id} className="card bg-base-200 p-4 mb-4">
       <div className="flex justify-between items-start">
         <div className="font-medium">{formatCitation(citation)}</div>
         <Button
@@ -425,7 +425,7 @@ export function CreateForm() {
                 
                 <div className="divider">Citations</div>
                 <div className="space-y-4">
-                  {taskStatus.entry.citations_used?.map((citation: Citation, index: number) => (
+                  {taskStatus.entry.citations_used?.map((citation: Citation) => (
                     renderCitation(citation)
                   ))}
                 </div>
@@ -433,7 +433,7 @@ export function CreateForm() {
                 <div className="divider">Related Terms</div>
                 <div className="flex flex-wrap gap-2">
                   {taskStatus.entry.related_terms?.map((term: string, index: number) => (
-                    <div key={index} className="badge badge-primary">{term}</div>
+                    <div key={`${term}-${index}`} className="badge badge-primary">{term}</div>
                   ))}
                 </div>
                 

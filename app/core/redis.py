@@ -107,4 +107,6 @@ class RedisClient:
             print(f"Redis clear cache error: {e}")
             return False
 
+# Create singleton instance
 redis_client = RedisClient()
+

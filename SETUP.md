@@ -7,6 +7,8 @@ This document provides instructions for setting up and running the Atlomy Chat p
 - Anaconda or Miniconda installed on your system
 - Git (for cloning the repository)
 - Node.js v20.18.0 and npm v10.8.2 (for running the Next.js app)
+- PostgreSQL 13 or higher installed and running
+- Redis (included in the conda environment)
 
 ## Setup Instructions
 
@@ -37,7 +39,22 @@ This document provides instructions for setting up and running the Atlomy Chat p
      ```
    - Open the `.env` file and fill in the necessary values for your configuration.
 
-5. Ensure you have the correct Node.js and npm versions:
+5. Set up PostgreSQL Database:
+   ```bash
+   # Install PostgreSQL if not already installed
+   sudo apt-get update
+   sudo apt-get install postgresql postgresql-contrib
+
+   # Start PostgreSQL service
+   sudo service postgresql start
+
+   # Create database and user
+   sudo -u postgres psql -c "CREATE USER atlomy WITH PASSWORD 'atlomy21';"
+   sudo -u postgres psql -c "CREATE DATABASE amta_greek;"
+   sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE amta_greek TO atlomy;"
+   ```
+
+6. Ensure you have the correct Node.js and npm versions:
    - Required Node.js version: v20.18.0
    - Required npm version: 10.8.2
 
@@ -63,27 +80,47 @@ This document provides instructions for setting up and running the Atlomy Chat p
 
 After setting up the environment, you can run the project using the following steps:
 
-1. Start the FastAPI backend:
+1. Start Redis server (required for caching and session management):
    ```
-   python app/run_server.py
+   # Start Redis server in the background using the conda environment's Redis
+   /root/anaconda3/envs/amta/bin/redis-server --daemonize yes
+   
+   # Verify Redis is running (should return "PONG")
+   /root/anaconda3/envs/amta/bin/redis-cli ping
    ```
 
-2. In a new terminal, navigate to the `next-app/` directory:
+2. Verify PostgreSQL is running:
+   ```bash
+   # Check PostgreSQL status
+   sudo service postgresql status
+
+   # Start PostgreSQL if not running
+   sudo service postgresql start
+   ```
+
+3. Start the FastAPI backend:
+   ```
+   # Important: Set PYTHONPATH to include the current directory
+   PYTHONPATH=$PYTHONPATH:$(pwd) python -m app.run_server
+   ```
+   Note: Setting PYTHONPATH is crucial for the application to run correctly. This ensures Python can find and import the app modules properly.
+
+4. In a new terminal, navigate to the `next-app/` directory:
    ```
    cd next-app
    ```
 
-3. Install dependencies:
+5. Install dependencies:
    ```
    npm install
    ```
 
-4. Start the Next.js development server:
+6. Start the Next.js development server:
    ```
    npm run dev
    ```
 
-5. Open your browser and visit `http://localhost:3000` to access the application.
+7. Open your browser and visit `http://localhost:3000` to access the application.
 
 ## Running the Application in Debug Mode
 
@@ -115,7 +152,8 @@ This will start the backend server in debug mode, allowing you to set breakpoint
 To run the interactive playground where you can test the LLMAssistant and LexicalValueGenerator components:
 
 ```
-python -m src.playground
+# Remember to set PYTHONPATH
+PYTHONPATH=$PYTHONPATH:$(pwd) python -m src.playground
 ```
 
 ## Running the TLG Parser
@@ -134,7 +172,8 @@ The TLG (Thesaurus Linguae Graecae) parser is a tool for processing TLG text fil
 
 3. Run the TLG parser script with the following command:
    ```
-   python -m src.data_parsing.tlg_parser --input_path /path/to/tlg/files [options]
+   # Remember to set PYTHONPATH
+   PYTHONPATH=$PYTHONPATH:$(pwd) python -m src.data_parsing.tlg_parser --input_path /path/to/tlg/files [options]
    ```
 
    Options:
@@ -145,7 +184,7 @@ The TLG (Thesaurus Linguae Graecae) parser is a tool for processing TLG text fil
 
    Example:
    ```
-   python -m src.data_parsing.tlg_parser --input_path /path/to/tlg/files --log-level DEBUG
+   PYTHONPATH=$PYTHONPATH:$(pwd) python -m src.data_parsing.tlg_parser --input_path /path/to/tlg/files --log-level DEBUG
    ```
 
 4. The script will process the TLG files and add them to the corpus. You can monitor the progress in the console output.

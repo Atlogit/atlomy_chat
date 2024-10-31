@@ -2,29 +2,28 @@
 Main FastAPI application entry point.
 """
 
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 import json
 import logging.config
 import os
 
+# Ensure logs directory exists and configure logging before any other imports
+os.makedirs('logs', exist_ok=True)
+
+# Load and apply logging configuration first
+with open('logging_config.json', 'r') as f:
+    logging_config = json.load(f)
+logging.config.dictConfig(logging_config)
+
+# Now it's safe to import other modules
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+
 from app.core.config import settings
 from app.api import api_router
 
-# Load logging configuration from JSON file
-with open('logging_config.json', 'r') as f:
-    logging_config = json.load(f)
-
-# Ensure logs directory exists
-os.makedirs('logs', exist_ok=True)
-
-# Configure logging
-logging.config.dictConfig(logging_config)
+# Get logger after configuration is applied
 logger = logging.getLogger(__name__)
-
-logger.info("Starting application with DEBUG logging enabled")
-logger.debug("Debug logging is active")
 
 # Create FastAPI app
 app = FastAPI(
@@ -54,7 +53,6 @@ app.include_router(api_router, prefix=settings.API_V1_STR)
 async def startup_event():
     """Log startup information."""
     logger.info("Application startup")
-    logger.debug("Debug logging confirmed active at startup")
     logger.info(f"API Version: {settings.API_V1_STR}")
     logger.info(f"Debug Mode: {settings.DEBUG}")
     logger.info(f"LLM Provider: {settings.llm.PROVIDER}")
@@ -68,5 +66,5 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=8000,
         reload=settings.DEBUG,
-        log_config=logging_config  # Use our logging config for uvicorn too
+        log_config=logging_config
     )

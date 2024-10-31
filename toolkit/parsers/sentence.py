@@ -44,7 +44,7 @@ class SentenceParser:
         
         # Special content patterns
         self.line_marker = re.compile(r'^\d+\.\d+\.[t\d]+\.\s*')
-        self.special_chars = re.compile(r'\s+[κδʹμηʹοβʹϞστʹχ\d,]+$')
+        self.special_chars = re.compile(r'\s+[κδʹμηʹοβʹϞστʹχ]+$')
         self.multiple_spaces = re.compile(r'\s+')
         self.table_marker = "ΤΥΠΟΙ ΩΡΑΣ"
 
@@ -67,8 +67,8 @@ class SentenceParser:
         content = self.line_marker.sub('', content)
         
         # Remove curly braces but keep content
-        content = re.sub(r'\{([^}]*)\}', r'\1', content)
-        
+        content = re.sub(r'[{}]', '', content)
+
         # Remove special characters at end of lines
         content = self.special_chars.sub('', content)
         

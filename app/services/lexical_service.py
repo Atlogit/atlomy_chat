@@ -9,12 +9,20 @@ from sqlalchemy import select, text
 import logging
 import json
 import time
+import uuid
 
 from app.models.lexical_value import LexicalValue
 from app.models.text_division import TextDivision
+from app.models.text_line import TextLine
+from app.models.sentence import Sentence, sentence_text_lines
 from app.services.llm_service import LLMService
 from app.services.json_storage_service import JSONStorageService
 from app.core.redis import redis_client
+from app.core.citation_queries import (
+    LEMMA_CITATION_QUERY,
+    TEXT_CITATION_QUERY,
+    DIRECT_SENTENCE_QUERY
+)
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -71,132 +79,72 @@ class LexicalService:
         try:
             logger.info(f"Getting citations for word: {word} (search_lemma: {search_lemma})")
             
-            # Enhanced query to get complete sentence context and proper grouping
             if search_lemma:
-                query = """
-                WITH sentence_matches AS (
-                    SELECT DISTINCT ON (s.id)
-                        s.id as sentence_id,
-                        s.content as sentence_text,
-                        s.spacy_data as sentence_tokens,
-                        tl.id as line_id,
-                        tl.content as line_text,
-                        tl.line_number,
-                        td.id as division_id,
-                        td.author_name,
-                        td.work_name,
-                        td.volume,
-                        td.chapter,
-                        td.section,
-                        -- Get previous and next sentences for context
-                        LAG(s.content) OVER (
-                            PARTITION BY td.id 
-                            ORDER BY tl.line_number
-                        ) as prev_sentence,
-                        LEAD(s.content) OVER (
-                            PARTITION BY td.id 
-                            ORDER BY tl.line_number
-                        ) as next_sentence,
-                        -- Group line numbers for the sentence
-                        array_agg(tl.line_number) OVER (
-                            PARTITION BY s.id
-                        ) as line_numbers
-                    FROM sentences s
-                    JOIN text_lines tl ON s.text_line_id = tl.id
-                    JOIN text_divisions td ON tl.division_id = td.id
-                    WHERE CAST(s.spacy_data AS TEXT) ILIKE :pattern
-                )
-                SELECT * FROM sentence_matches
-                """
-                pattern = f'%"lemma":"{word}"%'
+                # For lemma search, use the optimized direct sentence query
+                query = DIRECT_SENTENCE_QUERY
+                params = {"pattern": word}
             else:
-                query = """
-                WITH sentence_matches AS (
-                    SELECT DISTINCT ON (s.id)
-                        s.id as sentence_id,
-                        s.content as sentence_text,
-                        s.spacy_data as sentence_tokens,
-                        tl.id as line_id,
-                        tl.content as line_text,
-                        tl.line_number,
-                        td.id as division_id,
-                        td.author_name,
-                        td.work_name,
-                        td.volume,
-                        td.chapter,
-                        td.section,
-                        -- Get previous and next sentences for context
-                        LAG(s.content) OVER (
-                            PARTITION BY td.id 
-                            ORDER BY tl.line_number
-                        ) as prev_sentence,
-                        LEAD(s.content) OVER (
-                            PARTITION BY td.id 
-                            ORDER BY tl.line_number
-                        ) as next_sentence,
-                        -- Group line numbers for the sentence
-                        array_agg(tl.line_number) OVER (
-                            PARTITION BY s.id
-                        ) as line_numbers
-                    FROM sentences s
-                    JOIN text_lines tl ON s.text_line_id = tl.id
-                    JOIN text_divisions td ON tl.division_id = td.id
-                    WHERE s.content ILIKE :pattern
-                )
-                SELECT * FROM sentence_matches
-                """
+                # For text search, use the standard citation query with ILIKE pattern
                 pattern = f'%{word}%'
-
-            logger.debug(f"Executing citation query with pattern: {pattern}")
-            logger.debug(f"Full SQL query:\n{query}")
-
-            result = await self.session.execute(text(query), {"pattern": pattern})
-            raw_results = result.mappings().all()
-            logger.debug(f"Raw query results: {raw_results}")
-
-            citations = []
+                query = TEXT_CITATION_QUERY
+                params = {"pattern": pattern}
             
-            for row in raw_results:
-                logger.debug(f"Processing row: {row}")
-                # Get the text division for proper citation formatting
-                division_query = select(TextDivision).where(TextDivision.id == row['division_id'])
-                division_result = await self.session.execute(division_query)
-                division = division_result.scalar_one()
+            logger.debug(f"Executing citation query with params: {params}")
+            
+            try:
+                result = await self.session.execute(text(query), params)
+                raw_results = result.mappings().all()
                 
-                # Enhanced citation structure with full sentence context
-                citation = {
-                    "sentence": {
-                        "id": str(row["sentence_id"]),
-                        "text": row["sentence_text"],
-                        "prev_sentence": row["prev_sentence"],
-                        "next_sentence": row["next_sentence"],
-                        "tokens": row["sentence_tokens"]
-                    },
-                    "citation": division.format_citation(),
-                    "context": {
-                        "line_id": str(row["line_id"]),
-                        "line_text": row["line_text"],
-                        "line_numbers": row["line_numbers"]
-                    },
-                    "location": {
-                        "volume": row["volume"] or '',
-                        "chapter": row["chapter"] or '',
-                        "section": row["section"] or ''
-                    },
-                    "source": {
-                        "author": row["author_name"] or 'Unknown',
-                        "work": row["work_name"] or 'Unknown Work'
+                # Process the results into citation format
+                citations = []
+                for row in raw_results:
+                    logger.debug(f"Raw result: {row}")
+                    
+                    # Create a TextDivision instance to use its format_citation method
+                    division = TextDivision(
+                        author_name=row['author_name'],
+                        work_name=row['work_name'],
+                        volume=row['volume'],
+                        chapter=row['chapter'],
+                        section=row['section']
+                    )
+                    logger.debug(f"Author name: {division.author_name}, Work name: {division.work_name}")
+                    citation = {
+                        'sentence': {
+                            'id': row['sentence_id'],
+                            'text': row['sentence_text'],
+                            'prev_sentence': row['prev_sentence'],
+                            'next_sentence': row['next_sentence'],
+                            'tokens': row['sentence_tokens']
+                        },
+                        'citation': division.format_citation(),
+                        'context': {
+                            'line_number': row['min_line_number']  # Updated to use min_line_number
+                        },
+                        'location': {
+                            'volume': row['volume'],
+                            'chapter': row['chapter'],
+                            'section': row['section']
+                        },
+                        'source': {  # Added source field with author and work
+                            'author': row['author_name'],
+                            'work': row['work_name']
+                        }
                     }
-                }
-                logger.debug(f"Formatted citation: {citation}")
-                citations.append(citation)
+                    citations.append(citation)
 
-            logger.info(f"Found {len(citations)} citations with sentence context for {word}")
-            return citations
+                logger.info(f"Found {len(citations)} citations for {word}")
+                return citations
+
+            except Exception as e:
+                # Log the exception with detailed information and traceback
+                logger.error(f"Database error executing citation query: {str(e)}", exc_info=True)
+                raise ValueError(f"Failed to execute citation query: {str(e)}")
+                
 
         except Exception as e:
             logger.error(f"Error getting citations for {word}: {str(e)}", exc_info=True)
-            raise
+            raise ValueError(f"Failed to get citations: {str(e)}")
 
     def _validate_lexical_value(self, data: Dict[str, Any]):
         """Validate lexical value data has all required fields."""
@@ -231,9 +179,8 @@ class LexicalService:
                 }
 
             # Get citations with enhanced sentence context
-            logger.info(f"Getting citations for {lemma}")
-            citations = await self._get_citations(lemma, search_lemma)
-            logger.debug(f"Retrieved {len(citations)} citations")
+            citations = await self._get_citations(lemma, search_lemma=True)
+            logger.info(f"Retrieved {len(citations)} citations for {lemma}")
             
             # Generate lexical value using LLM
             logger.info(f"Generating lexical value using LLM for {lemma}")
@@ -241,7 +188,6 @@ class LexicalService:
                 word=lemma,
                 citations=citations
             )
-            logger.debug(f"LLM analysis result: {analysis}")
             
             # Validate the analysis data
             logger.info(f"Validating analysis data for {lemma}")
@@ -251,7 +197,7 @@ class LexicalService:
             analysis['references'] = {
                 'citations': citations,
                 'metadata': {
-                    'search_lemma': search_lemma,
+                    'search_lemma': True,
                     'total_citations': len(citations)
                 }
             }
@@ -274,6 +220,9 @@ class LexicalService:
                     }
             
             analysis['sentence_contexts'] = sentence_contexts
+            
+            # Add citations_used in the format expected by frontend
+            analysis['citations_used'] = citations
             
             # Create new entry in database
             logger.info(f"Creating database entry for {lemma}")
@@ -318,8 +267,14 @@ class LexicalService:
                 await self._cache_value(lemma, json_data)
                 return LexicalValue.from_dict(json_data)
 
-            # Query database
-            query = select(LexicalValue).where(LexicalValue.lemma == lemma)
+            # Query database with proper relationship loading
+            query = (
+                select(LexicalValue)
+                .where(LexicalValue.lemma == lemma)
+                .join(Sentence, Sentence.id == LexicalValue.sentence_id, isouter=True)
+                .join(sentence_text_lines, sentence_text_lines.c.sentence_id == Sentence.id, isouter=True)
+                .join(TextLine, TextLine.id == sentence_text_lines.c.text_line_id, isouter=True)
+            )
             result = await self.session.execute(query)
             entry = result.scalar_one_or_none()
             
@@ -353,7 +308,11 @@ class LexicalService:
             # Update fields
             for key, value in data.items():
                 if hasattr(entry, key):
-                    setattr(entry, key, value)
+                    if key == 'sentence_id' and value:
+                        # Ensure UUID conversion for sentence_id
+                        setattr(entry, key, uuid.UUID(value))
+                    else:
+                        setattr(entry, key, value)
 
             await self.session.commit()
             await self.session.refresh(entry)
@@ -379,20 +338,30 @@ class LexicalService:
     async def delete_lexical_value(self, lemma: str) -> bool:
         """Delete a lexical value."""
         try:
-            entry = await self.get_lexical_value(lemma)
-            if not entry:
-                return False
-
-            await self.session.delete(entry)
-            await self.session.commit()
+            success = False
             
-            # Delete from JSON storage
-            self.json_storage.delete(lemma)
+            # Delete from database if it exists
+            query = select(LexicalValue).where(LexicalValue.lemma == lemma)
+            result = await self.session.execute(query)
+            entry = result.scalar_one_or_none()
             
-            # Invalidate cache
+            if entry:
+                await self.session.delete(entry)
+                await self.session.commit()
+                success = True
+            
+            # Always try to delete from JSON storage
+            try:
+                self.json_storage.delete(lemma)
+                success = True
+            except Exception as e:
+                logger.warning(f"Error deleting JSON storage for {lemma}: {str(e)}")
+                # Don't raise here, as we want to continue with cache invalidation
+            
+            # Always invalidate cache
             await self._invalidate_cache(lemma)
             
-            return True
+            return success
             
         except Exception as e:
             logger.error(f"Error deleting lexical value for {lemma}: {str(e)}", exc_info=True)
@@ -405,7 +374,14 @@ class LexicalService:
     ) -> List[Dict[str, Any]]:
         """List lexical values with pagination."""
         try:
-            query = select(LexicalValue).offset(offset).limit(limit)
+            query = (
+                select(LexicalValue)
+                .join(Sentence, Sentence.id == LexicalValue.sentence_id, isouter=True)
+                .join(sentence_text_lines, sentence_text_lines.c.sentence_id == Sentence.id, isouter=True)
+                .join(TextLine, TextLine.id == sentence_text_lines.c.text_line_id, isouter=True)
+                .offset(offset)
+                .limit(limit)
+            )
             result = await self.session.execute(query)
             entries = result.scalars().all()
             return [entry.to_dict() for entry in entries]
@@ -417,11 +393,8 @@ class LexicalService:
     async def get_linked_citations(self, lemma: str) -> List[Dict[str, Any]]:
         """Get all citations directly linked to a lexical value."""
         try:
-            entry = await self.get_lexical_value(lemma)
-            if not entry:
-                return []
-                
-            return entry.get_linked_citations()
+            citations = await self._get_citations(lemma, search_lemma=True)
+            return citations
             
         except Exception as e:
             logger.error(f"Error getting linked citations for {lemma}: {str(e)}", exc_info=True)

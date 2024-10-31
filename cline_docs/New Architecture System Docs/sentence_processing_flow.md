@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document explains how the system handles text processing at the sentence level, particularly focusing on how it maintains accuracy when dealing with sentences that span multiple lines or when single lines contain parts of multiple sentences.
+This document explains how the system handles text processing at the sentence level, particularly focusing on how it maintains accuracy when dealing with sentences that span multiple lines or when single lines contain parts of multiple sentences. It also details how citations are handled within this flow.
 
 ## Processing Flow
 
@@ -17,6 +17,7 @@ This document explains how the system handles text processing at the sentence le
 - Each reconstructed complete sentence is processed through the NLP pipeline
 - This ensures linguistic analysis is performed on grammatically complete units
 - Maintains context and relationships between words
+- Stores spaCy analysis data for efficient citation lookup
 
 ### 3. Token Mapping
 The `_map_tokens_to_line` method precisely maps processed tokens back to their source lines:
@@ -27,6 +28,29 @@ def _map_tokens_to_line(self, line_content: str, processed_doc: Dict[str, Any]) 
     # Ensures each line gets only its relevant tokens
     # Handles special cases like hyphenation
 ```
+
+### 4. Citation Handling
+The system now handles citations directly at the sentence level:
+- Citations are retrieved using direct sentence queries
+- No LLM processing needed for simple lemma lookups
+- Position information is maintained through sentence_text_lines
+- Full sentence context (prev/next) is preserved
+
+#### Citation Flow
+1. **Citation Request**
+   - System receives request for citations of a lemma
+   - Direct query to sentences table using spacy_data
+   - No LLM query generation needed
+
+2. **Context Retrieval**
+   - Gets complete sentence containing the lemma
+   - Retrieves previous and next sentences
+   - Maintains line position information
+
+3. **Citation Formation**
+   - Formats citation with author and work information
+   - Includes volume, chapter, and section data
+   - Preserves line number references
 
 ## Example Scenario
 
@@ -46,17 +70,37 @@ Line 3: "the second sentence."
 2. **NLP Processing**:
    - Each complete sentence is processed independently
    - Full linguistic context is maintained
+   - spaCy analysis stored for citation lookup
 
 3. **Token Mapping**:
    - Line 1 receives: tokens for "This is the first"
    - Line 2 receives: tokens for both "sentence" and "And this is"
    - Line 3 receives: tokens for "the second sentence"
 
+4. **Citation Storage**:
+   - Sentences table stores complete sentences
+   - sentence_text_lines maintains position mapping
+   - Enables efficient citation retrieval
+
 ## Data Storage
 
-- Each line maintains its own `spacy_tokens` field in the database
-- Token mapping ensures no data loss when lines contain multiple sentence parts
-- Position-based mapping guarantees accurate token assignment
+### Sentence Level
+- Complete sentence content
+- spaCy analysis data
+- Category information
+- Source line references
+
+### Line Level
+- Original line content
+- Line number and position
+- Division references
+- Token mappings
+
+### Relationship Tracking
+- sentence_text_lines association table
+- Position tracking (start/end)
+- Line to sentence mapping
+- Division hierarchy preservation
 
 ## Key Benefits
 
@@ -65,15 +109,20 @@ Line 3: "the second sentence."
    - Precise token mapping maintains line-level granularity
    - No data loss in complex cases
 
-2. **Flexibility**:
+2. **Efficiency**:
+   - Direct sentence-based citation lookup
+   - No LLM processing for simple citations
+   - Optimized database queries
+
+3. **Flexibility**:
    - Handles various text formats and structures
    - Accommodates different line breaking patterns
    - Supports complex sentence structures
 
-3. **Data Integrity**:
-   - Preserves original line-based structure
-   - Maintains complete linguistic analysis
-   - Ensures traceable token-to-line mapping
+4. **Citation Quality**:
+   - Full sentence context preserved
+   - Accurate position information
+   - Rich metadata availability
 
 ## Implementation Details
 
@@ -87,10 +136,10 @@ Line 3: "the second sentence."
 - Generates comprehensive token analysis
 - Provides linguistic features and relationships
 
-### Token Mapping
-- Position-based token assignment
-- Handles special cases (e.g., hyphenation)
-- Ensures accurate token-to-line correlation
+### CitationHandler
+- Direct sentence-based lookups
+- Efficient context retrieval
+- Rich citation formatting
 
 ## Best Practices
 
@@ -104,10 +153,10 @@ Line 3: "the second sentence."
    - Preserve sentence relationships
    - Maintain bidirectional traceability
 
-3. **Error Handling**:
-   - Log processing anomalies
-   - Handle edge cases gracefully
-   - Maintain data consistency
+3. **Citation Handling**:
+   - Use direct sentence queries when possible
+   - Preserve full context
+   - Maintain position information
 
 ## Future Considerations
 
@@ -125,3 +174,8 @@ Line 3: "the second sentence."
    - Advanced error tracking
    - Processing statistics
    - Quality metrics
+
+4. **Citation Enhancement**:
+   - Additional context options
+   - More citation formats
+   - Enhanced metadata support

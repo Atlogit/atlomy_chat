@@ -22,6 +22,7 @@ from toolkit.nlp.pipeline import NLPPipeline
 from app.models.text import Text
 from app.models.text_line import TextLine
 from app.models.text_division import TextDivision
+from app.models.sentence import sentence_text_lines, Sentence as Sentence_Model
 
 logger = logging.getLogger(__name__)
 
@@ -71,22 +72,38 @@ class CorpusProcessor:
         Returns:
             Dictionary containing processed text and token information
         """
-        return {
+        
+        try:
+            processed_doc={
             "text": doc.text,
-            "tokens": [{
-                "text": token.text,
-                "lemma": token.lemma_,
-                "pos": token.pos_,
-                "tag": token.tag_,
-                "dep": token.dep_,
-                "morph": str(token.morph.to_dict()),
-                "category": ", ".join(
-                    span.label_ 
-                    for span in doc.spans.get("sc", []) 
-                    if span.start <= token.i < span.end
-                )
-            } for token in doc]
-        }
+            'tokens': []
+            }
+            
+            for token in doc:
+                token_data = {
+                    'text': token.text,
+                    'lemma': token.lemma_,
+                    'pos': token.pos_,
+                    'tag': token.tag_,
+                    'dep': token.dep_,
+                    'morph': str(token.morph.to_dict()),
+                    'category': ''
+                }
+                
+                # Add categories if spans exist
+                if hasattr(doc, 'spans') and 'sc' in doc.spans:
+                    token_data['category'] = ', '.join(
+                        span.label_ 
+                        for span in doc.spans['sc'] 
+                        if span.start <= token.i < span.end
+                    )
+                
+                processed_doc['tokens'].append(token_data)
+                
+        except Exception as e:
+            logger.error(f"Error creating token data: {str(e)}")
+            
+        return processed_doc
 
     def _extract_categories(self, line_analysis: Dict[str, Any]) -> List[str]:
         """Extract unique categories from line analysis.
@@ -115,38 +132,71 @@ class CorpusProcessor:
             Dictionary containing only the tokens that belong to this line
         """
         line_tokens = []
-        line_start = processed_doc['text'].find(line_content.strip())
+        # Track position in the sentence text
+        current_pos = 0
         
-        if line_start == -1:
-            # Handle hyphenated words
-            if line_content.endswith('-'):
-                # Remove hyphen for matching
-                clean_content = line_content.rstrip('-')
-                line_start = processed_doc['text'].find(clean_content)
-        
-        if line_start >= 0:
-            line_end = line_start + len(line_content.strip())
-            current_pos = 0
+        try:
+            if not isinstance(processed_doc, dict) or 'text' not in processed_doc or 'tokens' not in processed_doc:
+                logger.error(f"Invalid processed_doc structure: {processed_doc}")
+                return {"text": line_content, "tokens": []}
             
-            for token in processed_doc['tokens']:
-                token_start = processed_doc['text'].find(token['text'], current_pos)
-                if token_start == -1:
-                    continue
-                    
-                token_end = token_start + len(token['text'])
-                current_pos = token_end
+            # Clean and normalize the line content
+            clean_line = line_content.strip()
+            doc_text = processed_doc['text']
+
+            # Find where this line's content appears in the full sentence
+            line_start = doc_text.find(clean_line)
+        
+            if line_start == -1:
+                # Handle hyphenated words
+                if line_content.endswith('-'):
+                    # Remove hyphen for matching
+                    clean_line = line_content.rstrip('-')
+                    line_start = doc_text.find(clean_line)
+            
+            if line_start >= 0:
+                line_end = line_start + len(clean_line)
+            
+                # Ensure tokens is a list
+                if not isinstance(processed_doc['tokens'], list):
+                    logger.error(f"Tokens is not a list: {processed_doc['tokens']}")
+                    return {"text": line_content, "tokens": []}
+
+                for token in processed_doc['tokens']:
+                    if not isinstance(token, dict) or 'text' not in token:
+                        logger.error(f"Invalid token structure: {token}")
+                        continue
                 
-                # Check if token overlaps with line content
-                if (token_start >= line_start and token_start < line_end) or \
-                   (token_end > line_start and token_end <= line_end) or \
-                   (token_start <= line_start and token_end >= line_end):
-                    line_tokens.append(token)
+                    # Find token position in the original text
+                    token_text = token['text']
+                    token_start = doc_text.find(token_text, current_pos)
+
+                    if token_start == -1:
+                        continue
+                    
+                    token_end = token_start + len(token_text)
+                    current_pos = token_end
+                    
+                    # Check if token overlaps with line content
+                    if (token_start >= line_start and token_start < line_end) or \
+                    (token_end > line_start and token_end <= line_end) or \
+                    (token_start <= line_start and token_end >= line_end):
+                        line_tokens.append(token)
         
-        return {
-            "text": line_content,
-            "tokens": line_tokens
-        }
+            return {
+                "text": line_content,
+                "tokens": line_tokens
+            }
         
+        except Exception as e:
+            logger.error(f"Error mapping tokens to line: {str(e)}")
+            logger.error(f"Line content: {line_content}")
+            logger.error(f"Processed doc: {processed_doc}")
+            return {
+                "text": line_content,
+                "tokens": []
+            }
+
     async def process_work(self, work_id: int, pbar: Optional[tqdm] = None) -> None:
         """Process all text in a work through the NLP pipeline.
         
@@ -174,92 +224,131 @@ class CorpusProcessor:
                 total_lines += len(result.scalars().all())
             sentences_pbar = tqdm(total=total_lines, desc="Processing sentences", unit="sent")
         
-        for division in divisions:
-            try:
-                # Get all lines in the division
-                stmt = select(TextLine).where(TextLine.division_id == division.id)
-                result = await self.session.execute(stmt)
-                db_lines = result.scalars().all()
-                
-                if not db_lines:
-                    logger.warning(f"No lines found in division {division.id}")
-                    continue
-                
-                # Convert database lines to parser lines
-                parser_lines = []
-                for db_line in db_lines:
-                    if db_line.content:  # Only include lines with content
-                        parser_lines.append(self._convert_to_parser_text_line(db_line))
-                
-                if not parser_lines:
-                    logger.warning(f"No valid content found in division {division.id}")
-                    continue
-                
-                # Parse lines into sentences
+        async with self.session.begin_nested():  # Use a nested transaction to ensure atomicity
+            for division in divisions:
                 try:
-                    sentences = self.sentence_parser.parse_lines(parser_lines)
-                except Exception as e:
-                    logger.error(f"Error parsing sentences in division {division.id}: {str(e)}")
-                    continue
-                
-                # Process sentences through NLP pipeline
-                for sentence in sentences:
+                    # Get all lines in division
+                    stmt = select(TextLine).where(TextLine.division_id == division.id)
+                    result = await self.session.execute(stmt)
+                    db_lines = result.scalars().all()
+                    
+                    if not db_lines:
+                        logger.warning(f"No lines found in division {division.id}")
+                        continue
+                    
+                    # Create content to ID mapping early
+                    content_to_id_map = {db_line.content: db_line.id for db_line in db_lines}
+                    
+                    # Convert to parser lines and parse sentences
                     try:
-                        # Process complete sentence with spaCy
-                        doc = self.nlp_pipeline.nlp(sentence.content)
-                        
-                        # Convert doc to token analysis format
-                        processed_doc = self._process_doc_to_dict(doc)
+                        parser_lines = [self._convert_to_parser_text_line(line) for line in db_lines if line.content]
+                        sentences = self.sentence_parser.parse_lines(parser_lines)                    
+                    except Exception as e:
+                        logger.error(f"Error parsing sentences in division {division.id}: {str(e)}")
+                        continue
+                    
+                    # Process sentences through NLP pipeline and save them to the database
+                    for sentence in sentences:
+                        try:
+                            # Process complete sentence with spaCy
+                            doc = self.nlp_pipeline.nlp(sentence.content)
                             
-                        # Map NLP results back to individual lines
-                        for parser_line in sentence.source_lines:
-                            # Find corresponding database line
-                            for db_line in db_lines:
-                                if db_line.content == parser_line.content:
-                                    # Map tokens specific to this line
+                            # Validate doc processing succeeded
+                            if not doc or not doc.text:
+                                logger.error(f"Failed to process sentence: {sentence.content}")
+                                continue
+                            
+                            # Convert doc to token analysis format with validation
+
+                            processed_doc = self._process_doc_to_dict(doc)
+                            
+                            # Get source line IDs for this sentence
+                            source_line_ids_array = [
+                                content_to_id_map[line.content] 
+                                for line in sentence.source_lines 
+                                if line.content in content_to_id_map
+                            ]
+
+                            # Create new sentence
+                            new_sentence = Sentence_Model(
+                                content=doc.text,
+                                source_line_ids=source_line_ids_array,
+                                start_position=0,
+                                end_position=len(doc.text),
+                                spacy_data=processed_doc,
+                                categories=self._extract_categories(processed_doc)
+                            )
+                                
+                            self.session.add(new_sentence)
+                            await self.session.flush()  # Get the sentence ID
+
+
+                            # Map NLP results back to individual lines
+                            for source_line in sentence.source_lines:
+                                db_line = next(
+                                    (l for l in db_lines if l.content == source_line.content), 
+                                    None
+                                )
+                                
+                                if db_line and processed_doc['tokens']:  # Validate we have tokens
+                                    # Map tokens to this specific line
                                     line_analysis = self._map_tokens_to_line(
                                         db_line.content, 
                                         processed_doc
                                     )
                                     
-                                    # Save line-specific analysis and categories
-                                    db_line.spacy_tokens = line_analysis
-                                    db_line.categories = self._extract_categories(line_analysis)
-                                    break
-                        
-                        if sentences_pbar:
-                            sentences_pbar.update(1)
-                            
-                    except RuntimeError as e:
-                        if "size of tensor" in str(e):
-                            # Log detailed information about the tensor mismatch
-                            logger.warning(
-                                f"Tensor size mismatch:\n"
-                                f"Author ID: {work.author_id}\n"
-                                f"Work ID: {work.id}\n"
-                                f"Work Title: {work.title}\n"
-                                f"Reference Code: {work.reference_code}\n"
-                                f"Division ID: {division.id}\n"
-                                f"Sentence: {sentence.content}\n"
-                                f"Source Lines:\n" + "\n".join(
-                                    f"  Line {i+1}: {line.content}"
-                                    for i, line in enumerate(sentence.source_lines)
-                                ) + f"\nError: {str(e)}"
-                            )
-                            continue
-                        raise
-                    except Exception as e:
-                        logger.error(f"Error processing sentence in division {division.id}: {str(e)}")
-                        continue
+                                    if line_analysis['tokens']:  # Only update if we found tokens
+                                        # Update line with analysis and categories
+                                        db_line.spacy_tokens = line_analysis
+                                        db_line.categories = self._extract_categories(line_analysis)
+                                        
+                                        # Create sentence-line association with positions
+                                        #start_pos = sentence.content.find(source_line.content)
+                                        #end_pos = start_pos + len(source_line.content)
+                                        
+                                        stmt = sentence_text_lines.insert().values(
+                                            sentence_id=new_sentence.id,
+                                            text_line_id=db_line.id,
+                                            position_start=doc.text.find(source_line.content),
+                                            position_end=doc.text.find(source_line.content) + len(source_line.content)
+                                        )
+                                        await self.session.execute(stmt)
+                                            
+                            await self.session.flush()
+                    
+                            if sentences_pbar:
+                                sentences_pbar.update(1)
+                                
+                        except RuntimeError as e:
+                            if "size of tensor" in str(e):
+                                # Log detailed information about the tensor mismatch
+                                logger.warning(
+                                    f"Tensor size mismatch:\n"
+                                    f"Author ID: {work.author_id}\n"
+                                    f"Work ID: {work.id}\n"
+                                    f"Work Title: {work.title}\n"
+                                    f"Reference Code: {work.reference_code}\n"
+                                    f"Division ID: {division.id}\n"
+                                    f"Sentence: {sentence.content}\n"
+                                    f"Source Lines:\n" + "\n".join(
+                                        f"  Line {i+1}: {line.content}"
+                                        for i, line in enumerate(sentence.source_lines)
+                                    ) + f"\nError: {str(e)}"
+                                )
+                                continue
+                            raise
                 
-                await self.session.flush()
-                if pbar:
-                    pbar.update(1)
-                    pbar.set_description(f"Processing divisions")
+                        except Exception as e:
+                            logger.error(f"Error processing sentence in division {division.id}: {str(e)}")
+                            continue
+                    
+                    if pbar:
+                        pbar.update(1)
+                        pbar.set_description(f"Processing divisions")
 
-            except Exception as e:
-                logger.error(f"Error processing division {division.id}: {str(e)}")
-                continue
+                except Exception as e:
+                    logger.error(f"Error processing division {division.id}: {str(e)}")
+                    continue
 
         if sentences_pbar:
             sentences_pbar.close()

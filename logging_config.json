@@ -1,13 +1,9 @@
 {
     "version": 1,
-    "disable_existing_loggers": false,
+    "disable_existing_loggers": true,
     "formatters": {
         "standard": {
             "format": "%(asctime)s - %(name)s - %(levelname)s - %(module)s:%(funcName)s:%(lineno)d - %(message)s"
-        },
-        "json": {
-            "class": "pythonjsonlogger.jsonlogger.JsonFormatter",
-            "format": "%(asctime)s %(name)s %(levelname)s %(module)s %(funcName)s %(lineno)d %(message)s"
         }
     },
     "handlers": {
@@ -21,27 +17,32 @@
             "class": "logging.handlers.RotatingFileHandler",
             "level": "DEBUG",
             "formatter": "standard",
-            "filename": "logs/fastapi_debug.log",
+            "filename": "logs/atlomy_chat.log",
             "maxBytes": 5242880,
             "backupCount": 5,
             "encoding": "utf8"
         }
     },
-    "loggers": {
-        "uvicorn": {
-            "handlers": ["console", "file"],
-            "level": "DEBUG",
-            "propagate": false
-        },
-        "fastapi": {
-            "handlers": ["console", "file"],
-            "level": "DEBUG",
-            "propagate": false
-        }
-    },
     "root": {
         "level": "DEBUG",
         "handlers": ["console", "file"],
-        "propagate": true
+        "propagate": false
+    },
+    "loggers": {
+        "uvicorn": {
+            "handlers": [],
+            "level": "DEBUG",
+            "propagate": true
+        },
+        "fastapi": {
+            "handlers": [],
+            "level": "DEBUG",
+            "propagate": true
+        },
+        "atlomy_chat": {
+            "handlers": [],
+            "level": "DEBUG",
+            "propagate": true
+        }
     }
 }

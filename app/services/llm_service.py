@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 import json
 import logging
+import re
 
 from app.core.config import settings
 from app.services.llm.base import BaseLLMClient, LLMResponse
@@ -86,6 +87,57 @@ class LLMService:
                 }
             )
 
+    def _format_citation(self, ctx: Dict[str, Any], abbreviated: bool = False) -> str:
+        """Format a citation string using the TextDivision model.
+        
+        Args:
+            ctx: Citation context dictionary
+            abbreviated: If True, returns abbreviated format (e.g., "Gal. San. 6.135")
+                       If False, returns full format (e.g., "Galenus Med., De sanitate tuenda libri vi, Volume 6: Chapter 135")
+        """
+        # Create a TextDivision instance to use its formatting methods
+        division = TextDivision(
+            author_name=ctx['source']['author'],
+            work_name=ctx['source']['work'],
+            volume=ctx['location'].get('volume'),
+            chapter=ctx['location'].get('chapter'),
+            line=ctx['context'].get('line_number'),
+            section=ctx['location'].get('section')
+        )
+        
+        # Format the citation using TextDivision's method
+        citation = division.format_citation(abbreviated=abbreviated)
+        
+        # Append the sentence text to the citation
+        citation += f": {ctx['sentence']['text']}"
+
+        
+        return citation
+
+    def _sanitize_json_string(self, text: str) -> str:
+        """Sanitize and fix common JSON formatting issues."""
+        text = re.sub(r'[\x00-\x1F\x7F]', '', text)
+        #text = text.strip().lstrip('\ufeff')
+        #start = text.find('{')
+        #end = text.rfind('}') + 1
+        #if start == -1 or end == 0:
+        #    raise ValueError("No JSON object found in response")
+        #text = text[start:end]
+        
+        # Ensure property names and values are correctly quoted
+        #text = re.sub(r'([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:', r'\1"\2":', text)
+        #text = re.sub(r':\s*([^"{[\s][^,}\]]*[^"\s,}\]])', r': "\1"', text)
+        
+        # Escape all internal quotes within JSON values
+        #text = re.sub(r'(?<=[:\[\{,])\s*"(.*?)"\s*(?=[,\}\]])', r'"\1"', text)
+        #text = re.sub(r'(?<!\\)"(?=(,|\s*}))', '\\"', text)
+        
+        # Remove trailing commas
+        #text = re.sub(r',(\s*[}\]])', r'\1', text)
+        
+        return text
+
+
     async def create_lexical_value(
         self,
         word: str,
@@ -97,17 +149,16 @@ class LLMService:
         try:
             logger.info(f"Creating lexical value for word: {word}")
             logger.debug(f"Number of citations: {len(citations)}")
-            
-            # Format citations into a string using proper citation structure
-            citations_text = "\n\n".join(
-                f"Citation {i+1}:\n"
-                f"Text: {ctx['sentence']['text']}\n"
-                f"Citation: {ctx['citation']}\n"
-                f"Author: {ctx['source']['author']}\n"
-                f"Work: {ctx['source']['work']}\n"
-                f"Location: {', '.join(filter(None, [ctx['location']['chapter'], ctx['location']['section']]))}"
-                for i, ctx in enumerate(citations)
-            )
+            logger.debug(f"citations found: {citations}")
+            #Format each citation as a string in the required format
+            formatted_citations = [
+                self._format_citation(ctx, abbreviated=False)
+                for ctx in citations
+            ]
+            logger.debug(f"Formatted citations: {formatted_citations}")
+            # Combine all formatted citations into a single text block
+            citations_text = ",\n".join(formatted_citations)
+
             
             logger.debug(f"Formatted citations text:\n{citations_text}")
             
@@ -133,9 +184,25 @@ class LLMService:
             
             logger.debug(f"Raw LLM response:\n{response.text}")
             
-            # Parse the JSON response
+            # Parse and validate the JSON response
             try:
-                result = json.loads(response.text.strip())
+                # Sanitize the JSON string
+                sanitized_text = self._sanitize_json_string(response.text)
+                logger.debug(f"Sanitized JSON:\n{sanitized_text}")
+                
+                # Parse the sanitized JSON
+                try:
+                    result = json.loads(sanitized_text)
+                except json.JSONDecodeError as e:
+                    # If still failing, try more aggressive cleanup
+                    logger.warning(f"Initial JSON parse failed: {str(e)}, attempting more aggressive cleanup")
+                    # Convert the entire response to a valid JSON structure
+                    cleaned = re.sub(r'[^\x20-\x7E]', '', sanitized_text)  # Remove non-printable chars
+                    cleaned = re.sub(r'([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:', r'\1"\2":', cleaned)  # Quote all keys
+                    cleaned = re.sub(r':\s*([^"{[\s][^,}\]]*[^"\s,}\]])', r': "\1"', cleaned)  # Quote unquoted values
+                    cleaned = re.sub(r',(\s*[}\]])', r'\1', cleaned)  # Remove trailing commas
+                    result = json.loads(cleaned)
+                
                 logger.debug(f"Parsed JSON result:\n{json.dumps(result, indent=2)}")
                 
                 # Validate required fields
@@ -156,6 +223,24 @@ class LLMService:
                         }
                     )
                 
+                # Ensure all text fields are properly escaped strings
+                for field in ['translation', 'short_description', 'long_description']:
+                    if not isinstance(result[field], str):
+                        result[field] = str(result[field])
+                    result[field] = result[field].replace('\n', '\\n').replace('"', '\\"')
+                
+                # Ensure arrays contain only strings
+                for field in ['related_terms', 'citations_used']:
+                    if not isinstance(result[field], list):
+                        result[field] = [str(result[field])]
+                    result[field] = [str(item) for item in result[field]]
+                
+                # Replace citations_used with full citations
+                #result['citations_used'] = [
+                #    self._format_citation(citations[int(cit.split()[-1])-1], abbreviated=False)
+                #    for cit in result['citations_used']
+                #]
+                
                 return result
                 
             except json.JSONDecodeError as e:
@@ -172,7 +257,18 @@ class LLMService:
                         "word": word
                     }
                 )
-                
+        except Exception as e:
+            logger.error(f"Error creating lexical value: {str(e)}", exc_info=True)
+            raise LLMServiceError(
+                "Failed to create lexical value",
+                {
+                    "message": str(e),
+                    "error_type": "creation_error",
+                    "word": word,
+                    "citations_count": len(citations)
+                }
+            )   
+            
         except BedrockClientError as e:
             logger.error(f"Bedrock client error creating lexical value: {str(e)}", exc_info=True)
             raise LLMServiceError(
@@ -214,17 +310,19 @@ class LLMService:
                 rows = result.mappings().all()
                 
                 # Format results using proper citation structure
-                formatted_results = []
+                formatted_citations  = []
                 for row in rows:
-                    # Get the text division for citation formatting
+                    # Fetch TextDivision data if needed for citation formatting
                     division_query = text("SELECT * FROM text_divisions WHERE id = :id")
                     division_result = await self.session.execute(division_query, {"id": row['division_id']})
                     division_data = division_result.mappings().one()
+                    
+                    # Create a TextDivision instance and populate it with data from division_data
                     division = TextDivision()
                     for key, value in division_data.items():
                         setattr(division, key, value)
 
-                    citation = {
+                    ctx  = {
                         "sentence": {
                             "id": str(row["sentence_id"]),
                             "text": row["sentence_text"],
@@ -232,11 +330,8 @@ class LLMService:
                             "next_sentence": row.get("next_sentence"),
                             "tokens": row.get("sentence_tokens")
                         },
-                        "citation": division.format_citation(),
                         "context": {
-                            "line_id": str(row["line_id"]),
-                            "line_text": row["line_text"],
-                            "line_numbers": row.get("line_numbers", [])
+                            "line_number": row.get("line_numbers", [])[0]  # assuming single line or min line
                         },
                         "location": {
                             "volume": division.volume,
@@ -248,10 +343,17 @@ class LLMService:
                             "work": division.work_name
                         }
                     }
-                    formatted_results.append(citation)
+                    
+                    # Format the citation using `_format_citation`
+                    citation = self._format_citation(ctx, abbreviated=False)
+                    formatted_citations.append(citation)  # Add to list of formatted citations
 
-                logger.debug(f"Query returned {len(formatted_results)} formatted results")
-                return sql_query, formatted_results
+                # Join all formatted citations into a single text block for LLM
+                citations_text = "\n\n".join(formatted_citations)
+
+                    
+                logger.debug(f"Query returned {len(citations_text)} formatted results")
+                return sql_query, citations_text
 
             except BedrockClientError as e:
                 logger.error(f"LLM provider error generating query: {str(e)}", exc_info=True)

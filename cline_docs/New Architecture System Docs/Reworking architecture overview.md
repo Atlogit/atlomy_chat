@@ -1,4 +1,4 @@
-# Ancient Medical Texts Analysis: Architecture Migration Guide
+# Ancient Medical Texts Analysis: Architecture Overview
 
 ## 1. System Architecture Overview
 
@@ -24,6 +24,8 @@
 [Database Layer (PostgreSQL)]
          ↕
 [AWS Bedrock (Claude-3)]
+         ↕
+[Redis Cache (Optional)]
 ```
 
 ## 2. Tech Stack Evolution
@@ -46,184 +48,225 @@ Backend:
 ```
 Database:
 ├── PostgreSQL 14+
-│   └── JSONB support for spaCy data
+│   ├── JSONB support for spaCy data
+│   ├── Array types for categories
+│   └── UUID support for analysis IDs
 ├── SQLAlchemy 2.0
-│   └── Async support
+│   ├── Async support (AsyncAttrs)
+│   ├── Declarative models
+│   └── Relationship management
 └── Alembic (migrations)
 
 API Layer:
 ├── asyncpg
-└── FastAPI dependency injection
+├── FastAPI dependency injection
+└── Async session management
 
-Caching (optional):
-└── Redis
+Caching:
+└── Redis (optional)
+    ├── Query results
+    └── Frequent lookups
 ```
 
 ## 3. Database Schema Design
 
+### Core Text Storage
+
 ```sql
--- Core Text Storage
+-- Authors table for storing author information
 CREATE TABLE authors (
     id SERIAL PRIMARY KEY,
     name TEXT NOT NULL,
+    reference_code VARCHAR(20) NOT NULL UNIQUE,
     normalized_name TEXT,
-    language_code VARCHAR(5)
+    language_code VARCHAR(5),
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Texts table for storing main text documents
 CREATE TABLE texts (
     id SERIAL PRIMARY KEY,
-    author_id INTEGER REFERENCES authors,
-    reference_code VARCHAR(20),  -- [0057] format
+    author_id INTEGER REFERENCES authors ON DELETE CASCADE,
+    reference_code VARCHAR(20),
     title TEXT NOT NULL,
-    metadata JSONB,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    text_metadata JSONB,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Text divisions for structural and citation components
 CREATE TABLE text_divisions (
     id SERIAL PRIMARY KEY,
-    text_id INTEGER REFERENCES texts,
+    text_id INTEGER REFERENCES texts ON DELETE CASCADE,
     -- Citation components
-    author_id_field VARCHAR(20) NOT NULL,    -- e.g., [0086]
-    work_number_field VARCHAR(20) NOT NULL,   -- e.g., [055]
-    epithet_field VARCHAR(100),              -- e.g., [Divis]
-    fragment_field VARCHAR(100),             -- Optional fragment reference
+    author_id_field VARCHAR(20) NOT NULL,
+    work_number_field VARCHAR(20) NOT NULL,
+    epithet_field VARCHAR(100),
+    fragment_field VARCHAR(100),
+    -- Author and work names
+    author_name TEXT,
+    work_name TEXT,
     -- Structural components
-    volume VARCHAR(50),                      -- Volume reference
-    chapter VARCHAR(50),                     -- Chapter reference
-    line VARCHAR(50),                        -- Line reference
-    section VARCHAR(50),                     -- Section reference (e.g., 847a)
+    volume VARCHAR(50),
+    chapter VARCHAR(50),
+    line VARCHAR(50),
+    section VARCHAR(50),
     -- Title components
     is_title BOOLEAN DEFAULT FALSE,
-    title_number VARCHAR(50),                -- Title reference number
-    title_text TEXT,                         -- Title content
+    title_number VARCHAR(50),
+    title_text TEXT,
     -- Additional metadata
     division_metadata JSONB,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Text lines with NLP analysis
 CREATE TABLE text_lines (
     id SERIAL PRIMARY KEY,
-    division_id INTEGER REFERENCES text_divisions,
-    line_number INTEGER,
-    content TEXT,
-    categories TEXT[],                       -- Array of category tags
-    spacy_tokens JSONB,                      -- Full spaCy analysis
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    division_id INTEGER REFERENCES text_divisions ON DELETE CASCADE,
+    line_number INTEGER NOT NULL,
+    content TEXT NOT NULL,
+    categories TEXT[],
+    spacy_tokens JSONB,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### Analysis Storage
+
+```sql
+-- Sentences parsed from text lines
+CREATE TABLE sentences (
+    id SERIAL PRIMARY KEY,
+    content TEXT NOT NULL,
+    source_line_ids INTEGER[] NOT NULL,
+    start_position INTEGER NOT NULL,
+    end_position INTEGER NOT NULL,
+    spacy_data JSONB,
+    categories TEXT[],
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
--- Analysis Storage
+-- Association table for sentences and text lines
+CREATE TABLE sentence_text_lines (
+    sentence_id INTEGER REFERENCES sentences ON DELETE CASCADE,
+    text_line_id INTEGER REFERENCES text_lines ON DELETE CASCADE,
+    position_start INTEGER NOT NULL,
+    position_end INTEGER NOT NULL,
+    PRIMARY KEY (sentence_id, text_line_id)
+);
+
+-- Lemmas with translations and categories
 CREATE TABLE lemmas (
-    id SERIAL PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     lemma TEXT NOT NULL,
     language_code VARCHAR(5),
-    category TEXT[],
+    categories TEXT[],
     translations JSONB,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
+-- LLM-generated analyses for lemmas
 CREATE TABLE lemma_analyses (
-    id SERIAL PRIMARY KEY,
-    lemma_id INTEGER REFERENCES lemmas,
-    analysis_text TEXT,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    lemma_id UUID REFERENCES lemmas ON DELETE CASCADE,
+    analysis_text TEXT NOT NULL,
     analysis_data JSONB,
     citations JSONB,
-    created_by TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_by TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Lexical values with sentence contexts
+CREATE TABLE lexical_values (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    lemma TEXT NOT NULL UNIQUE,
+    translation TEXT,
+    short_description TEXT,
+    long_description TEXT,
+    related_terms TEXT[],
+    citations_used JSONB,
+    references JSONB,
+    sentence_contexts JSONB,
+    sentence_id INTEGER REFERENCES sentences,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 ```
 
-## 4. Migration Steps
+## 4. Key Features
 
-### Phase 1: Setup & Infrastructure
+### Async Support
+- All models inherit from AsyncAttrs for async operations
+- Async session management in FastAPI endpoints
+- Connection pooling with asyncpg
 
-1. Database Setup:
-```bash
-# Install PostgreSQL
-sudo apt-get install postgresql-14
-
-# Create database
-createdb ancient_texts_db
-
-# Initialize Alembic
-alembic init migrations
+### Relationship Management
+```
+Author ─┬─> Text ─┬─> TextDivision ─> TextLine ─┬─> Sentence
+        │         │                             │
+        │         │                             └─> spaCy Analysis
+        │         │
+        │         └─> Metadata (JSONB)
+        │
+Lemma <──┘
+  │
+  ├─> LemmaAnalysis
+  └─> LexicalValue ─> SentenceContext
 ```
 
-2. Project Structure Update:
-```
-ancient_texts/
-├── alembic/
-│   └── versions/
-├── app/
-│   ├── api/
-│   │   ├── endpoints/
-│   │   └── dependencies.py
-│   ├── core/
-│   │   ├── config.py
-│   │   └── database.py
-│   ├── models/
-│   │   └── database.py
-│   └── services/
-│       ├── text_service.py
-│       └── analysis_service.py
-├── migrations/
-└── docker-compose.yml
-```
+### Data Types
+- JSONB for flexible metadata and NLP data
+- Arrays for categories and related terms
+- UUIDs for analysis identifiers
+- Timestamps for all models
+
+### Performance Features
+- Indexes on frequently queried fields
+- Cascade deletes for referential integrity
+- Optional Redis caching layer
+
+## 5. Migration Strategy
+
+### Phase 1: Infrastructure
+1. Set up PostgreSQL with required extensions
+2. Initialize Alembic for migrations
+3. Configure async database connection
 
 ### Phase 2: Data Migration
+1. Create tables using Alembic migrations
+2. Migrate existing JSON data
+3. Validate data integrity
 
-1. Create Migration Scripts:
-```python
-# app/scripts/migrate_data.py
-async def migrate_texts():
-    """Migrate existing JSON data to PostgreSQL"""
-    async with AsyncSessionLocal() as session:
-        # Read existing JSON files
-        for json_file in json_files:
-            data = load_json(json_file)
-            
-            # Create text entry
-            text = Text(
-                reference_code=data['reference'],
-                title=data['title']
-            )
-            session.add(text)
-            
-            # Create text divisions with citation and structural components
-            for division in data['divisions']:
-                text_division = TextDivision(
-                    text_id=text.id,
-                    author_id_field=division['author_id'],
-                    work_number_field=division['work_number'],
-                    epithet_field=division.get('epithet'),
-                    fragment_field=division.get('fragment'),
-                    volume=division.get('volume'),
-                    chapter=division.get('chapter'),
-                    line=division.get('line'),
-                    section=division.get('section')
-                )
-                session.add(text_division)
-                
-                # Create text lines
-                for line in division['lines']:
-                    text_line = TextLine(
-                        division_id=text_division.id,
-                        line_number=line['number'],
-                        content=line['text'],
-                        categories=line.get('categories', []),
-                        spacy_tokens=line.get('nlp_data')
-                    )
-                    session.add(text_line)
-        
-        await session.commit()
-```
+### Phase 3: API Updates
+1. Update FastAPI endpoints for async
+2. Implement service layer
+3. Add caching where needed
 
-2. Run Migrations:
-```bash
-# Create initial tables
-alembic upgrade head
+## 6. Next Steps
 
-# Run data migration
-python -m app.scripts.migrate_data
-```
+1. **Schema Implementation**:
+   - Run migrations
+   - Validate relationships
+   - Test constraints
 
-[Rest of the document remains unchanged...]
+2. **Data Processing**:
+   - Implement NLP pipeline
+   - Set up LLM integration
+   - Configure caching
+
+3. **API Development**:
+   - Update endpoints
+   - Add async support
+   - Implement services
+
+4. **Documentation**:
+   - API documentation
+   - Query patterns
+   - Performance guidelines

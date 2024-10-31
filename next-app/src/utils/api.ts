@@ -59,6 +59,15 @@ export async function fetchApi<T>(
         }
       }
 
+      // Special handling for 404 Not Found
+      if (response.status === 404) {
+        throw {
+          message: 'Resource not found',
+          status: 404,
+          detail: errorDetail || 'The requested resource could not be found'
+        } as ApiError;
+      }
+
       throw {
         message: errorMessage,
         status: response.status,
@@ -96,7 +105,8 @@ export async function fetchApi<T>(
     // Handle empty error objects
     if (error && Object.keys(error).length === 0) {
       throw {
-        message: 'An error occurred while processing the request',
+        message: 'An unexpected error occurred',
+        status: 500,
         detail: 'No error details available'
       } as ApiError;
     }
@@ -104,6 +114,7 @@ export async function fetchApi<T>(
     // Otherwise wrap it in an ApiError
     throw {
       message: error instanceof Error ? error.message : 'An unknown error occurred',
+      status: 500,
       detail: error instanceof Error ? error.stack : 
              typeof error === 'object' ? JSON.stringify(error) : String(error)
     } as ApiError;
@@ -226,6 +237,12 @@ export interface TaskStatus {
   action?: 'create' | 'update';
 }
 
+export interface DeleteTriggerResponse {
+  trigger_id: string;
+  message: string;
+  entry: LexicalValue;
+}
+
 export interface QueryGenerationRequest {
   question: string;
   max_tokens?: number;
@@ -272,6 +289,7 @@ export const API = {
     update: '/api/v1/lexical/update',
     batchUpdate: '/api/v1/lexical/batch-update',
     delete: (lemma: string) => `/api/v1/lexical/delete/${encodeURIComponent(lemma)}`,
+    deleteTrigger: (lemma: string) => `/api/v1/lexical/delete/${encodeURIComponent(lemma)}/trigger`,
     status: (taskId: UUID) => `/api/v1/lexical/status/${encodeURIComponent(taskId)}`,
     versions: (lemma: string) => `/api/v1/lexical/versions/${encodeURIComponent(lemma)}`,
   },

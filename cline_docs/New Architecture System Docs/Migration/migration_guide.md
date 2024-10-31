@@ -177,6 +177,9 @@ For more granular control, you can run individual components:
    SELECT * FROM text_divisions WHERE text_id NOT IN (SELECT id FROM texts);
    ```
 
+3. **Author and Work Names**
+   - location: `toolkit/migration/update_author_work_names.py`
+   - use to convert numders (ID) to names
 ## Troubleshooting
 
 ### Common Issues

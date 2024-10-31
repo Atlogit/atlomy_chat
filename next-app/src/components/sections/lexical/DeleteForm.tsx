@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Button } from '../../../components/ui/Button'
 import { ResultsDisplay } from '../../../components/ui/ResultsDisplay'
 import { useApi } from '../../../hooks/useApi'
-import { API, LexicalValue } from '../../../utils/api'
+import { API, LexicalValue, DeleteTriggerResponse } from '../../../utils/api'
 
 /**
  * DeleteForm Component
@@ -17,7 +17,9 @@ import { API, LexicalValue } from '../../../utils/api'
 export function DeleteForm() {
   const [lemma, setLemma] = useState('')
   const [valueToDelete, setValueToDelete] = useState<LexicalValue | null>(null)
+  const [triggerId, setTriggerId] = useState<string | null>(null)
   const { data: searchData, error: searchError, isLoading: isSearching, execute: executeSearch } = useApi<LexicalValue>()
+  const { data: triggerData, error: triggerError, isLoading: isTriggering, execute: executeTrigger } = useApi<DeleteTriggerResponse>()
   const { data: deleteData, error: deleteError, isLoading: isDeleting, execute: executeDelete } = useApi<void>()
 
   /**
@@ -33,6 +35,26 @@ export function DeleteForm() {
 
     if (searchData) {
       setValueToDelete(searchData)
+      // Reset trigger when searching for a new value
+      setTriggerId(null)
+    }
+  }
+
+  /**
+   * Handles triggering the delete operation.
+   * 
+   * @async
+   * @function
+   */
+  const handleTriggerDelete = async () => {
+    if (!lemma.trim() || !valueToDelete) return
+
+    const result = await executeTrigger(API.lexical.deleteTrigger(lemma.trim()), {
+      method: 'POST'
+    })
+
+    if (result?.trigger_id) {
+      setTriggerId(result.trigger_id)
     }
   }
 
@@ -43,9 +65,9 @@ export function DeleteForm() {
    * @function
    */
   const handleDelete = async () => {
-    if (!lemma.trim() || !valueToDelete) return
+    if (!lemma.trim() || !valueToDelete || !triggerId) return
 
-    await executeDelete(API.lexical.delete(lemma.trim()), {
+    await executeDelete(`${API.lexical.delete(lemma.trim())}?trigger_id=${triggerId}`, {
       method: 'DELETE'
     })
 
@@ -53,11 +75,12 @@ export function DeleteForm() {
     if (deleteData !== undefined) {
       setLemma('')
       setValueToDelete(null)
+      setTriggerId(null)
     }
   }
 
-  const isLoading = isSearching || isDeleting
-  const error = searchError || deleteError
+  const isLoading = isSearching || isTriggering || isDeleting
+  const error = searchError || triggerError || deleteError
 
   return (
     <div className="form-control gap-4">
@@ -86,11 +109,32 @@ export function DeleteForm() {
         </div>
       </div>
 
-      {valueToDelete && (
+      {valueToDelete && !triggerId && (
         <div className="alert alert-warning">
           <div>
             <h3 className="font-bold">Confirm Deletion</h3>
             <p>Are you sure you want to delete this lexical value?</p>
+            <pre className="mt-2 p-2 bg-base-200 rounded">
+              {JSON.stringify(valueToDelete, null, 2)}
+            </pre>
+          </div>
+          <div className="flex-none">
+            <Button
+              onClick={handleTriggerDelete}
+              isLoading={isTriggering}
+              variant="outline"
+            >
+              Confirm
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {valueToDelete && triggerId && (
+        <div className="alert alert-error">
+          <div>
+            <h3 className="font-bold">Final Confirmation</h3>
+            <p>This action cannot be undone. Are you absolutely sure?</p>
             <pre className="mt-2 p-2 bg-base-200 rounded">
               {JSON.stringify(valueToDelete, null, 2)}
             </pre>

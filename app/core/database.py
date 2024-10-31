@@ -27,6 +27,15 @@ async_session_maker = sessionmaker(
     autoflush=False
 )
 
+# Add async_session for backward compatibility
+async def async_session() -> AsyncGenerator[AsyncSession, None]:
+    """Get an async database session."""
+    async with async_session_maker() as session:
+        try:
+            yield session
+        finally:
+            await session.close()
+
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """Dependency for getting async database sessions."""
     async with async_session_maker() as session:

@@ -3,6 +3,7 @@ Test fixtures for the Analysis Application.
 """
 
 import pytest
+import uuid
 from typing import Dict, List, AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
@@ -13,8 +14,8 @@ from app.models.author import Author
 from app.models.text import Text
 from app.models.text_division import TextDivision
 from app.models.text_line import TextLine
-from app.models.lemma import Lemma
-from app.models.lemma_analysis import LemmaAnalysis
+from app.models.sentence import Sentence
+from app.models.lexical_value import LexicalValue
 
 # Test database URL
 TEST_DATABASE_URL = settings.DATABASE_URL + "_test"
@@ -55,7 +56,7 @@ async def sample_text(db_session: AsyncSession, sample_author: Author) -> Text:
         author_id=sample_author.id,
         title="On Sacred Disease",
         reference_code="0057",
-        text_metadata={"genre": "medical", "period": "classical"}
+        metadata={"genre": "medical", "period": "classical"}
     )
     db_session.add(text)
     await db_session.commit()
@@ -66,77 +67,183 @@ async def sample_division(db_session: AsyncSession, sample_text: Text) -> TextDi
     """Create a sample text division."""
     division = TextDivision(
         text_id=sample_text.id,
-        book_level_1="1",
+        author_id_field="0057",
+        work_number_field="001",
+        author_name="Hippocrates",
+        work_name="De Morbis Sacris",
+        epithet_field="Morb.Sacr.",
+        volume="1",
         chapter="1",
-        section="1"
+        section="1",
+        division_metadata={"type": "treatise"}
     )
     db_session.add(division)
     await db_session.commit()
     return division
 
 @pytest.fixture
-async def sample_lines(db_session: AsyncSession, sample_division: TextDivision) -> List[TextLine]:
-    """Create sample text lines with NLP data."""
-    lines = [
-        TextLine(
-            division_id=sample_division.id,
-            line_number=1,
-            content="περὶ μὲν τῆς ἱερῆς νούσου καλεομένης ὧδ᾽ ἔχει.",
-            categories=["disease", "sacred"],
-            spacy_tokens={
-                "lemmas": ["περί", "μέν", "ὁ", "ἱερός", "νόσος", "καλέω", "ὧδε", "ἔχω"],
-                "pos": ["ADP", "PART", "DET", "ADJ", "NOUN", "VERB", "ADV", "VERB"]
-            }
-        ),
-        TextLine(
-            division_id=sample_division.id,
-            line_number=2,
-            content="οὐδέν τί μοι δοκεῖ τῶν ἄλλων θειοτέρη εἶναι νούσων οὐδὲ ἱερωτέρη",
-            categories=["disease", "divine"],
-            spacy_tokens={
-                "lemmas": ["οὐδείς", "τις", "ἐγώ", "δοκέω", "ὁ", "ἄλλος", "θεῖος", "εἰμί", "νόσος", "οὐδέ", "ἱερός"],
-                "pos": ["PRON", "PRON", "PRON", "VERB", "DET", "ADJ", "ADJ", "VERB", "NOUN", "CCONJ", "ADJ"]
-            }
-        )
-    ]
-    for line in lines:
-        db_session.add(line)
+async def sample_sentences(db_session: AsyncSession) -> List[Sentence]:
+    """Create sample sentences including one that spans multiple lines and multiple in one line."""
+    # First sentence - spans two lines
+    sentence1 = Sentence(
+        id=uuid.uuid4(),
+        content="περὶ μὲν τῆς ἱερῆς νούσου καλεομένης",
+        source_line_ids=[1, 2],  # Spans two lines
+        start_position=0,
+        end_position=30,
+        spacy_data={
+            "tokens": [
+                {"text": "περί", "lemma": "περί", "pos": "ADP"},
+                {"text": "νούσου", "lemma": "νόσος", "pos": "NOUN"}
+            ]
+        },
+        categories=["disease", "sacred"]
+    )
+    
+    # Second and third sentences - both in the same line
+    sentence2 = Sentence(
+        id=uuid.uuid4(),
+        content="ὧδ᾽ ἔχει.",
+        source_line_ids=[2],  # Same line as end of sentence1
+        start_position=31,
+        end_position=40,
+        spacy_data={
+            "tokens": [
+                {"text": "ὧδ᾽", "lemma": "ὧδε", "pos": "ADV"},
+                {"text": "ἔχει", "lemma": "ἔχω", "pos": "VERB"}
+            ]
+        },
+        categories=["statement"]
+    )
+    
+    sentence3 = Sentence(
+        id=uuid.uuid4(),
+        content="τὸ πρᾶγμα οὕτως.",
+        source_line_ids=[2],  # Same line as sentence2
+        start_position=41,
+        end_position=55,
+        spacy_data={
+            "tokens": [
+                {"text": "πρᾶγμα", "lemma": "πρᾶγμα", "pos": "NOUN"},
+                {"text": "οὕτως", "lemma": "οὕτως", "pos": "ADV"}
+            ]
+        },
+        categories=["statement"]
+    )
+    
+    db_session.add_all([sentence1, sentence2, sentence3])
     await db_session.commit()
-    return lines
+    return [sentence1, sentence2, sentence3]
 
 @pytest.fixture
-async def sample_lemma(db_session: AsyncSession) -> Lemma:
-    """Create a sample lemma."""
-    lemma = Lemma(
-        lemma="νόσος",
-        language_code="grc",
-        categories=["medical", "disease"],
-        translations={
-            "en": "disease, sickness",
-            "de": "Krankheit",
-            "fr": "maladie"
+async def sample_text_lines(
+    db_session: AsyncSession,
+    sample_division: TextDivision,
+    sample_sentences: List[Sentence]
+) -> List[TextLine]:
+    """Create sample text lines demonstrating multiple sentences per line and sentences spanning lines."""
+    # First line - contains start of first sentence
+    text_line1 = TextLine(
+        division_id=sample_division.id,
+        sentence_id=sample_sentences[0].id,  # References first sentence
+        line_number=1,
+        content="περὶ μὲν τῆς ἱερῆς",
+        categories=["disease", "sacred"],
+        spacy_tokens={
+            "tokens": [
+                {"text": "περί", "lemma": "περί", "pos": "ADP"},
+                {"text": "ἱερῆς", "lemma": "ἱερός", "pos": "ADJ"}
+            ]
         }
     )
-    db_session.add(lemma)
+    
+    # Second line - contains end of first sentence and two complete sentences
+    text_line2 = TextLine(
+        division_id=sample_division.id,
+        sentence_id=sample_sentences[0].id,  # References first sentence
+        line_number=2,
+        content="νούσου καλεομένης. ὧδ᾽ ἔχει. τὸ πρᾶγμα οὕτως.",
+        categories=["disease", "statement"],
+        spacy_tokens={
+            "tokens": [
+                {"text": "νούσου", "lemma": "νόσος", "pos": "NOUN"},
+                {"text": "ὧδ᾽", "lemma": "ὧδε", "pos": "ADV"},
+                {"text": "πρᾶγμα", "lemma": "πρᾶγμα", "pos": "NOUN"}
+            ]
+        }
+    )
+    
+    db_session.add_all([text_line1, text_line2])
     await db_session.commit()
-    return lemma
+    return [text_line1, text_line2]
 
 @pytest.fixture
-async def sample_analysis(db_session: AsyncSession, sample_lemma: Lemma) -> LemmaAnalysis:
-    """Create a sample lemma analysis."""
-    analysis = LemmaAnalysis(
-        lemma_id=sample_lemma.id,
-        analysis_text="The term νόσος is a fundamental concept in ancient Greek medicine...",
-        analysis_data={
-            "key_concepts": ["disease", "illness", "medical condition"],
-            "usage_patterns": ["general term", "specific conditions"]
-        },
-        citations={
-            "primary": ["Hippocrates, Sacred Disease 1.1", "Galen, Method of Medicine 1.2"],
+async def sample_lexical_value(
+    db_session: AsyncSession,
+    sample_text_lines: List[TextLine],
+    sample_sentences: List[Sentence]
+) -> LexicalValue:
+    """Create a sample lexical value."""
+    lexical_value = LexicalValue(
+        id=uuid.uuid4(),
+        lemma="νόσος",
+        translation="disease, sickness",
+        short_description="A term for disease or sickness in ancient Greek medical texts.",
+        long_description="An extensive analysis of νόσος in ancient Greek medical literature...",
+        related_terms=["ἱερός νόσος", "πάθος"],
+        citations_used={
+            "primary": ["Hippocrates, De Morbis Sacris 1.1"],
             "secondary": ["LSJ s.v. νόσος"]
         },
-        created_by="test_user"
+        references={
+            "citations": [
+                {
+                    "sentence": {
+                        "id": str(sample_sentences[0].id),
+                        "text": sample_sentences[0].content
+                    },
+                    "citation": "Hippocrates, De Morbis Sacris 1.1",
+                    "context": {
+                        "line_id": f"{sample_text_lines[0].id},{sample_text_lines[1].id}",
+                        "line_text": f"{sample_text_lines[0].content} {sample_text_lines[1].content}"
+                    }
+                }
+            ],
+            "metadata": {
+                "search_lemma": True,
+                "total_citations": 1
+            }
+        },
+        sentence_contexts={
+            str(sample_sentences[0].id): {
+                "text": sample_sentences[0].content,
+                "prev": None,
+                "next": str(sample_sentences[1].id),
+                "tokens": sample_text_lines[0].spacy_tokens
+            }
+        },
+        sentence_id=sample_sentences[0].id
     )
-    db_session.add(analysis)
+    db_session.add(lexical_value)
     await db_session.commit()
-    return analysis
+    return lexical_value
+
+@pytest.fixture
+async def sample_data(
+    db_session: AsyncSession,
+    sample_author: Author,
+    sample_text: Text,
+    sample_division: TextDivision,
+    sample_sentences: List[Sentence],
+    sample_text_lines: List[TextLine],
+    sample_lexical_value: LexicalValue
+) -> Dict:
+    """Create a complete set of sample data."""
+    return {
+        "author": sample_author,
+        "text": sample_text,
+        "division": sample_division,
+        "sentences": sample_sentences,
+        "text_lines": sample_text_lines,
+        "lexical_value": sample_lexical_value
+    }

@@ -1,279 +1,269 @@
-# Database Setup and Text Processing Guide
+# Database Setup and Processing Guide
 
-## Overview
-This guide details the steps for setting up the PostgreSQL database and processing texts through the NLP pipeline for the Ancient Medical Texts Analysis project.
+## Initial Setup
 
-## Components Available
+### 1. Database Creation
+```bash
+# Create PostgreSQL database
+createdb amta_greek
 
-1. **Database Configuration**
-   - Located in `app/core/database.py`
-   - Uses SQLAlchemy with async support
-   - Default connection URL: `postgresql+asyncpg://postgres:postgres@localhost/ancient_texts_db`
-   - Configurable through environment variables
+# Initialize Alembic
+alembic init migrations
 
-2. **Database Schema**
-   - Defined in Alembic migrations (`alembic/versions/`)
-   - Tables:
-     - authors
-     - texts
-     - text_divisions
-     - text_lines
-     - lemmas
-     - lemma_analyses
-
-3. **Processing Tools**
-   - **Database Loader** (`toolkit/loader/database.py`)
-     - Handles text storage in PostgreSQL
-     - Supports individual and bulk loading
-     - Manages relationships between entities
-   
-   - **Corpus Processor** (`toolkit/migration/process_corpus.py`)
-     - Coordinates text processing through NLP pipeline
-     - Supports parallel processing
-     - Includes progress tracking and logging
-
-## Setup Steps
-
-1. **Environment Configuration**
-   ```bash
-   # Create .env file with required settings
-   cp .env.example .env
-   
-   # Required additions to .env:
-   DATABASE_URL=postgresql+asyncpg://username:password@host/dbname
-   ```
-
-2. **Database Creation**
-   ```bash
-   # Create PostgreSQL database
-   createdb ancient_texts_db  # Or your chosen database name
-   
-   # Run Alembic migrations
-   alembic upgrade head
-   ```
-
-3. **Text Processing Setup**
-   - Ensure texts are in a designated directory
-   - Configure CORPUS_DIR in .env to point to text directory
-   - Optional: Configure NLP model path
-
-## Processing Workflow
-
-1. **Basic Processing**
-   ```bash
-   python -m toolkit.migration.process_corpus
-   ```
-
-2. **Advanced Processing Options**
-   ```bash
-   # Parallel processing with custom batch size
-   python -m toolkit.migration.process_corpus --parallel --batch-size 200
-   
-   # Specify custom model path
-   python -m toolkit.migration.process_corpus --model-path /path/to/model
-   
-   # Control worker processes
-   python -m toolkit.migration.process_corpus --parallel --max-workers 4
-   ```
-
-## Monitoring and Logging
-
-- Logs are written to the configured log file
-- Progress can be monitored through log output
-- Processing status includes completion percentage
-- Error handling with detailed logging
-
-## Database Loader Usage
-
-The DatabaseLoader class provides methods for storing processed texts in PostgreSQL. Here's how to use it:
-
-### 1. Basic Text Loading
-
-```python
-from toolkit.loader.database import DatabaseLoader
-from app.core.database import async_session
-
-async with async_session() as session:
-    loader = DatabaseLoader(session)
-    
-    # Prepare text data
-    text_data = {
-        "author_name": "Hippocrates",
-        "text_title": "On Ancient Medicine",
-        "reference_code": "[0057]",
-        "divisions": [
-            {
-                "book_number": "1",
-                "chapter_number": "2",
-                "section_number": "3",
-                "page_number": 42,
-                "metadata": {"source": "TLG"},
-                "lines": [
-                    {
-                        "line_number": 1,
-                        "content": "ἐγὼ δὲ περὶ μὲν τούτων",
-                        "nlp_data": {
-                            "tokens": [
-                                {
-                                    "text": "ἐγὼ",
-                                    "lemma": "ἐγώ",
-                                    "pos": "PRON",
-                                    "category": "Body Part"
-                                }
-                            ]
-                        }
-                    }
-                ]
-            }
-        ]
-    }
-    
-    # Load text into database
-    text = await loader.load_text(**text_data)
+# Run migrations
+alembic upgrade head
 ```
 
-### 2. Bulk Loading Multiple Texts
+### 2. Environment Configuration
+```bash
+# Required environment variables
+POSTGRES_DB=amta_greek
+POSTGRES_USER=your_user
+POSTGRES_PASSWORD=your_password
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
 
-```python
-# Prepare multiple texts
-texts_data = [
-    {
-        "author_name": "Hippocrates",
-        "title": "On Ancient Medicine",
-        "reference_code": "[0057]",
-        "divisions": [...]
-    },
-    {
-        "author_name": "Galen",
-        "title": "On the Natural Faculties",
-        "reference_code": "[0058]",
-        "divisions": [...]
-    }
-]
-
-# Bulk load texts
-texts = await loader.bulk_load_texts(texts_data)
+# Optional Redis configuration
+REDIS_HOST=localhost
+REDIS_PORT=6379
 ```
 
-### 3. Updating Text Categories
+## Data Processing Pipeline
 
+### 1. Text Ingestion
+
+#### A. Author and Text Setup
 ```python
-# Update categories for specific lines
-updates = [
-    {
-        "line_id": 1,
-        "categories": ["Body Part", "Topography"],
-        "nlp_data": {
-            "tokens": [
-                {
-                    "text": "ἐγὼ",
-                    "category": "Body Part, Topography"
-                }
-            ]
+# Create author entry
+author = Author(
+    name="Hippocrates",
+    reference_code="[0086]",
+    language_code="grc"
+)
+
+# Create text entry
+text = Text(
+    author=author,
+    reference_code="[055]",
+    title="De Morbis"
+)
+```
+
+#### B. Text Division Processing
+```python
+# Process text divisions
+division = TextDivision(
+    text=text,
+    author_id_field="[0086]",
+    work_number_field="[055]",
+    author_name="Hippocrates",
+    work_name="De Morbis",
+    chapter="1",
+    section="2"
+)
+```
+
+#### C. Line Processing with NLP
+```python
+# Process individual lines with spaCy
+nlp = spacy.load("grc")
+doc = nlp(line_text)
+
+text_line = TextLine(
+    division=division,
+    line_number=1,
+    content=line_text,
+    categories=extract_categories(doc),
+    spacy_tokens={
+        "tokens": [token_to_dict(t) for t in doc],
+        "spans": [span_to_dict(s) for s in doc.ents]
+    }
+)
+```
+
+### 2. Sentence Processing
+
+#### A. Sentence Extraction
+```python
+# Extract sentences from lines
+def process_sentences(text_lines):
+    for line in text_lines:
+        doc = nlp(line.content)
+        for sent in doc.sents:
+            sentence = Sentence(
+                content=sent.text,
+                source_line_ids=[line.id],
+                start_position=sent.start_char,
+                end_position=sent.end_char,
+                spacy_data=sentence_to_dict(sent),
+                categories=extract_categories(sent)
+            )
+            # Create association
+            sentence.text_lines.append(line)
+```
+
+### 3. Lexical Analysis
+
+#### A. Lemma Processing
+```python
+# Create lemma entries
+lemma = Lemma(
+    lemma="αἷμα",
+    language_code="grc",
+    categories=["Body_Part", "Medical_Term"],
+    translations={
+        "EN": "blood",
+        "AR": "دم"
+    }
+)
+```
+
+#### B. LLM Analysis Generation
+```python
+# Generate analysis using AWS Bedrock
+analysis = LemmaAnalysis(
+    lemma=lemma,
+    analysis_text=llm_response.text,
+    analysis_data=llm_response.structured_data,
+    citations=extract_citations(llm_response),
+    created_by="Claude-3"
+)
+```
+
+#### C. Lexical Value Creation
+```python
+# Create lexical value with context
+lexical_value = LexicalValue(
+    lemma="αἷμα",
+    translation="blood",
+    short_description="Vital bodily fluid",
+    sentence_contexts={
+        str(sentence.id): {
+            "text": sentence.content,
+            "prev": get_prev_sentence(sentence),
+            "next": get_next_sentence(sentence)
         }
     }
-]
-
-await loader.update_text_categories(text_id=1, line_updates=updates)
+)
 ```
 
-### Key Features
+## Maintenance Tasks
 
-1. **Author Management**
-   - Automatically creates or retrieves authors
-   - Supports language code specification (default: "grc" for ancient Greek)
+### 1. Database Optimization
+```sql
+-- Analyze tables for query optimization
+ANALYZE authors, texts, text_divisions, text_lines;
 
-2. **Text Structure**
-   - Handles hierarchical text divisions (books, chapters, sections)
-   - Stores page numbers and metadata
-   - Manages line content and numbering
+-- Update statistics
+VACUUM ANALYZE;
 
-3. **NLP Data**
-   - Stores spaCy token data in JSONB format
-   - Maintains token categories for efficient querying
-   - Supports category updates and modifications
+-- Reindex when needed
+REINDEX TABLE text_lines;
+```
 
-4. **Error Handling**
-   - Automatic transaction rollback on errors
-   - Detailed error logging
-   - Data integrity protection
+### 2. Data Validation
+```python
+def validate_data_integrity():
+    # Check citation links
+    validate_citations()
+    
+    # Verify sentence boundaries
+    validate_sentence_boundaries()
+    
+    # Check NLP data consistency
+    validate_nlp_data()
+```
 
-### Data Structure Requirements
+### 3. Backup Strategy
+```bash
+# Daily backup
+pg_dump ancient_texts_db > backup_$(date +%Y%m%d).sql
 
-1. **Text Data Format**
-   ```python
-   {
-       "author_name": str,          # Required
-       "text_title": str,           # Required
-       "reference_code": str,       # Required
-       "language_code": str,        # Optional (default: "grc")
-       "divisions": [               # Required
-           {
-               "book_number": str,      # Optional
-               "chapter_number": str,    # Optional
-               "section_number": str,    # Optional
-               "page_number": int,       # Optional
-               "metadata": dict,         # Optional
-               "lines": [               # Required
-                   {
-                       "line_number": int,   # Optional
-                       "content": str,       # Required
-                       "nlp_data": {         # Required
-                           "tokens": [...]   # Required
-                       }
-                   }
-               ]
-           }
-       ]
-   }
-   ```
+# Backup specific schemas
+pg_dump -n public ancient_texts_db > schema_backup.sql
+```
 
-2. **NLP Token Format**
-   ```python
-   {
-       "text": str,        # Original token text
-       "lemma": str,       # Lemmatized form
-       "pos": str,         # Part of speech
-       "category": str     # Token category (comma-separated)
-   }
-   ```
+## Performance Monitoring
 
-### Best Practices
+### 1. Query Performance
+```sql
+-- Monitor slow queries
+SELECT * FROM pg_stat_activity 
+WHERE state = 'active' 
+  AND now() - query_start > interval '5 seconds';
 
-1. **Transaction Management**
-   - Always use async context manager for sessions
-   - Let the loader handle transaction commits/rollbacks
-   - Don't mix manual commits with loader operations
+-- Check index usage
+SELECT * FROM pg_stat_user_indexes;
+```
 
-2. **Bulk Operations**
-   - Use bulk_load_texts for multiple texts
-   - Prepare complete data structures before loading
-   - Handle errors at the appropriate level
+### 2. Storage Monitoring
+```sql
+-- Check table sizes
+SELECT relname, pg_size_pretty(pg_total_relation_size(relid))
+FROM pg_catalog.pg_statio_user_tables
+ORDER BY pg_total_relation_size(relid) DESC;
 
-3. **Category Updates**
-   - Batch category updates when possible
-   - Include complete token data with updates
-   - Verify line IDs before updating
+-- Monitor JSONB field sizes
+SELECT avg(length(spacy_tokens::text))
+FROM text_lines;
+```
 
-4. **Error Recovery**
-   - Log operation IDs for tracking
-   - Implement retry logic for transient failures
-   - Maintain data backup strategies
+### 3. Cache Management
+```python
+# Redis cache configuration
+cache_config = {
+    'CACHE_TYPE': 'redis',
+    'CACHE_REDIS_HOST': 'localhost',
+    'CACHE_REDIS_PORT': 6379,
+    'CACHE_DEFAULT_TIMEOUT': 300
+}
 
-5. **Check Database**
+# Cache common queries
+@cache.memoize(timeout=300)
+def get_text_by_citation(author_id, work_id):
+    return TextDivision.query.filter_by(
+        author_id_field=author_id,
+        work_number_field=work_id
+    ).first()
+```
 
-use code to check if content ofdatabase:
-python3 -c "
-from app.core.database import async_session
-import asyncio
-from sqlalchemy import select
-from app.models.text import Text
+## Error Handling
 
-async def check_texts():
-    async with async_session() as session:
-        result = await session.execute(select(Text))
-        texts = result.scalars().all()
-        print(f'Found {len(texts)} existing texts in database')
+### 1. Database Errors
+```python
+def handle_db_error(error):
+    if isinstance(error, IntegrityError):
+        # Handle duplicate keys, foreign key violations
+        log_integrity_error(error)
+    elif isinstance(error, OperationalError):
+        # Handle connection issues
+        reconnect_to_db()
+```
 
-asyncio.run(check_texts())
-"
+### 2. Data Processing Errors
+```python
+def handle_processing_error(error):
+    if isinstance(error, NLPError):
+        # Handle spaCy processing errors
+        fallback_to_basic_processing()
+    elif isinstance(error, LLMError):
+        # Handle AWS Bedrock errors
+        retry_with_backoff()
+```
+
+## Next Steps
+
+1. **Monitoring Setup**:
+   - Implement query logging
+   - Set up performance monitoring
+   - Configure error alerting
+
+2. **Optimization**:
+   - Review and optimize indexes
+   - Implement caching strategy
+   - Configure connection pooling
+
+3. **Maintenance**:
+   - Schedule regular backups
+   - Plan vacuum and analyze operations
+   - Monitor storage usage
