@@ -19,8 +19,8 @@ class LexicalValue(Base):
     short_description = Column(Text)
     long_description = Column(Text)
     related_terms = Column(ARRAY(String))
-    citations_used = Column(JSONB)  # Store citations in structured format
-    references = Column(JSONB)      # Store reference data
+    citations_used = Column(JSONB)  # Store LLM's citation analysis as JSON for flexibility
+    references = Column(JSONB)      # Store system-generated citation data
     sentence_contexts = Column(JSONB)  # Store full sentence contexts
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
@@ -35,6 +35,21 @@ class LexicalValue(Base):
 
     def to_dict(self):
         """Convert the model to a dictionary."""
+        # Get citations from references if available
+        citations = []
+        if self.references and 'citations' in self.references:
+            citations = self.references['citations']
+            # Enrich citations with sentence context if available
+            for citation in citations:
+                sentence_id = str(citation['sentence']['id'])
+                if self.sentence_contexts and sentence_id in self.sentence_contexts:
+                    context = self.sentence_contexts[sentence_id]
+                    citation['sentence'].update({
+                        'prev_sentence': context.get('prev', ''),
+                        'next_sentence': context.get('next', ''),
+                        'tokens': context.get('tokens', {})
+                    })
+
         return {
             "id": str(self.id),
             "lemma": self.lemma,
@@ -42,10 +57,10 @@ class LexicalValue(Base):
             "short_description": self.short_description,
             "long_description": self.long_description,
             "related_terms": self.related_terms,
-            "citations_used": self.citations_used,
-            "references": self.references,
-            "sentence_contexts": self.sentence_contexts,
-            "sentence_id": self.sentence_id,
+            "citations_used": self.citations_used or [],  # Ensure we always return a list
+            "references": {
+                "citations": citations  # System-generated citations with context
+            },
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None
         }
@@ -53,62 +68,22 @@ class LexicalValue(Base):
     @classmethod
     def from_dict(cls, data: dict):
         """Create a model instance from a dictionary."""
+        # Ensure citations_used is a list if provided, or initialize as empty list
+        citations_used = data.get("citations_used", [])
+        if not isinstance(citations_used, list):
+            citations_used = [str(citations_used)]
+        
         return cls(
             lemma=data["lemma"],
             translation=data.get("translation"),
             short_description=data.get("short_description"),
             long_description=data.get("long_description"),
             related_terms=data.get("related_terms", []),
-            citations_used=data.get("citations_used", {}),
-            references=data.get("references", {}),
+            citations_used=citations_used,  # Store as JSON array
+            references=data.get("references", {}),          # System citations
             sentence_contexts=data.get("sentence_contexts", {}),
             sentence_id=data.get("sentence_id")
         )
-
-    def get_sentence_context(self, sentence_id: str) -> dict:
-        """Get the full context for a specific sentence."""
-        if not self.sentence_contexts or sentence_id not in self.sentence_contexts:
-            return None
-        return self.sentence_contexts[sentence_id]
-
-    def get_citations_with_context(self) -> list:
-        """Get citations with their full sentence contexts in standard format."""
-        if not self.references or 'citations' not in self.references:
-            return []
-
-        citations = []
-        for citation in self.references['citations']:
-            sentence_id = citation['sentence']['id']
-            context = self.get_sentence_context(sentence_id)
-            if context:
-                # Format citation in standard format
-                formatted_citation = {
-                    "sentence": {
-                        "id": sentence_id,
-                        "text": context.get('text', ''),
-                        "prev_sentence": context.get('prev', ''),
-                        "next_sentence": context.get('next', ''),
-                        "tokens": context.get('tokens', {})
-                    },
-                    "citation": citation.get('citation', ''),
-                    "context": {
-                        "line_id": citation['context']['line_id'],
-                        "line_text": citation['context']['line_text'],
-                        "line_numbers": citation['context']['line_numbers']
-                    },
-                    "location": {
-                        "volume": citation['location'].get('volume', ''),
-                        "chapter": citation['location'].get('chapter', ''),
-                        "section": citation['location'].get('section', '')
-                    },
-                    "source": {
-                        "author": citation['source'].get('author', 'Unknown'),
-                        "work": citation['source'].get('work', '')
-                    }
-                }
-                citations.append(formatted_citation)
-
-        return citations
 
     def add_citation_link(self, sentence_id: int, context: dict) -> None:
         """Add a direct link to a sentence with its context."""

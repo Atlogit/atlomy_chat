@@ -16,6 +16,7 @@ from app.models.text_division import TextDivision
 from app.models.text_line import TextLine
 from app.models.sentence import Sentence, sentence_text_lines
 from app.services.llm_service import LLMService
+from app.services.citation_service import CitationService
 from app.services.json_storage_service import JSONStorageService
 from app.core.redis import redis_client
 from app.core.citation_queries import (
@@ -34,6 +35,7 @@ class LexicalService:
         """Initialize the lexical service."""
         self.session = session
         self.llm_service = LLMService(session)
+        self.citation_service = CitationService(session)
         self.json_storage = JSONStorageService()
         self.cache_ttl = 3600  # 1 hour cache TTL
         logger.info("Initialized LexicalService")
@@ -46,8 +48,9 @@ class LexicalService:
             if cached:
                 logger.info(f"Cache hit for lexical value: {lemma}")
                 return json.loads(cached)
-            logger.info(f"Cache miss for lexical value: {lemma}")
-            return None
+            else:
+                logger.info(f"Cache miss for lexical value: {lemma}")
+                return None
         except Exception as e:
             logger.error(f"Cache error for lexical value {lemma}: {str(e)}")
             return None
@@ -95,52 +98,15 @@ class LexicalService:
                 result = await self.session.execute(text(query), params)
                 raw_results = result.mappings().all()
                 
-                # Process the results into citation format
-                citations = []
-                for row in raw_results:
-                    logger.debug(f"Raw result: {row}")
-                    
-                    # Create a TextDivision instance to use its format_citation method
-                    division = TextDivision(
-                        author_name=row['author_name'],
-                        work_name=row['work_name'],
-                        volume=row['volume'],
-                        chapter=row['chapter'],
-                        section=row['section']
-                    )
-                    logger.debug(f"Author name: {division.author_name}, Work name: {division.work_name}")
-                    citation = {
-                        'sentence': {
-                            'id': row['sentence_id'],
-                            'text': row['sentence_text'],
-                            'prev_sentence': row['prev_sentence'],
-                            'next_sentence': row['next_sentence'],
-                            'tokens': row['sentence_tokens']
-                        },
-                        'citation': division.format_citation(),
-                        'context': {
-                            'line_number': row['min_line_number']  # Updated to use min_line_number
-                        },
-                        'location': {
-                            'volume': row['volume'],
-                            'chapter': row['chapter'],
-                            'section': row['section']
-                        },
-                        'source': {  # Added source field with author and work
-                            'author': row['author_name'],
-                            'work': row['work_name']
-                        }
-                    }
-                    citations.append(citation)
-
+                # Use CitationService to format citations
+                citations = await self.citation_service.format_citations(raw_results)
+                
                 logger.info(f"Found {len(citations)} citations for {word}")
                 return citations
 
             except Exception as e:
-                # Log the exception with detailed information and traceback
                 logger.error(f"Database error executing citation query: {str(e)}", exc_info=True)
                 raise ValueError(f"Failed to execute citation query: {str(e)}")
-                
 
         except Exception as e:
             logger.error(f"Error getting citations for {word}: {str(e)}", exc_info=True)
@@ -193,25 +159,11 @@ class LexicalService:
             logger.info(f"Validating analysis data for {lemma}")
             self._validate_lexical_value(analysis)
             
-            # Store citations and sentence contexts in structured format
-            analysis['references'] = {
-                'citations': citations,
-                'metadata': {
-                    'search_lemma': True,
-                    'total_citations': len(citations)
-                }
-            }
-            
-            # Extract sentence contexts and create direct links
+            # Initialize sentence contexts
             sentence_contexts = {}
             if citations:
-                # Use the first citation's sentence for direct linking
-                primary_citation = citations[0]
-                analysis['sentence_id'] = primary_citation['sentence']['id']
-                
-                # Store all sentence contexts
                 for citation in citations:
-                    sentence_id = citation['sentence']['id']
+                    sentence_id = str(citation['sentence']['id'])
                     sentence_contexts[sentence_id] = {
                         'text': citation['sentence']['text'],
                         'prev': citation['sentence']['prev_sentence'],
@@ -219,10 +171,16 @@ class LexicalService:
                         'tokens': citation['sentence']['tokens']
                     }
             
-            analysis['sentence_contexts'] = sentence_contexts
+            # Set primary sentence ID and ensure all required fields are present
+            if citations:
+                analysis['sentence_id'] = int(citations[0]['sentence']['id'])
             
-            # Add citations_used in the format expected by frontend
-            analysis['citations_used'] = citations
+            # Ensure all required fields are present with proper initialization
+            analysis.update({
+                'references': {'citations': citations},  # Store formatted citations properly
+                'sentence_contexts': sentence_contexts,  # Store sentence contexts
+                'citations_used': analysis.get('citations_used', [])  # Keep LLM's citation analysis
+            })
             
             # Create new entry in database
             logger.info(f"Creating database entry for {lemma}")
@@ -309,8 +267,8 @@ class LexicalService:
             for key, value in data.items():
                 if hasattr(entry, key):
                     if key == 'sentence_id' and value:
-                        # Ensure UUID conversion for sentence_id
-                        setattr(entry, key, uuid.UUID(value))
+                        # Ensure integer conversion for sentence_id
+                        setattr(entry, key, int(value))
                     else:
                         setattr(entry, key, value)
 

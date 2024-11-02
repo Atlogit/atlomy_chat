@@ -61,7 +61,32 @@ export function useApi<T>(): ApiHookResult<T> {
         clearTimeout(timeoutId);
         
         if (retries === MAX_RETRIES) {
-          const apiError: ApiError = err as ApiError;
+          // Format error object
+          let apiError: ApiError;
+          if ((err as ApiError).message) {
+            apiError = err as ApiError;
+          } else if (err instanceof Error) {
+            apiError = {
+              message: err.message,
+              detail: err.stack
+            };
+          } else if (typeof err === 'object' && err !== null) {
+            // Handle structured error responses
+            const errorObj = err as Record<string, any>;
+            apiError = {
+              message: errorObj.message || 'An unknown error occurred',
+              status: errorObj.status,
+              detail: typeof errorObj.detail === 'object' 
+                ? JSON.stringify(errorObj.detail, null, 2)
+                : errorObj.detail || JSON.stringify(errorObj)
+            };
+          } else {
+            apiError = {
+              message: 'An unknown error occurred',
+              detail: String(err)
+            };
+          }
+          
           setError(apiError);
           setIsLoading(false);
           return null;

@@ -9,10 +9,9 @@ class LLMConfig(BaseSettings):
     # AWS Bedrock settings
     AWS_ACCESS_KEY_ID: Optional[str] = os.getenv("AWS_ACCESS_KEY_ID")
     AWS_SECRET_ACCESS_KEY: Optional[str] = os.getenv("AWS_SECRET_ACCESS_KEY")
-    #AWS_REGION: str = os.getenv("AWS_REGION", "us-east-1")
-    #BEDROCK_MODEL_ID: str = os.getenv("BEDROCK_MODEL_ID", "anthropic.claude-3-5-sonnet-20240620-v1:0")
-    BEDROCK_MODEL_ID: str = os.getenv("BEDROCK_MODEL_ID", "anthropic.claude-3-5-sonnet-20241022-v2:0")
-    AWS_REGION: str = os.getenv("AWS_REGION", "us-west-2")
+    AWS_REGION: str = os.getenv("AWS_REGION", "us-east-1")
+    # Default to a stable model version as fallback
+    BEDROCK_MODEL_ID: str = os.getenv("BEDROCK_MODEL_ID", "anthropic.claude-3-sonnet-20240229-v1:0")
     # OpenAI settings (for future use)
     OPENAI_API_KEY: Optional[str] = os.getenv("OPENAI_API_KEY")
     OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4")

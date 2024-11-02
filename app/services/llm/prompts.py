@@ -88,47 +88,51 @@ WITH sentence_matches AS (
         s.id as sentence_id,
         s.content as sentence_text,
         s.spacy_data as sentence_tokens,
-        tl.id as line_id,
-        tl.content as line_text,
-        tl.line_number,
+        MIN(tl.line_number) as min_line_number,
         td.id as division_id,
-        td.author_name,
-        td.work_name,
+        COALESCE(td.author_name, a.name) as author_name,
+        COALESCE(td.work_name, t.title) as work_name,
         td.volume,
         td.chapter,
         td.section,
         LAG(s.content) OVER (
             PARTITION BY td.id 
-            ORDER BY tl.line_number
+            ORDER BY MIN(tl.line_number)
         ) as prev_sentence,
         LEAD(s.content) OVER (
             PARTITION BY td.id 
-            ORDER BY tl.line_number
-        ) as next_sentence,
-        array_agg(tl.line_number) OVER (
-            PARTITION BY s.id
-        ) as line_numbers
+            ORDER BY MIN(tl.line_number)
+        ) as next_sentence
     FROM sentences s
-    JOIN sentence_text_lines stl ON stl.sentence_id = s.id
-    JOIN text_lines tl ON tl.id = stl.text_line_id
+    JOIN sentence_text_lines stl ON s.id = stl.sentence_id
+    JOIN text_lines tl ON stl.text_line_id = tl.id
     JOIN text_divisions td ON tl.division_id = td.id
-    WHERE -- Your WHERE clause here based on the question
+    JOIN texts t ON td.text_id = t.id
+    LEFT JOIN authors a ON t.author_id = a.id
+    WHERE EXISTS (
+        SELECT 1 
+        FROM jsonb_array_elements(CAST(s.spacy_data->'tokens' AS jsonb)) AS token 
+        WHERE token->>'category' IS NOT NULL AND token->>'category' != ''
+    )
+    GROUP BY 
+        s.id, s.content,
+        td.id, td.author_name, td.work_name,
+        t.title, a.name,
+        td.volume, td.chapter, td.section
 )
 SELECT * FROM sentence_matches
-WHERE array_length(line_numbers, 1) > 0
-ORDER BY division_id, line_number;
+ORDER BY division_id, min_line_number;
 
 Important notes:
-1. For searching in spacy_tokens JSON string, use CAST(tl.spacy_tokens AS TEXT) ILIKE '%pattern%'
-2. Use array operators (@>) for searching in text_lines.categories with proper type casting
-3. Use proper text search functions (to_tsquery, to_tsvector) for text search
-4. For lemma searches, use: CAST(tl.spacy_tokens AS TEXT) ILIKE '%"lemma":"desired_lemma"%'
-5. For category searches, use: categories @> ARRAY[CAST('category_name' AS VARCHAR)]::VARCHAR[]
-6. For citation searches, combine author_id_field, work_number_field, etc.
-7. Always include appropriate WHERE clauses to narrow down results
-8. Use indexes when available (e.g., on text_lines.division_id, texts.author_id)
-9. Consider adding ORDER BY clauses for meaningful result ordering
-10. Always include array_length check and ORDER BY in the final SELECT
+1. ALWAYS include the complete WITH clause when writing queries
+2. For searching in spacy_data JSON field, use: EXISTS (SELECT 1 FROM jsonb_array_elements(CAST(s.spacy_data->'tokens' AS jsonb)) AS token WHERE ...)
+3. Use array operators (@>) for searching in sentences.categories with proper type casting
+4. For category searches, use: s.categories @> ARRAY[:category]::VARCHAR[]
+5. For citation searches, use td.author_id_field and td.work_number_field
+6. Always include GROUP BY and ORDER BY clauses as shown in the template
+7. Never reference the sentence_matches CTE without first defining it in a WITH clause
+8. Always maintain the exact table structure and joins as shown in the template
+9. Keep the ORDER BY clause simple: division_id, min_line_number
 
 Task: Generate a SQL query that answers this question: {question}
 
@@ -137,8 +141,7 @@ Only output the SQL query, no explanations or openings.
 
 # Template for specialized lemma search
 LEMMA_QUERY_TEMPLATE = """
-Generate a SQL query to find all occurrences of the lemma '{lemma}' 
-in the text_lines table, including surrounding context (previous and next lines where available).
+Generate a SQL query to find all occurrences of the lemma '{lemma}' in the sentences table.
 Include citation information from text_divisions and texts tables.
 
 Use this schema:
@@ -147,42 +150,47 @@ WITH sentence_matches AS (
         s.id as sentence_id,
         s.content as sentence_text,
         s.spacy_data as sentence_tokens,
-        tl.id as line_id,
-        tl.content as line_text,
-        tl.line_number,
+        MIN(tl.line_number) as min_line_number,
         td.id as division_id,
-        td.author_name,
-        td.work_name,
+        COALESCE(td.author_name, a.name) as author_name,
+        COALESCE(td.work_name, t.title) as work_name,
         td.volume,
         td.chapter,
         td.section,
         LAG(s.content) OVER (
             PARTITION BY td.id 
-            ORDER BY tl.line_number
+            ORDER BY MIN(tl.line_number)
         ) as prev_sentence,
         LEAD(s.content) OVER (
             PARTITION BY td.id 
-            ORDER BY tl.line_number
-        ) as next_sentence,
-        array_agg(tl.line_number) OVER (
-            PARTITION BY s.id
-        ) as line_numbers
+            ORDER BY MIN(tl.line_number)
+        ) as next_sentence
     FROM sentences s
-    JOIN sentence_text_lines stl ON stl.sentence_id = s.id
-    JOIN text_lines tl ON tl.id = stl.text_line_id
+    JOIN sentence_text_lines stl ON s.id = stl.sentence_id
+    JOIN text_lines tl ON stl.text_line_id = tl.id
     JOIN text_divisions td ON tl.division_id = td.id
-    WHERE CAST(tl.spacy_tokens AS TEXT) ILIKE '%"lemma":"{lemma}"%'
+    JOIN texts t ON td.text_id = t.id
+    LEFT JOIN authors a ON t.author_id = a.id
+    WHERE EXISTS (
+        SELECT 1 
+        FROM jsonb_array_elements(CAST(s.spacy_data->'tokens' AS jsonb)) AS token 
+        WHERE token->>'lemma' = '{lemma}'
+    )
+    GROUP BY 
+        s.id, s.content,
+        td.id, td.author_name, td.work_name,
+        t.title, a.name,
+        td.volume, td.chapter, td.section
 )
 SELECT * FROM sentence_matches
-WHERE array_length(line_numbers, 1) > 0
-ORDER BY division_id, line_number;
+ORDER BY division_id, min_line_number;
 
 Only output the SQL query, no explanations.
 """
 
 # Template for category search
 CATEGORY_QUERY_TEMPLATE = """
-Generate a SQL query to find all text lines in the category '{category}'.
+Generate a SQL query to find all sentences in the category '{category}'.
 Include citation information and group by text/division.
 
 Use this schema:
@@ -191,35 +199,36 @@ WITH sentence_matches AS (
         s.id as sentence_id,
         s.content as sentence_text,
         s.spacy_data as sentence_tokens,
-        tl.id as line_id,
-        tl.content as line_text,
-        tl.line_number,
+        MIN(tl.line_number) as min_line_number,
         td.id as division_id,
-        td.author_name,
-        td.work_name,
+        COALESCE(td.author_name, a.name) as author_name,
+        COALESCE(td.work_name, t.title) as work_name,
         td.volume,
         td.chapter,
         td.section,
         LAG(s.content) OVER (
             PARTITION BY td.id 
-            ORDER BY tl.line_number
+            ORDER BY MIN(tl.line_number)
         ) as prev_sentence,
         LEAD(s.content) OVER (
             PARTITION BY td.id 
-            ORDER BY tl.line_number
-        ) as next_sentence,
-        array_agg(tl.line_number) OVER (
-            PARTITION BY s.id
-        ) as line_numbers
+            ORDER BY MIN(tl.line_number)
+        ) as next_sentence
     FROM sentences s
-    JOIN sentence_text_lines stl ON stl.sentence_id = s.id
-    JOIN text_lines tl ON tl.id = stl.text_line_id
+    JOIN sentence_text_lines stl ON s.id = stl.sentence_id
+    JOIN text_lines tl ON stl.text_line_id = tl.id
     JOIN text_divisions td ON tl.division_id = td.id
-    WHERE tl.categories @> ARRAY[CAST('{category}' AS VARCHAR)]::VARCHAR[]
+    JOIN texts t ON td.text_id = t.id
+    LEFT JOIN authors a ON t.author_id = a.id
+    WHERE s.categories @> ARRAY['{category}']::VARCHAR[]
+    GROUP BY 
+        s.id, s.content,
+        td.id, td.author_name, td.work_name,
+        t.title, a.name,
+        td.volume, td.chapter, td.section
 )
 SELECT * FROM sentence_matches
-WHERE array_length(line_numbers, 1) > 0
-ORDER BY author_name, work_name, line_number;
+ORDER BY division_id, min_line_number;
 
 Only output the SQL query, no explanations.
 """

@@ -1,4 +1,4 @@
-import { LexicalValue, Citation } from '../../utils/api'
+import { LexicalValue, Citation, CitationObject } from '../../utils/api'
 
 interface ResultsDisplayProps {
   title?: string
@@ -14,16 +14,29 @@ function sanitizeHtml(html: string): string {
   return html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
 }
 
+function isCitationObject(citation: Citation): citation is CitationObject {
+  return typeof citation !== 'string' && 'sentence' in citation;
+}
+
 function formatCitation(citation: Citation): string {
-  const authorWork = `${citation.source.author}, ${citation.source.work}`
-  const location = [
+  if (!isCitationObject(citation)) {
+    return citation;
+  }
+
+  const authorWork = citation.source.author && citation.source.work ? 
+    `${citation.source.author}, ${citation.source.work}` :
+    'Unknown Source'
+
+  const locationParts = [
     citation.location.volume && `Volume ${citation.location.volume}`,
     citation.location.chapter && `Chapter ${citation.location.chapter}`,
     citation.location.section && `Section ${citation.location.section}`,
-    citation.context.line_numbers && `Lines ${citation.context.line_numbers.join(', ')}`
-  ].filter(Boolean).join(', ')
+    citation.context.line_numbers?.length > 0 && `Line${citation.context.line_numbers.length > 1 ? 's' : ''} ${citation.context.line_numbers.join(', ')}`
+  ].filter(Boolean)
   
-  return `${authorWork} (${location})`
+  const location = locationParts.length > 0 ? `(${locationParts.join(', ')})` : ''
+  
+  return location ? `${authorWork} ${location}` : authorWork
 }
 
 function isLexicalValue(content: any): content is LexicalValue {
@@ -31,8 +44,20 @@ function isLexicalValue(content: any): content is LexicalValue {
 }
 
 function CitationDisplay({ citation }: { citation: Citation }) {
+  // If this is a string citation from LLM, display it simply
+  if (!isCitationObject(citation)) {
+    return (
+      <div className="card bg-base-200 p-4">
+        <div className="mt-2 text-base font-medium border-l-4 border-primary pl-4 py-2">
+          {citation}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="card bg-base-200 p-4">
+      {/* Citation Header */}
       <div className="flex justify-between items-start">
         <div className="font-medium">{formatCitation(citation)}</div>
       </div>
@@ -56,17 +81,21 @@ function CitationDisplay({ citation }: { citation: Citation }) {
         </div>
       )}
       
-      {/* Additional Context */}
-      <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
-        <div>
-          <span className="font-medium">Line Context:</span>
-          <div className="text-base-content/70">{citation.context.line_text}</div>
+      {/* Additional Context - Only show if different from sentence text */}
+      {citation.context.line_text && citation.context.line_text !== citation.sentence.text && (
+        <div className="mt-4 text-sm">
+          <span className="font-medium">Line Context: </span>
+          <span className="text-base-content/70">{citation.context.line_text}</span>
         </div>
-        <div>
-          <span className="font-medium">Reference:</span>
-          <div className="text-base-content/70">{citation.citation}</div>
+      )}
+      
+      {/* Reference - Only show if different from formatted citation */}
+      {citation.citation && citation.citation !== formatCitation(citation) && (
+        <div className="mt-2 text-sm">
+          <span className="font-medium">Reference: </span>
+          <span className="text-base-content/70">{citation.citation}</span>
         </div>
-      </div>
+      )}
     </div>
   )
 }
@@ -95,23 +124,40 @@ export function ResultsDisplay({
                 <p className="text-lg">{content.translation}</p>
               )}
               
-              {(content.short_description || content.long_description) && (
+              {(content.short_description || content.short_description) && (
                 <>
-                  <div className="divider">Description</div>
+                  <div className="divider">Short Description</div>
                   {content.short_description && (
-                    <p>{content.short_description}</p>
+                    <p className="mt-2">{content.short_description}</p>
                   )}
+                </>
+              )}
+              
+              {(content.long_description || content.long_description) && (
+                <>
+                  <div className="divider">Long Description</div>
                   {content.long_description && (
                     <p className="mt-2">{content.long_description}</p>
                   )}
                 </>
               )}
-              
+
               {content.citations_used && content.citations_used.length > 0 && (
                 <>
-                  <div className="divider">Citations</div>
-                  <div className="space-y-4">
+                  <div className="divider">Citations Used</div>
+                  <div className="text-sm text-base-content/80">
                     {content.citations_used.map((citation: Citation, index: number) => (
+                      <p key={index} className="mb-1">{formatCitation(citation)}</p>
+                    ))}
+                  </div>
+                </>
+              )}
+              
+              {content.references && content.references.citations.length > 0 && (
+                <>
+                  <div className="divider">References</div>
+                  <div className="space-y-4">                
+                    {content.references.citations.map((citation: Citation, index: number) => (
                       <CitationDisplay 
                         key={index} 
                         citation={citation}
@@ -120,7 +166,7 @@ export function ResultsDisplay({
                   </div>
                 </>
               )}
-              
+
               {content.related_terms && content.related_terms.length > 0 && (
                 <>
                   <div className="divider">Related Terms</div>

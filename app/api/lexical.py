@@ -37,71 +37,72 @@ def format_entry_for_response(entry: Dict[str, Any]) -> Dict[str, Any]:
         
     # Create a deep copy to avoid modifying the original
     formatted_entry = json.loads(json.dumps(entry))
-        
-    # Ensure citations_used is properly formatted
-    if 'citations_used' not in formatted_entry and 'references' in formatted_entry and 'citations' in formatted_entry['references']:
-        formatted_entry['citations_used'] = formatted_entry['references']['citations']
     
-    # Ensure each citation has the required structure
-    if 'citations_used' in formatted_entry:
-        formatted_citations = []
-        for citation in formatted_entry['citations_used']:
-            if isinstance(citation, str):
-                # If citation is a string, create a basic citation object
-                formatted_citation = {
-                    "sentence": {
-                        "id": "",
-                        "text": citation,
-                        "prev_sentence": None,
-                        "next_sentence": None,
-                        "tokens": {}
-                    },
-                    "citation": citation,
-                    "context": {
-                        "line_id": "",
-                        "line_text": citation,
-                        "line_numbers": []
-                    },
-                    "location": {
-                        "volume": "",
-                        "chapter": "",
-                        "section": ""
-                    },
-                    "source": {
-                        "author": "Unknown",
-                        "work": "Unknown Work"
-                    }
+    # Ensure citations_used exists and is a list of strings
+    if 'citations_used' not in formatted_entry:
+        formatted_entry['citations_used'] = []
+    elif not isinstance(formatted_entry['citations_used'], list):
+        # If it's not a list, convert to list of strings
+        formatted_entry['citations_used'] = [str(formatted_entry['citations_used'])]
+    else:
+        # Ensure all items are strings
+        formatted_entry['citations_used'] = [str(citation) for citation in formatted_entry['citations_used']]
+    
+    # Keep references field separate and ensure it has the correct structure
+    if 'references' not in formatted_entry:
+        formatted_entry['references'] = {'citations': []}
+    elif 'citations' not in formatted_entry['references']:
+        formatted_entry['references']['citations'] = []
+    
+    # Format system-generated citations in references
+    formatted_references = []
+    for citation in formatted_entry['references']['citations']:
+        if isinstance(citation, dict):
+            # Ensure citation has all required fields
+            formatted_citation = citation.copy()
+            
+            # Ensure sentence structure
+            if 'sentence' not in formatted_citation:
+                formatted_citation['sentence'] = {
+                    'id': '',
+                    'text': '',
+                    'prev_sentence': None,
+                    'next_sentence': None,
+                    'tokens': {}
                 }
-            else:
-                # If citation is an object, ensure it has all required fields
-                formatted_citation = citation.copy() if isinstance(citation, dict) else {}
-                if 'source' not in formatted_citation:
-                    formatted_citation['source'] = {
-                        'author': 'Unknown',
-                        'work': 'Unknown Work'
-                    }
-                if 'location' not in formatted_citation:
-                    formatted_citation['location'] = {
-                        'volume': '',
-                        'chapter': '',
-                        'section': ''
-                    }
-                if 'context' not in formatted_citation:
-                    formatted_citation['context'] = {
-                        'line_id': '',
-                        'line_text': citation.get('sentence', {}).get('text', '') if isinstance(citation, dict) else '',
-                        'line_numbers': []
-                    }
-                if 'sentence' not in formatted_citation:
-                    formatted_citation['sentence'] = {
-                        'id': '',
-                        'text': '',
-                        'prev_sentence': None,
-                        'next_sentence': None,
-                        'tokens': {}
-                    }
-            formatted_citations.append(formatted_citation)
-        formatted_entry['citations_used'] = formatted_citations
+            
+            # Ensure context structure
+            if 'context' not in formatted_citation:
+                formatted_citation['context'] = {
+                    'line_id': '',
+                    'line_text': formatted_citation.get('sentence', {}).get('text', ''),
+                    'line_numbers': []
+                }
+            elif 'line_numbers' not in formatted_citation['context']:
+                formatted_citation['context']['line_numbers'] = []
+            
+            # Ensure location structure
+            if 'location' not in formatted_citation:
+                formatted_citation['location'] = {
+                    'volume': '',
+                    'chapter': '',
+                    'section': ''
+                }
+            
+            # Ensure source structure
+            if 'source' not in formatted_citation:
+                formatted_citation['source'] = {
+                    'author': 'Unknown',
+                    'work': 'Unknown Work'
+                }
+            
+            formatted_references.append(formatted_citation)
+    
+    formatted_entry['references']['citations'] = formatted_references
+    
+    # Remove sentence_contexts since the data is now embedded in citations
+    if 'sentence_contexts' in formatted_entry:
+        del formatted_entry['sentence_contexts']
     
     return formatted_entry
 

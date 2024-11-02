@@ -116,48 +116,35 @@ if [ ! -f "$AWS_CREDS_FILE" ]; then
     exit 1
 fi
 
+# Check for .env file
+ENV_FILE=".env"
+if [ ! -f "$ENV_FILE" ]; then
+    log "ERROR" ".env file not found. Please create .env file with required configuration"
+    exit 1
+fi
+
 # Source AWS credentials
 source "$AWS_CREDS_FILE"
 
 # Initialize PYTHONPATH before modifying it
 export PYTHONPATH="${PYTHONPATH:-}"
 
-# Database settings
-log "INFO" "Configuring environment variables..."
-{
-    export DATABASE_URL="postgresql+asyncpg://atlomy:atlomy21@localhost:5432/amta_greek"
-    export DB_POOL_SIZE=20
-    export DB_MAX_OVERFLOW=10
-    export DB_POOL_TIMEOUT=30
+# Load environment variables from .env
+log "INFO" "Loading environment variables from .env..."
+set -a
+source "$ENV_FILE"
+set +a
 
-    # Redis settings
-    export REDIS_URL="redis://localhost:6379"
-    export REDIS_DB=0
-    export CACHE_TTL=3600
-    export TEXT_CACHE_TTL=86400
-    export SEARCH_CACHE_TTL=1800
+# Override DEBUG and LOG_LEVEL for development
+export DEBUG=true
+export LOG_LEVEL=DEBUG
+export PYTHONPATH="${PYTHONPATH:+${PYTHONPATH}:}$(pwd)"
 
-    # LLM settings
-    export PROVIDER="bedrock"
-    export AWS_REGION="us-east-1"
-    export BEDROCK_MODEL_ID="anthropic.claude-3-haiku-20240307-v1:0"
-    export LLM_MAX_TOKENS=4096
-    export LLM_TEMPERATURE=0.7
-    export LLM_TOP_P=0.95
-    export LLM_FREQUENCY_PENALTY=0.0
-    export LLM_PRESENCE_PENALTY=0.0
-    export LLM_RESPONSE_FORMAT="text"
-    export LLM_STREAM="false"
-    export LLM_MAX_RETRIES=3
-    export LLM_RETRY_DELAY=1.0
-    export LLM_MAX_CONTEXT_LENGTH=100000
-    export LLM_CONTEXT_WINDOW=8192
-
-    # Application settings
-    export DEBUG=true
-    export LOG_LEVEL=DEBUG
-    export PYTHONPATH="${PYTHONPATH:+${PYTHONPATH}:}$(pwd)"
-} >> "${DB_LOG}" 2>&1
+# Log important settings
+log "INFO" "Using settings from .env:"
+log "INFO" "  - AWS Region: $AWS_REGION"
+log "INFO" "  - Bedrock Model: $BEDROCK_MODEL_ID"
+log "INFO" "  - Database URL: $DATABASE_URL"
 
 # Check database connection
 if ! check_database; then

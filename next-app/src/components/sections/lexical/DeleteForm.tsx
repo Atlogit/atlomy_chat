@@ -84,69 +84,60 @@ export function DeleteForm() {
 
   return (
     <div className="form-control gap-4">
-      <div className="flex gap-4">
-        <div className="flex-1">
+      <div className="flex flex-col gap-4">
+        <div>
           <label className="label">
             <span className="label-text">Lemma</span>
           </label>
-          <input
-            type="text"
-            className="input input-bordered w-full"
-            placeholder="Enter lemma to delete..."
-            value={lemma}
-            onChange={(e) => setLemma(e.target.value)}
-          />
-        </div>
-        <div className="flex items-end">
-          <Button
-            onClick={handleSearch}
-            isLoading={isSearching}
-            disabled={!lemma.trim()}
-            variant="outline"
-          >
-            Search
-          </Button>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              className="input input-bordered flex-grow"
+              placeholder="Enter lemma to delete..."
+              value={lemma}
+              onChange={(e) => setLemma(e.target.value)}
+            />
+            <div className="flex gap-2">
+              <Button
+                onClick={handleSearch}
+                isLoading={isSearching}
+                disabled={!lemma.trim()}
+                variant="outline"
+              >
+                Search
+              </Button>
+              {valueToDelete && !triggerId && (
+                <Button
+                  onClick={handleTriggerDelete}
+                  isLoading={isTriggering}
+                  variant="outline"
+                  className="btn-warning"
+                >
+                  Confirm
+                </Button>
+              )}
+              {valueToDelete && triggerId && (
+                <Button
+                  onClick={handleDelete}
+                  isLoading={isDeleting}
+                  variant="error"
+                >
+                  Delete
+                </Button>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
-      {valueToDelete && !triggerId && (
-        <div className="alert alert-warning">
+      {valueToDelete && (
+        <div className={`alert ${triggerId ? 'alert-error' : 'alert-warning'}`}>
           <div>
-            <h3 className="font-bold">Confirm Deletion</h3>
-            <p>Are you sure you want to delete this lexical value?</p>
+            <h3 className="font-bold">{triggerId ? 'Final Confirmation' : 'Confirm Deletion'}</h3>
+            <p>{triggerId ? 'This action cannot be undone. Are you absolutely sure?' : 'Are you sure you want to delete this lexical value?'}</p>
             <pre className="mt-2 p-2 bg-base-200 rounded">
               {JSON.stringify(valueToDelete, null, 2)}
             </pre>
-          </div>
-          <div className="flex-none">
-            <Button
-              onClick={handleTriggerDelete}
-              isLoading={isTriggering}
-              variant="outline"
-            >
-              Confirm
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {valueToDelete && triggerId && (
-        <div className="alert alert-error">
-          <div>
-            <h3 className="font-bold">Final Confirmation</h3>
-            <p>This action cannot be undone. Are you absolutely sure?</p>
-            <pre className="mt-2 p-2 bg-base-200 rounded">
-              {JSON.stringify(valueToDelete, null, 2)}
-            </pre>
-          </div>
-          <div className="flex-none">
-            <Button
-              onClick={handleDelete}
-              isLoading={isDeleting}
-              variant="error"
-            >
-              Delete
-            </Button>
           </div>
         </div>
       )}

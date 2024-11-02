@@ -49,7 +49,13 @@ export async function fetchApi<T>(
         try {
           const errorJson = JSON.parse(responseText);
           if (errorJson.detail) {
-            errorDetail = errorJson.detail;
+            // Handle structured error details from backend
+            if (typeof errorJson.detail === 'object') {
+              errorMessage = errorJson.detail.message || errorMessage;
+              errorDetail = JSON.stringify(errorJson.detail, null, 2);
+            } else {
+              errorDetail = errorJson.detail;
+            }
           } else if (errorJson.message) {
             errorDetail = errorJson.message;
           }
@@ -116,7 +122,7 @@ export async function fetchApi<T>(
       message: error instanceof Error ? error.message : 'An unknown error occurred',
       status: 500,
       detail: error instanceof Error ? error.stack : 
-             typeof error === 'object' ? JSON.stringify(error) : String(error)
+             typeof error === 'object' ? JSON.stringify(error, null, 2) : String(error)
     } as ApiError;
   }
 }
@@ -152,7 +158,7 @@ export interface TokenCountResponse {
 }
 
 // Citation Types
-export interface Citation {
+export interface CitationObject {
   sentence: {
     id: string;
     text: string;
@@ -177,12 +183,14 @@ export interface Citation {
   };
 }
 
+export type Citation = CitationObject | string;
+
 // Lexical Value Types
 export interface LemmaAnalysis {
   id: UUID;
   analysis_text: string;
   analysis_data?: Record<string, any>;
-  citations?: Record<string, any>;
+  citationstest?: Record<string, any>;
   created_by: string;
 }
 
@@ -196,7 +204,10 @@ export interface LexicalValue {
   short_description?: string;
   long_description?: string;
   related_terms?: string[];
-  citations_used?: Citation[];
+  citations_used: string[];  // LLM's citations as simple strings
+  references: {              // System-generated citations with full context
+    citations: CitationObject[];
+  };
   analyses: LemmaAnalysis[];
   created_at: string;
   updated_at: string;

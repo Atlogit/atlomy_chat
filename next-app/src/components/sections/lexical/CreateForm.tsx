@@ -49,7 +49,7 @@ export function CreateForm() {
   const [batchMode, setBatchMode] = useState(false)
   const [batchFile, setBatchFile] = useState<File | null>(null)
   const [batchProgress, setBatchProgress] = useState<BatchCreateResponse | null>(null)
-  const [selectedCitation, setSelectedCitation] = useState<Citation | null>(null)
+  const [selectedCitation, setSelectedCitation] = useState<Citation | string | null>(null)
   const [showCitationModal, setShowCitationModal] = useState(false)
   const [versions, setVersions] = useState<string[]>([])
   const [selectedVersion, setSelectedVersion] = useState<string | null>(null)
@@ -160,7 +160,7 @@ export function CreateForm() {
       }
       setTaskStatus({ 
         status: 'error', 
-        message: `Failed to create lexical entry: ${err instanceof Error ? err.message : 'Unknown error'}` 
+        message: err instanceof Error ? err.message : 'An unknown error occurred',
       })
     }
   }
@@ -225,7 +225,7 @@ export function CreateForm() {
         console.error('Error in handleUpdateConfirmation:', err)
         setTaskStatus({ 
           status: 'error', 
-          message: `Failed to update lexical entry: ${err instanceof Error ? err.message : 'Unknown error'}` 
+          message: err instanceof Error ? err.message : 'An unknown error occurred',
         })
       }
     }
@@ -234,7 +234,13 @@ export function CreateForm() {
   /**
    * Formats a citation for display
    */
-  const formatCitation = (citation: Citation) => {
+  const formatCitation = (citation: Citation | string) => {
+    if (typeof citation === 'string') {
+    // For string citations (from LLM analysis), return as is
+    return citation
+    }
+
+    // For full citation objects, format with all details
     const authorWork = `${citation.source.author}, ${citation.source.work}`
     const location = [
       citation.location.volume && `Volume ${citation.location.volume}`,
@@ -248,28 +254,59 @@ export function CreateForm() {
   /**
    * Renders a citation with context preview
    */
-  const renderCitation = (citation: Citation) => (
-    <div key={citation.sentence.id} className="card bg-base-200 p-4 mb-4">
-      <div className="flex justify-between items-start">
-        <div className="font-medium">{formatCitation(citation)}</div>
-        <Button
-          onClick={() => {
-            setSelectedCitation(citation)
-            setShowCitationModal(true)
-          }}
-          variant="outline"
-          className="btn-sm"
-        >
-          Show Context
-        </Button>
+  const renderCitation = (citation: Citation | string) => {
+    if (typeof citation === 'string') {
+      // For string citations (from LLM analysis)
+      return (
+        <div key={citation} className="card bg-base-200 p-4 mb-4">
+          <div className="text-sm">{citation}</div>
+        </div>
+      )
+    }
+    // For full citation objects
+    return (
+      <div key={citation.sentence.id} className="card bg-base-200 p-4 mb-4">
+        <div className="flex justify-between items-start">
+          <div className="font-medium">{formatCitation(citation)}</div>
+          <Button
+            onClick={() => {
+              setSelectedCitation(citation)
+              setShowCitationModal(true)
+            }}
+            variant="outline"
+            className="btn-sm"
+          >
+            Show Context
+          </Button>
+        </div>
+        <div className="mt-2 text-sm">
+          {citation.sentence.text.length > 100 
+            ? citation.sentence.text.substring(0, 100) + '...'
+            : citation.sentence.text}
+        </div>
       </div>
-      <div className="mt-2 text-sm">
-        {citation.sentence.text.length > 100 
-          ? citation.sentence.text.substring(0, 100) + '...'
-          : citation.sentence.text}
+    )
+  }
+
+  /**
+   * Renders error details in a structured way
+   */
+  const renderError = (error: any) => {
+    if (!error) return null;
+
+    return (
+      <div className="alert alert-error">
+        <div className="flex flex-col gap-2">
+          <p className="font-semibold">{error.message}</p>
+          {error.detail && (
+            <div className="text-sm mt-2 bg-base-300 p-2 rounded overflow-auto">
+              <pre className="whitespace-pre-wrap">{error.detail}</pre>
+            </div>
+          )}
+        </div>
       </div>
-    </div>
-  )
+    );
+  };
 
   return (
     <div className="form-control gap-4">
@@ -412,6 +449,14 @@ export function CreateForm() {
             </div>
           )}
 
+          {/* Error Display */}
+          {(createApi.error || statusApi.error) && (
+            <div className="mt-4">
+              {createApi.error && renderError(createApi.error)}
+              {statusApi.error && renderError(statusApi.error)}
+            </div>
+          )}
+
           {/* Results Display with Enhanced Citations */}
           {taskStatus?.entry && (
             <div className="card bg-base-100 shadow-lg">
@@ -419,14 +464,29 @@ export function CreateForm() {
                 <h2 className="card-title">{taskStatus.entry.lemma}</h2>
                 <p className="text-lg">{taskStatus.entry.translation}</p>
                 
-                <div className="divider">Description</div>
+                <div className="divider">Short Description</div>
                 <p>{taskStatus.entry.short_description}</p>
-                <p className="mt-2">{taskStatus.entry.long_description}</p>
+                <p className="mt-2">{taskStatus.entry.short_description}</p>
                 
-                <div className="divider">Citations</div>
+                <div className="divider">Long Description</div>
+                <p>{taskStatus.entry.long_description}</p>
+                <p className="mt-2">{taskStatus.entry.long_description}</p>
+
+                <div className="divider">Citations Used</div>
                 <div className="space-y-4">
-                  {taskStatus.entry.citations_used?.map((citation: Citation) => (
-                    renderCitation(citation)
+                  {taskStatus.entry.citations_used?.map((citation: Citation | string, index: number) => (
+                    <div key={index}>
+                      {renderCitation(citation)}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="divider">References</div>
+                <div className="space-y-4">
+                  {taskStatus.entry.references?.citations?.map((citation: Citation, index: number) => (
+                    <div key={index}>
+                      {renderCitation(citation)}
+                    </div>
                   ))}
                 </div>
                 
@@ -463,7 +523,7 @@ export function CreateForm() {
       )}
 
       {/* Citation Context Modal */}
-      {showCitationModal && selectedCitation && (
+      {showCitationModal && selectedCitation && typeof selectedCitation !== 'string' && (
         <dialog className="modal modal-open">
           <div className="modal-box">
             <h3 className="font-bold text-lg">Citation Context</h3>

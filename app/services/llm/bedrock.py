@@ -10,7 +10,7 @@ import boto3
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import HTTPException
-
+import os
 from app.core.config import settings
 from .base import BaseLLMClient, LLMResponse
 
@@ -34,6 +34,10 @@ class BedrockClient(BaseLLMClient):
         """Initialize the Bedrock client with AWS credentials."""
         try:
             logger.info("Initializing AWS Bedrock client")
+            
+            # Debug log for model ID source
+            logger.debug(f"Model ID from config: {settings.llm.BEDROCK_MODEL_ID}")
+            logger.debug(f"Model ID from env: {os.getenv('BEDROCK_MODEL_ID', 'not set')}")
             
             # Check if AWS credentials are set
             if not settings.llm.AWS_ACCESS_KEY_ID or not settings.llm.AWS_SECRET_ACCESS_KEY:
@@ -112,6 +116,7 @@ class BedrockClient(BaseLLMClient):
         """Prepare the request body for Bedrock API."""
         try:
             logger.debug(f"Preparing request - max_tokens: {max_tokens}, temperature: {temperature}, stream: {stream}")
+            logger.debug(f"Using model ID: {self.model_id}")
             
             # Default to config values if not provided
             max_tokens = max_tokens or settings.llm.MAX_TOKENS

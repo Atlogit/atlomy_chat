@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Button } from '../../../components/ui/Button'
 import { ResultsDisplay } from '../../../components/ui/ResultsDisplay'
 import { useApi } from '../../../hooks/useApi'
-import { API, LexicalValue, formatResults } from '../../../utils/api'
+import { API, LexicalValue } from '../../../utils/api'
 
 /**
  * GetForm Component
@@ -17,6 +17,7 @@ import { API, LexicalValue, formatResults } from '../../../utils/api'
 export function GetForm() {
   const [lemma, setLemma] = useState('')
   const { data, error, isLoading, execute } = useApi<LexicalValue>()
+  const { execute: executeDelete, isLoading: isDeleting } = useApi()
 
   /**
    * Handles the form submission to retrieve a lexical value.
@@ -35,32 +36,58 @@ export function GetForm() {
     }
   }
 
+  /**
+   * Handles the deletion of a lexical value.
+   * 
+   * @async
+   * @function
+   */
+  const handleDelete = async () => {
+    if (!lemma.trim()) return
+    
+    await executeDelete(API.lexical.delete(lemma.trim()))
+    setLemma('')
+  }
+
   return (
     <div className="form-control gap-4">
-      <div>
-        <label className="label">
-          <span className="label-text">Lemma</span>
-        </label>
-        <input
-          type="text"
-          className="input input-bordered w-full"
-          placeholder="Enter lemma to retrieve..."
-          value={lemma}
-          onChange={(e) => setLemma(e.target.value)}
-        />
+      <div className="flex flex-col gap-4">
+        <div>
+          <label className="label">
+            <span className="label-text">Lemma</span>
+          </label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              className="input input-bordered flex-grow"
+              placeholder="Enter lemma to retrieve..."
+              value={lemma}
+              onChange={(e) => setLemma(e.target.value)}
+            />
+            <div className="flex gap-2">
+              <Button
+                onClick={handleSubmit}
+                isLoading={isLoading}
+                disabled={!lemma.trim()}
+              >
+                Get Lexical Value
+              </Button>
+              <Button
+                onClick={handleDelete}
+                isLoading={isDeleting}
+                disabled={!lemma.trim()}
+                className="btn-error"
+              >
+                Delete
+              </Button>
+            </div>
+          </div>
+        </div>
       </div>
-
-      <Button
-        onClick={handleSubmit}
-        isLoading={isLoading}
-        disabled={!lemma.trim()}
-      >
-        Get Lexical Value
-      </Button>
 
       <ResultsDisplay
         title="Lexical Value"
-        content={error ? null : data ? formatResults(data) : null}
+        content={error ? null : data}
         error={error ? error.message : null}
       />
     </div>

@@ -13,6 +13,7 @@ import re
 from app.core.config import settings
 from app.services.llm.base import BaseLLMClient, LLMResponse
 from app.services.llm.bedrock import BedrockClient, BedrockClientError
+from app.services.citation_service import CitationService
 from app.services.llm.prompts import (
     LEXICAL_VALUE_TEMPLATE,
     ANALYSIS_TEMPLATE,
@@ -51,6 +52,7 @@ class LLMService:
         """Initialize the LLM service."""
         try:
             self.session = session
+            self.citation_service = CitationService(session)
             provider = settings.llm.PROVIDER
             if provider not in self.PROVIDERS:
                 raise LLMServiceError(
@@ -87,56 +89,22 @@ class LLMService:
                 }
             )
 
-    def _format_citation(self, ctx: Dict[str, Any], abbreviated: bool = False) -> str:
-        """Format a citation string using the TextDivision model.
-        
-        Args:
-            ctx: Citation context dictionary
-            abbreviated: If True, returns abbreviated format (e.g., "Gal. San. 6.135")
-                       If False, returns full format (e.g., "Galenus Med., De sanitate tuenda libri vi, Volume 6: Chapter 135")
-        """
-        # Create a TextDivision instance to use its formatting methods
-        division = TextDivision(
-            author_name=ctx['source']['author'],
-            work_name=ctx['source']['work'],
-            volume=ctx['location'].get('volume'),
-            chapter=ctx['location'].get('chapter'),
-            line=ctx['context'].get('line_number'),
-            section=ctx['location'].get('section')
-        )
-        
-        # Format the citation using TextDivision's method
-        citation = division.format_citation(abbreviated=abbreviated)
-        
-        # Append the sentence text to the citation
-        citation += f": {ctx['sentence']['text']}"
-
-        
-        return citation
-
     def _sanitize_json_string(self, text: str) -> str:
         """Sanitize and fix common JSON formatting issues."""
-        text = re.sub(r'[\x00-\x1F\x7F]', '', text)
-        #text = text.strip().lstrip('\ufeff')
-        #start = text.find('{')
-        #end = text.rfind('}') + 1
-        #if start == -1 or end == 0:
-        #    raise ValueError("No JSON object found in response")
-        #text = text[start:end]
+        # Remove control characters while preserving valid Unicode
+        text = "".join(char for char in text if ord(char) >= 32 or char in '\n\r\t')
         
-        # Ensure property names and values are correctly quoted
-        #text = re.sub(r'([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:', r'\1"\2":', text)
-        #text = re.sub(r':\s*([^"{[\s][^,}\]]*[^"\s,}\]])', r': "\1"', text)
+        # Normalize Unicode escapes
+        text = text.encode('unicode-escape').decode('utf-8')
         
-        # Escape all internal quotes within JSON values
-        #text = re.sub(r'(?<=[:\[\{,])\s*"(.*?)"\s*(?=[,\}\]])', r'"\1"', text)
-        #text = re.sub(r'(?<!\\)"(?=(,|\s*}))', '\\"', text)
+        # Fix any double-escaped Unicode
+        text = re.sub(r'\\\\u([0-9a-fA-F]{4})', r'\\u\1', text)
         
-        # Remove trailing commas
-        #text = re.sub(r',(\s*[}\]])', r'\1', text)
+        # Ensure proper escaping of quotes and backslashes
+        text = text.replace('\\', '\\\\').replace('"', '\\"')
+        text = re.sub(r'\\+n', '\\n', text)  # Fix multiple escaped newlines
         
         return text
-
 
     async def create_lexical_value(
         self,
@@ -149,16 +117,12 @@ class LLMService:
         try:
             logger.info(f"Creating lexical value for word: {word}")
             logger.debug(f"Number of citations: {len(citations)}")
-            logger.debug(f"citations found: {citations}")
-            #Format each citation as a string in the required format
-            formatted_citations = [
-                self._format_citation(ctx, abbreviated=False)
-                for ctx in citations
-            ]
-            logger.debug(f"Formatted citations: {formatted_citations}")
-            # Combine all formatted citations into a single text block
-            citations_text = ",\n".join(formatted_citations)
-
+            
+            # Format citations using CitationService
+            citations_text = "\n".join(
+                self.citation_service.format_citation_text(citation, abbreviated=False)
+                for citation in citations
+            )
             
             logger.debug(f"Formatted citations text:\n{citations_text}")
             
@@ -186,22 +150,25 @@ class LLMService:
             
             # Parse and validate the JSON response
             try:
-                # Sanitize the JSON string
-                sanitized_text = self._sanitize_json_string(response.text)
-                logger.debug(f"Sanitized JSON:\n{sanitized_text}")
-                
-                # Parse the sanitized JSON
+                # First try parsing the raw response
                 try:
-                    result = json.loads(sanitized_text)
-                except json.JSONDecodeError as e:
-                    # If still failing, try more aggressive cleanup
-                    logger.warning(f"Initial JSON parse failed: {str(e)}, attempting more aggressive cleanup")
-                    # Convert the entire response to a valid JSON structure
-                    cleaned = re.sub(r'[^\x20-\x7E]', '', sanitized_text)  # Remove non-printable chars
-                    cleaned = re.sub(r'([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:', r'\1"\2":', cleaned)  # Quote all keys
-                    cleaned = re.sub(r':\s*([^"{[\s][^,}\]]*[^"\s,}\]])', r': "\1"', cleaned)  # Quote unquoted values
-                    cleaned = re.sub(r',(\s*[}\]])', r'\1', cleaned)  # Remove trailing commas
-                    result = json.loads(cleaned)
+                    result = json.loads(response.text)
+                except json.JSONDecodeError:
+                    # If raw parsing fails, try sanitization
+                    sanitized_text = self._sanitize_json_string(response.text)
+                    logger.debug(f"Sanitized JSON:\n{sanitized_text}")
+                    
+                    try:
+                        result = json.loads(sanitized_text)
+                    except json.JSONDecodeError as e:
+                        # If still failing, try more aggressive cleanup
+                        logger.warning(f"Sanitized JSON parse failed: {str(e)}, attempting more aggressive cleanup")
+                        # Convert the entire response to a valid JSON structure
+                        cleaned = re.sub(r'[^\x20-\x7E]', '', sanitized_text)  # Remove non-printable chars
+                        cleaned = re.sub(r'([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:', r'\1"\2":', cleaned)  # Quote all keys
+                        cleaned = re.sub(r':\s*([^"{[\s][^,}\]]*[^"\s,}\]])', r': "\1"', cleaned)  # Quote unquoted values
+                        cleaned = re.sub(r',(\s*[}\]])', r'\1', cleaned)  # Remove trailing commas
+                        result = json.loads(cleaned)
                 
                 logger.debug(f"Parsed JSON result:\n{json.dumps(result, indent=2)}")
                 
@@ -227,19 +194,14 @@ class LLMService:
                 for field in ['translation', 'short_description', 'long_description']:
                     if not isinstance(result[field], str):
                         result[field] = str(result[field])
-                    result[field] = result[field].replace('\n', '\\n').replace('"', '\\"')
+                    # Preserve Unicode characters while escaping necessary characters
+                    result[field] = result[field].replace('\\', '\\\\').replace('"', '\\"')
                 
                 # Ensure arrays contain only strings
                 for field in ['related_terms', 'citations_used']:
                     if not isinstance(result[field], list):
                         result[field] = [str(result[field])]
                     result[field] = [str(item) for item in result[field]]
-                
-                # Replace citations_used with full citations
-                #result['citations_used'] = [
-                #    self._format_citation(citations[int(cit.split()[-1])-1], abbreviated=False)
-                #    for cit in result['citations_used']
-                #]
                 
                 return result
                 
@@ -309,50 +271,16 @@ class LLMService:
                 result = await self.session.execute(text(sql_query))
                 rows = result.mappings().all()
                 
-                # Format results using proper citation structure
-                formatted_citations  = []
-                for row in rows:
-                    # Fetch TextDivision data if needed for citation formatting
-                    division_query = text("SELECT * FROM text_divisions WHERE id = :id")
-                    division_result = await self.session.execute(division_query, {"id": row['division_id']})
-                    division_data = division_result.mappings().one()
+                # Use CitationService to format citations
+                citations = await self.citation_service.format_citations(rows)
+                
+                # Format citations as text for LLM
+                citations_text = "\n\n".join(
+                    self.citation_service.format_citation_text(citation)
+                    for citation in citations
+                )
                     
-                    # Create a TextDivision instance and populate it with data from division_data
-                    division = TextDivision()
-                    for key, value in division_data.items():
-                        setattr(division, key, value)
-
-                    ctx  = {
-                        "sentence": {
-                            "id": str(row["sentence_id"]),
-                            "text": row["sentence_text"],
-                            "prev_sentence": row.get("prev_sentence"),
-                            "next_sentence": row.get("next_sentence"),
-                            "tokens": row.get("sentence_tokens")
-                        },
-                        "context": {
-                            "line_number": row.get("line_numbers", [])[0]  # assuming single line or min line
-                        },
-                        "location": {
-                            "volume": division.volume,
-                            "chapter": division.chapter,
-                            "section": division.section
-                        },
-                        "source": {
-                            "author": division.author_name,
-                            "work": division.work_name
-                        }
-                    }
-                    
-                    # Format the citation using `_format_citation`
-                    citation = self._format_citation(ctx, abbreviated=False)
-                    formatted_citations.append(citation)  # Add to list of formatted citations
-
-                # Join all formatted citations into a single text block for LLM
-                citations_text = "\n\n".join(formatted_citations)
-
-                    
-                logger.debug(f"Query returned {len(citations_text)} formatted results")
+                logger.debug(f"Query returned {len(citations)} results")
                 return sql_query, citations_text
 
             except BedrockClientError as e:

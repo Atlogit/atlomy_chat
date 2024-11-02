@@ -64,30 +64,45 @@ class TextDivision(Base):
 
     def _get_abbreviated_author_name(self) -> str:
         """Get abbreviated author name (e.g., 'Galenus Med.' -> 'Gal.')."""
-        if not self.author_name:
-            return f"[{self.author_id_field}]"
-        
-        # Split author name and take first word
-        parts = self.author_name.split()
-        if not parts:
-            return f"[{self.author_id_field}]"
+        # First try to use author_name from database
+        if self.author_name:
+            parts = self.author_name.split()
+            if parts:
+                # Get first 3 letters of first word
+                abbrev = parts[0][:3] + "."
+                
+                # Add designation if present (e.g., "Med.", "Phil.")
+                if len(parts) > 1 and len(parts[-1]) <= 4:
+                    abbrev += f" {parts[-1]}"
+                    
+                return abbrev
             
-        # Get first 3 letters of first word
-        abbrev = parts[0][:3] + "."
-        
-        # Add designation if present (e.g., "Med.", "Phil.")
-        if len(parts) > 1 and len(parts[-1]) <= 4:
-            abbrev += f" {parts[-1]}"
-            
-        return abbrev
+        # If no author_name, try to get it from text relationship
+        if self.text and self.text.author and self.text.author.name:
+            parts = self.text.author.name.split()
+            if parts:
+                abbrev = parts[0][:3] + "."
+                if len(parts) > 1 and len(parts[-1]) <= 4:
+                    abbrev += f" {parts[-1]}"
+                return abbrev
+                
+        # Fallback to ID field
+        return f"[{self.author_id_field}]"
 
     def _get_abbreviated_work_name(self) -> str:
         """Get abbreviated work name."""
-        if not self.work_name:
+        # First try work_name from database
+        work_name = self.work_name
+        
+        # If no work_name, try to get it from text relationship
+        if not work_name and self.text:
+            work_name = self.text.title
+            
+        if not work_name:
             return f"[{self.work_number_field}]"
             
         # Split work name into words
-        words = self.work_name.split()
+        words = work_name.split()
         if not words:
             return f"[{self.work_number_field}]"
             
@@ -177,9 +192,25 @@ class TextDivision(Base):
                 
             return citation.strip()
         else:
-            # Use author and work names if available, otherwise use ID fields
-            author = self.author_name or f"[{self.author_id_field}]"
-            work = self.work_name or f"[{self.work_number_field}]"
+            # Try to get author name in this order:
+            # 1. From author_name field
+            # 2. From text -> author relationship
+            # 3. Fallback to author_id_field
+            author = (
+                self.author_name or 
+                (self.text.author.name if self.text and self.text.author else None) or 
+                f"Author {self.author_id_field}"
+            )
+            
+            # Try to get work name in this order:
+            # 1. From work_name field
+            # 2. From text title
+            # 3. Fallback to work_number_field
+            work = (
+                self.work_name or 
+                (self.text.title if self.text else None) or 
+                f"Work {self.work_number_field}"
+            )
             
             citation = f"{author}, {work}"
             
