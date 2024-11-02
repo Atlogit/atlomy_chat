@@ -91,6 +91,13 @@ next-app/node_modules/
 
 # Testing
 next-app/coverage/
+test_*.sql
+test_db_*
+toolkit/migration/reports/
+
+# Database config and reset scripts
+db_config.py
+reset_all_dbs.py
 
 # Misc
 .DS_Store
