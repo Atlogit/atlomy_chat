@@ -51,6 +51,55 @@ class TokenCountResponse(BaseModel):
     count: int
     within_limits: bool
 
+def format_citation_for_frontend(citation_text: str) -> Dict[str, Any]:
+    """Format a citation text into structured data for frontend display."""
+    # Split citation into metadata and text parts
+    parts = citation_text.split(":")
+    if len(parts) < 2:
+        return {
+            "id": "",
+            "sentence_text": citation_text,
+            "author_name": "",
+            "work_name": "",
+            "volume": None,
+            "chapter": None,
+            "section": None,
+            "line_numbers": []
+        }
+    
+    metadata = parts[0].split(",")
+    text = ":".join(parts[1:]).strip()
+    
+    # Initialize result with default values
+    result = {
+        "id": "",
+        "sentence_text": text,
+        "author_name": "",
+        "work_name": "",
+        "volume": None,
+        "chapter": None,
+        "section": None,
+        "line_numbers": []
+    }
+    
+    # Parse metadata parts
+    for part in metadata:
+        part = part.strip()
+        if "Chapter" in part:
+            result["chapter"] = part.replace("Chapter", "").strip()
+        elif "Line" in part:
+            try:
+                line_num = int(part.replace("Line", "").strip())
+                result["line_numbers"] = [line_num]
+            except ValueError:
+                pass
+        elif not result["author_name"]:
+            result["author_name"] = part
+        elif not result["work_name"]:
+            result["work_name"] = part
+    
+    return result
+
 # Routes
 @router.post("/analyze", response_model=AnalysisResponse)
 async def analyze_term(
@@ -107,38 +156,30 @@ async def generate_query(
 ) -> Dict:
     """Generate and execute a SQL query from a natural language question."""
     try:
-        # Generate and execute query in one call
-        sql_query, results = await llm_service.generate_and_execute_query(
+        # Generate and execute query
+        sql_query, citations_text = await llm_service.generate_and_execute_query(
             question=data.question,
             max_tokens=data.max_tokens
         )
         
-        # For query assistant, keep results as structured data
+        # Format results for frontend
         formatted_results = []
-        for result in results:
-            if isinstance(result, dict):
-                # Handle warning messages
-                if 'warning' in result:
-                    formatted_results.append({
-                        'type': 'warning',
-                        'message': result['warning']
-                    })
-                    # Remove warning and add the rest of the data
-                    result_copy = result.copy()
-                    del result_copy['warning']
-                    if result_copy:  # If there's other data besides warning
-                        formatted_results.append(result_copy)
-                else:
-                    formatted_results.append(result)
-            else:
-                # Handle Citation objects or other types
-                formatted_results.append(dict(result))
+        if isinstance(citations_text, str):
+            # Split the citations text into individual citations
+            citations = citations_text.split("\n\n")
+            for idx, citation in enumerate(citations):
+                if citation.strip():
+                    formatted_citation = format_citation_for_frontend(citation)
+                    formatted_citation["id"] = str(idx)  # Ensure unique ID
+                    formatted_results.append(formatted_citation)
+        elif isinstance(citations_text, list):
+            formatted_results = citations_text
         
         return {
             "sql": sql_query,
             "results": formatted_results,
-            "usage": {},  # Usage info not needed for query assistant
-            "model": "",  # Model info not needed for query assistant
+            "usage": {},
+            "model": "",
             "raw_response": None,
             "error": None
         }
@@ -210,43 +251,34 @@ async def generate_precise_query(
             Include full citation information and text content.
             """
 
-        # Generate and execute query in one call
-        sql_query, results = await llm_service.generate_and_execute_query(
+        # Generate and execute query
+        sql_query, citations_text = await llm_service.generate_and_execute_query(
             question=question,
             max_tokens=data.max_tokens
         )
         
-        # For query assistant, keep results as structured data
+        # Format results for frontend
         formatted_results = []
-        for result in results:
-            if isinstance(result, dict):
-                # Handle warning messages
-                if 'warning' in result:
-                    formatted_results.append({
-                        'type': 'warning',
-                        'message': result['warning']
-                    })
-                    # Remove warning and add the rest of the data
-                    result_copy = result.copy()
-                    del result_copy['warning']
-                    if result_copy:  # If there's other data besides warning
-                        formatted_results.append(result_copy)
-                else:
-                    formatted_results.append(result)
-            else:
-                # Handle Citation objects or other types
-                formatted_results.append(dict(result))
+        if isinstance(citations_text, str):
+            # Split the citations text into individual citations
+            citations = citations_text.split("\n\n")
+            for idx, citation in enumerate(citations):
+                if citation.strip():
+                    formatted_citation = format_citation_for_frontend(citation)
+                    formatted_citation["id"] = str(idx)  # Ensure unique ID
+                    formatted_results.append(formatted_citation)
+        elif isinstance(citations_text, list):
+            formatted_results = citations_text
         
         return {
             "sql": sql_query,
             "results": formatted_results,
-            "usage": {},  # Usage info not needed for query assistant
-            "model": "",  # Model info not needed for query assistant
+            "usage": {},
+            "model": "",
             "raw_response": None,
             "error": None
         }
     except (LLMServiceError, ValueError) as e:
-        # Convert error to string format
         error_msg = str(e.detail) if hasattr(e, 'detail') else str(e)
         return {
             "sql": "",
@@ -280,7 +312,6 @@ async def count_tokens(
             "within_limits": within_limits
         }
     except LLMServiceError as e:
-        # Convert error to string format
         error_msg = str(e.detail) if hasattr(e, 'detail') else str(e)
         return {
             "count": 0,
@@ -316,7 +347,6 @@ async def analyze_term_stream(
             )
         )
     except LLMServiceError as e:
-        # Convert error to string format
         error_msg = str(e.detail) if hasattr(e, 'detail') else str(e)
         return {
             "error": error_msg

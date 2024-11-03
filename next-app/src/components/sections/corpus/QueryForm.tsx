@@ -5,15 +5,15 @@ import { Button } from '../../ui/Button'
 import { PaginatedResults } from '../../ui/PaginatedResults'
 import { ResultsDisplay } from '../../ui/ResultsDisplay'
 import { useApi } from '../../../hooks/useApi'
-import { API, QueryGenerationRequest, PreciseQueryRequest, QueryResponse, Citation } from '../../../utils/api'
+import { API, SearchResult, TextSearchRequest, QueryGenerationRequest } from '../../../utils/api'
 
 type QueryType = 'natural' | 'lemma_search' | 'category_search' | 'citation_search';
 
 /**
  * QueryForm Component
  * 
- * This component provides a form for generating SQL queries using either natural language
- * questions or precise query parameters.
+ * This component provides a form for searching the corpus using different search types.
+ * For natural language queries, it uses LLM to generate appropriate search parameters.
  *
  * @component
  */
@@ -24,63 +24,81 @@ export function QueryForm() {
   const [category, setCategory] = useState('')
   const [authorId, setAuthorId] = useState('')
   const [workNumber, setWorkNumber] = useState('')
-  const { data, error, isLoading, execute } = useApi<QueryResponse>()
+  const [generatedQuery, setGeneratedQuery] = useState('')
+  const [queryResults, setQueryResults] = useState<SearchResult[]>([])
+  const { data: searchResults, error: searchError, isLoading: isSearching, execute: executeSearch } = useApi<SearchResult[]>()
+  const { data: queryData, error: queryError, isLoading: isGenerating, execute: executeGenerate } = useApi<any>()
   
   /**
-   * Handles the form submission to generate a SQL query.
+   * Handles the form submission to search the corpus.
+   * For natural language queries, first generates a search query using LLM.
    * 
    * @async
    * @function
    */
   const handleSubmit = useCallback(async () => {
-    if (isLoading) return; // Prevent multiple submissions while loading
+    if (isSearching || isGenerating) return; // Prevent multiple submissions while loading
 
     try {
-      if (queryType === 'natural') {
-        if (!question.trim()) return
-        
-        const request: QueryGenerationRequest = {
-          question: question.trim(),
-          max_tokens: 1000
-        }
-        
-        await execute(API.llm.generateQuery, {
-          method: 'POST',
-          body: JSON.stringify(request)
-        })
-      } else {
-        // Handle precise query generation
-        const request: PreciseQueryRequest = {
-          query_type: queryType,
-          parameters: {},
-          max_tokens: 1000
-        }
+      switch (queryType) {
+        case 'natural':
+          if (!question.trim()) return
 
-        switch (queryType) {
-          case 'lemma_search':
-            if (!lemma.trim()) return
-            request.parameters.lemma = lemma.trim()
-            break
-          case 'category_search':
-            if (!category.trim()) return
-            request.parameters.category = category.trim()
-            break
-          case 'citation_search':
-            if (!authorId.trim() || !workNumber.trim()) return
-            request.parameters.author_id = authorId.trim()
-            request.parameters.work_number = workNumber.trim()
-            break
-        }
+          // Generate the appropriate search query using LLM
+          const request: QueryGenerationRequest = {
+            question: question.trim(),
+            max_tokens: 1000
+          }
+          
+          const queryResult = await executeGenerate(API.llm.generateQuery, {
+            method: 'POST',
+            body: JSON.stringify(request)
+          })
 
-        await execute(API.llm.generatePreciseQuery, {
-          method: 'POST',
-          body: JSON.stringify(request)
-        })
+          if (queryResult?.sql) {
+            setGeneratedQuery(queryResult.sql)
+            if (queryResult.results) {
+              setQueryResults(queryResult.results)
+            }
+          }
+          break
+
+        case 'lemma_search':
+          if (!lemma.trim()) return
+          
+          const lemmaRequest: TextSearchRequest = {
+            query: lemma.trim(),
+            search_lemma: true
+          }
+          
+          await executeSearch(API.corpus.search, {
+            method: 'POST',
+            body: JSON.stringify(lemmaRequest)
+          })
+          break
+
+        case 'category_search':
+          if (!category.trim()) return
+          await executeSearch(API.corpus.category(category.trim()))
+          break
+
+        case 'citation_search':
+          if (!authorId.trim() || !workNumber.trim()) return
+          const citationRequest: TextSearchRequest = {
+            query: `${authorId.trim()} ${workNumber.trim()}`,
+            search_lemma: false
+          }
+          
+          await executeSearch(API.corpus.search, {
+            method: 'POST',
+            body: JSON.stringify(citationRequest)
+          })
+          break
       }
     } catch (err) {
       console.error('Error in handleSubmit:', err)
     }
-  }, [queryType, question, lemma, category, authorId, workNumber, execute, isLoading])
+  }, [queryType, question, lemma, category, authorId, workNumber, executeSearch, executeGenerate, isSearching, isGenerating])
 
   const renderQueryInputs = () => {
     switch (queryType) {
@@ -88,12 +106,12 @@ export function QueryForm() {
         return (
           <textarea
             className="textarea textarea-bordered w-full h-24"
-            placeholder="e.g., Find all sentences containing words from the 'anatomy' category that are also nouns"
+            placeholder="Ask any question about the corpus (e.g., 'find all sentences with words in the anatomy category' or 'where does Galen talk about nose and water?')"
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
             spellCheck="false"
             data-ms-editor="true"
-            disabled={isLoading}
+            disabled={isSearching || isGenerating}
           />
         )
       case 'lemma_search':
@@ -104,7 +122,7 @@ export function QueryForm() {
             placeholder="Enter lemma to search for"
             value={lemma}
             onChange={(e) => setLemma(e.target.value)}
-            disabled={isLoading}
+            disabled={isSearching}
           />
         )
       case 'category_search':
@@ -115,7 +133,7 @@ export function QueryForm() {
             placeholder="Enter category name"
             value={category}
             onChange={(e) => setCategory(e.target.value)}
-            disabled={isLoading}
+            disabled={isSearching}
           />
         )
       case 'citation_search':
@@ -127,7 +145,7 @@ export function QueryForm() {
               placeholder="Author ID (e.g., 0086)"
               value={authorId}
               onChange={(e) => setAuthorId(e.target.value)}
-              disabled={isLoading}
+              disabled={isSearching}
             />
             <input
               type="text"
@@ -135,7 +153,7 @@ export function QueryForm() {
               placeholder="Work Number (e.g., 055)"
               value={workNumber}
               onChange={(e) => setWorkNumber(e.target.value)}
-              disabled={isLoading}
+              disabled={isSearching}
             />
           </div>
         )
@@ -145,13 +163,13 @@ export function QueryForm() {
   const isSubmitDisabled = () => {
     switch (queryType) {
       case 'natural':
-        return !question.trim() || isLoading
+        return !question.trim() || isSearching || isGenerating
       case 'lemma_search':
-        return !lemma.trim() || isLoading
+        return !lemma.trim() || isSearching
       case 'category_search':
-        return !category.trim() || isLoading
+        return !category.trim() || isSearching
       case 'citation_search':
-        return !authorId.trim() || !workNumber.trim() || isLoading
+        return !authorId.trim() || !workNumber.trim() || isSearching
       default:
         return true
     }
@@ -161,13 +179,13 @@ export function QueryForm() {
     <div className="form-control gap-4">
       <div>
         <label className="label">
-          <span className="label-text">Query Type</span>
+          <span className="label-text">Search Type</span>
         </label>
         <select
           className="select select-bordered w-full"
           value={queryType}
           onChange={(e) => setQueryType(e.target.value as QueryType)}
-          disabled={isLoading}
+          disabled={isSearching || isGenerating}
         >
           <option value="natural">Natural Language Query</option>
           <option value="lemma_search">Lemma Search</option>
@@ -179,7 +197,7 @@ export function QueryForm() {
       <div>
         <label className="label">
           <span className="label-text">
-            {queryType === 'natural' ? 'Ask a question about the corpus data' : 'Enter search parameters'}
+            {queryType === 'natural' ? 'Ask any question about the corpus' : 'Enter search parameters'}
           </span>
         </label>
         {renderQueryInputs()}
@@ -187,52 +205,56 @@ export function QueryForm() {
 
       <Button
         onClick={handleSubmit}
-        isLoading={isLoading}
+        isLoading={isSearching || isGenerating}
         disabled={isSubmitDisabled()}
       >
-        Generate SQL Query
+        Search
       </Button>
 
-      {error && (
+      {(queryError || searchError) && (
         <div className="alert alert-error">
-          <p>{error.message}</p>
-          {error.detail && <p className="text-sm mt-1">{error.detail}</p>}
+          <p>{(queryError || searchError)?.message || 'An error occurred'}</p>
+          {(queryError || searchError)?.detail && (
+            <p className="text-sm mt-1">{(queryError || searchError)?.detail}</p>
+          )}
         </div>
       )}
 
-      {isLoading && (
+      {(isSearching || isGenerating) && (
         <div className="flex items-center justify-center p-8">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-          <p className="ml-4">Generating query and fetching results...</p>
+          <p className="ml-4">
+            {isGenerating ? 'Analyzing your question...' : 'Searching corpus...'}
+          </p>
         </div>
       )}
 
-      {data?.sql && (
+      {generatedQuery && queryType === 'natural' && (
         <ResultsDisplay
-          title="Generated SQL Query"
-          content={data.sql}
+          title="Generated Query"
+          content={generatedQuery}
           className="p-4 bg-base-200 rounded-lg"
         />
       )}
 
-      {data?.results && (
+      {queryType === 'natural' && queryResults.length > 0 && (
         <PaginatedResults
-          title="Query Results"
-          results={data.results}
+          title="Search Results"
+          results={queryResults}
           pageSize={10}
           className="mt-4"
-          isLoading={isLoading}
+          isLoading={isGenerating}
         />
       )}
 
-      {/* Debug output */}
-      {data && (
-        <div className="mt-4 p-4 bg-base-200 rounded-lg">
-          <h4 className="font-bold mb-2">Debug Info:</h4>
-          <pre className="whitespace-pre-wrap text-sm">
-            {JSON.stringify(data, null, 2)}
-          </pre>
-        </div>
+      {queryType !== 'natural' && searchResults && searchResults.length > 0 && (
+        <PaginatedResults
+          title="Search Results"
+          results={searchResults}
+          pageSize={10}
+          className="mt-4"
+          isLoading={isSearching}
+        />
       )}
     </div>
   )
