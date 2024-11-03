@@ -24,7 +24,6 @@ export function QueryForm() {
   const [category, setCategory] = useState('')
   const [authorId, setAuthorId] = useState('')
   const [workNumber, setWorkNumber] = useState('')
-  const [isProcessingResults, setIsProcessingResults] = useState(false)
   const { data, error, isLoading, execute } = useApi<QueryResponse>()
   
   /**
@@ -34,9 +33,9 @@ export function QueryForm() {
    * @function
    */
   const handleSubmit = useCallback(async () => {
+    if (isLoading) return; // Prevent multiple submissions while loading
+
     try {
-      setIsProcessingResults(true)
-      
       if (queryType === 'natural') {
         if (!question.trim()) return
         
@@ -80,10 +79,8 @@ export function QueryForm() {
       }
     } catch (err) {
       console.error('Error in handleSubmit:', err)
-    } finally {
-      setIsProcessingResults(false)
     }
-  }, [queryType, question, lemma, category, authorId, workNumber, execute])
+  }, [queryType, question, lemma, category, authorId, workNumber, execute, isLoading])
 
   const renderQueryInputs = () => {
     switch (queryType) {
@@ -96,7 +93,7 @@ export function QueryForm() {
             onChange={(e) => setQuestion(e.target.value)}
             spellCheck="false"
             data-ms-editor="true"
-            disabled={isLoading || isProcessingResults}
+            disabled={isLoading}
           />
         )
       case 'lemma_search':
@@ -107,7 +104,7 @@ export function QueryForm() {
             placeholder="Enter lemma to search for"
             value={lemma}
             onChange={(e) => setLemma(e.target.value)}
-            disabled={isLoading || isProcessingResults}
+            disabled={isLoading}
           />
         )
       case 'category_search':
@@ -118,7 +115,7 @@ export function QueryForm() {
             placeholder="Enter category name"
             value={category}
             onChange={(e) => setCategory(e.target.value)}
-            disabled={isLoading || isProcessingResults}
+            disabled={isLoading}
           />
         )
       case 'citation_search':
@@ -130,7 +127,7 @@ export function QueryForm() {
               placeholder="Author ID (e.g., 0086)"
               value={authorId}
               onChange={(e) => setAuthorId(e.target.value)}
-              disabled={isLoading || isProcessingResults}
+              disabled={isLoading}
             />
             <input
               type="text"
@@ -138,7 +135,7 @@ export function QueryForm() {
               placeholder="Work Number (e.g., 055)"
               value={workNumber}
               onChange={(e) => setWorkNumber(e.target.value)}
-              disabled={isLoading || isProcessingResults}
+              disabled={isLoading}
             />
           </div>
         )
@@ -148,20 +145,17 @@ export function QueryForm() {
   const isSubmitDisabled = () => {
     switch (queryType) {
       case 'natural':
-        return !question.trim() || isLoading || isProcessingResults
+        return !question.trim() || isLoading
       case 'lemma_search':
-        return !lemma.trim() || isLoading || isProcessingResults
+        return !lemma.trim() || isLoading
       case 'category_search':
-        return !category.trim() || isLoading || isProcessingResults
+        return !category.trim() || isLoading
       case 'citation_search':
-        return !authorId.trim() || !workNumber.trim() || isLoading || isProcessingResults
+        return !authorId.trim() || !workNumber.trim() || isLoading
       default:
         return true
     }
   }
-
-  // Show SQL only for small result sets to improve performance
-  const shouldShowSql = data?.results && data.results.length <= 10;
 
   return (
     <div className="form-control gap-4">
@@ -173,7 +167,7 @@ export function QueryForm() {
           className="select select-bordered w-full"
           value={queryType}
           onChange={(e) => setQueryType(e.target.value as QueryType)}
-          disabled={isLoading || isProcessingResults}
+          disabled={isLoading}
         >
           <option value="natural">Natural Language Query</option>
           <option value="lemma_search">Lemma Search</option>
@@ -213,7 +207,7 @@ export function QueryForm() {
         </div>
       )}
 
-      {data?.sql && shouldShowSql && (
+      {data?.sql && (
         <ResultsDisplay
           title="Generated SQL Query"
           content={data.sql}
@@ -221,14 +215,24 @@ export function QueryForm() {
         />
       )}
 
-      {data?.results && data.results.length > 0 && (
+      {data?.results && (
         <PaginatedResults
           title="Query Results"
           results={data.results}
           pageSize={10}
           className="mt-4"
-          isLoading={isProcessingResults}
+          isLoading={isLoading}
         />
+      )}
+
+      {/* Debug output */}
+      {data && (
+        <div className="mt-4 p-4 bg-base-200 rounded-lg">
+          <h4 className="font-bold mb-2">Debug Info:</h4>
+          <pre className="whitespace-pre-wrap text-sm">
+            {JSON.stringify(data, null, 2)}
+          </pre>
+        </div>
       )}
     </div>
   )

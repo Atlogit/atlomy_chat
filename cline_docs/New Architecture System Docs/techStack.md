@@ -1,241 +1,151 @@
-# Technology Stack for New Architecture
+# Technology Stack
 
-## Core Technologies
+## Backend
+
+### Core Framework
+- FastAPI: Modern, fast web framework
+- Uvicorn: ASGI server
+- Python 3.9+: Language runtime
 
 ### Database
-- **PostgreSQL 14+**
-  - JSONB support for flexible data storage
-  - Full-text search capabilities
-  - Robust indexing
-- **SQLAlchemy 2.0**
-  - Async support
-  - Modern API design
-  - Type hints support
-- **Alembic**
-  - Database migrations
-  - Version control for schema
-  - Rollback support
+- PostgreSQL: Primary database
+- SQLAlchemy: ORM and database toolkit
+- Alembic: Database migrations
+- JSONB: For flexible data storage
 
-### Backend
-- **Python 3.9+**
-  - Type hints
-  - Modern async features
-  - Enhanced performance
-- **FastAPI**
-  - High performance
-  - Automatic API documentation
-  - Native async support
-  - Dependency injection
-- **asyncpg**
-  - High-performance PostgreSQL client
-  - Native async support
-  - Prepared statement cache
+### LLM Integration
+- Architecture:
+  - Modular service design
+  - Provider-agnostic interface
+  - Specialized components for different tasks
+- Components:
+  1. BaseLLMService: Core functionality
+  2. LexicalLLMService: Lexical analysis
+  3. QueryLLMService: SQL generation
+  4. AnalysisLLMService: Text analysis
+- Providers:
+  - AWS Bedrock (Claude): Primary LLM
+  - Extensible for other providers
+- Features:
+  - Token counting
+  - Context length management
+  - Error handling
+  - Streaming support
+
+### Storage
+- JSON file system for lexical values
+- Redis for caching
+- AWS S3 for backups
 
 ### Text Processing
-- **spaCy**
-  - NLP pipeline
-  - Token attributes
-  - Custom pipeline components
-- **AWS Bedrock**
-  - Claude-3-sonnet model
-  - Advanced text analysis
-  - Contextual understanding
+- spaCy: NLP toolkit
+- Custom tokenizers
+- Citation processors
 
-### Caching & Performance
-- **Redis** (Optional)
-  - In-memory caching
-  - Pub/sub for real-time updates
-  - Session management
-- **Background Tasks**
-  - FastAPI background tasks
-  - Long-running operation management
-  - Status tracking
+## Frontend
 
-## Component-Specific Technologies
+### Framework
+- Next.js: React framework
+- TypeScript: Type safety
+- TailwindCSS: Styling
 
-### Text Processing Toolkit
-- **Citation Parser**
-  - Custom Python implementation
-  - Regex pattern matching
-  - Validation system
-- **Content Validator**
-  - Unicode validation
-  - Special character handling
-  - Length constraints
-  - ASCII control character detection
-- **Citation Processor**
-  - Citation format parsing
-  - Line number extraction
-  - Section splitting
-  - Component validation
-- **Batch Processing**
-  - Parallel processing
-  - Progress tracking
-  - Error handling
-- **Data Loading**
-  - Bulk insert operations
-  - Transaction management
-  - Pre/post validation checks
+### State Management
+- React Query: Server state
+- Context API: Local state
+- Custom hooks
 
-### Analysis Application
-- **Search System**
-  - PostgreSQL full-text search
-  - Custom ranking algorithms
-  - Faceted search support
-- **Real-time Updates**
-  - Server-sent events
-  - Status polling
-  - WebSocket support (if needed)
-- **Result Management**
-  - Caching strategies
-  - Pagination
-  - Sorting and filtering
+### Components
+- Modular design
+- Reusable patterns
+- Type-safe props
+
+## Infrastructure
+
+### Deployment
+- Docker containers
+- AWS hosting
+- CI/CD pipelines
+
+### Monitoring
+- Custom logging
+- Error tracking
+- Performance metrics
 
 ## Development Tools
 
-### Testing
-- **pytest**
-  - Async testing support
-  - Fixtures
-  - Parameterized testing
-- **pytest-asyncio**
-  - Async test cases
-  - Event loop management
-- **pytest-cov**
-  - Coverage reporting
-  - Branch analysis
-- **Custom Test Suites**
-  - Content validation tests
-  - Citation format validation
-  - Structural validation
-  - Integration tests
-  - Performance tests
-
-### Validation Framework
-- **Content Validation**
-  - Unicode character validation
-  - ASCII control character detection
-  - Length constraints
-  - Special character handling
-- **Format Validation**
-  - Citation format checking
-  - Line number validation
-  - Sequential number verification
-- **Structural Validation**
-  - Hierarchical relationship checks
-  - Division ordering validation
-  - Line number continuity
-  - Metadata consistency
-  - Title uniqueness
-
 ### Code Quality
-- **black**
-  - Code formatting
-  - Style consistency
-- **flake8**
-  - Linting
-  - Style checking
-- **mypy**
-  - Static type checking
-  - Type validation
+- ESLint: JavaScript/TypeScript linting
+- Pylint: Python linting
+- Black: Python formatting
+- Prettier: Frontend formatting
+
+### Testing
+- pytest: Backend testing
+- Jest: Frontend testing
+- React Testing Library
+- Integration tests
 
 ### Documentation
-- **Sphinx**
-  - API documentation
-  - Auto-generation
-  - Multiple output formats
-- **OpenAPI/Swagger**
-  - API specification
-  - Interactive documentation
-  - Client generation
-
-## Deployment & Infrastructure
-
-### Containerization
-- **Docker**
-  - Application containers
-  - Development environment
-  - Production deployment
-- **Docker Compose**
-  - Multi-container orchestration
-  - Development setup
-  - Testing environment
-
-### Monitoring & Logging
-- **Prometheus**
-  - Metrics collection
-  - Performance monitoring
-  - Alert management
-- **Grafana**
-  - Visualization
-  - Dashboard creation
-  - Alert integration
-- **Custom Logging**
-  - Migration progress tracking
-  - Validation error logging
-  - Performance metrics
-
-## Version Control & CI/CD
-- **Git**
-  - Version control
-  - Feature branching
-  - Code review
-- **GitHub Actions**
-  - Automated testing
-  - Deployment pipelines
-  - Quality checks
-  - Validation checks
+- Markdown documentation
+- API documentation
+- Architecture diagrams
+- Code comments
 
 ## Security
-- **Python-jose**
-  - JWT handling
-  - Token management
-- **Passlib**
-  - Password hashing
-  - Security utilities
-- **HTTPS/TLS**
-  - Secure communication
-  - Certificate management
-- **Input Validation**
-  - Content sanitization
-  - Format verification
-  - Structural validation
 
-## Dependencies & Requirements
-- All specific version requirements will be maintained in:
-  - requirements.txt
-  - pyproject.toml
-  - package.json (for any JavaScript components)
+### Authentication
+- JWT tokens
+- Session management
+- Role-based access
 
-## Technology Selection Criteria
-1. Performance capabilities
-2. Community support
-3. Documentation quality
-4. Integration compatibility
-5. Security features
-6. Scalability potential
-7. Maintenance requirements
-8. Validation support
+### Data Protection
+- Encryption at rest
+- Secure API endpoints
+- Input validation
 
-## Upgrade Path
-- Regular updates for security patches
-- Quarterly evaluation of major version upgrades
-- Compatibility testing before updates
-- Rollback procedures for each component
-- Validation framework updates
+## Integration Points
 
-## Migration Tools
-- **Citation Migrator**
-  - Async processing
-  - Transaction management
-  - Error recovery
-- **Content Validator**
-  - Unicode support
-  - Character validation
-  - Length checking
-- **Citation Processor**
-  - Format parsing
-  - Component extraction
-  - Validation rules
+### APIs
+- RESTful endpoints
+- WebSocket connections
+- Server-sent events
 
-This technology stack is designed to provide a robust, scalable, and maintainable foundation for the new architecture while maintaining compatibility with existing systems and workflows. The validation framework ensures data integrity throughout the migration process and ongoing operations.
+### External Services
+- AWS services
+- Database connections
+- Cache layers
+
+## Development Workflow
+
+### Version Control
+- Git
+- Feature branches
+- Pull request reviews
+
+### CI/CD
+- Automated testing
+- Deployment pipelines
+- Environment management
+
+### Monitoring
+- Error tracking
+- Performance metrics
+- Usage analytics
+
+## Future Considerations
+
+### Scalability
+- Horizontal scaling
+- Load balancing
+- Caching strategies
+
+### Maintenance
+- Dependency updates
+- Security patches
+- Performance optimization
+
+### Features
+- Additional LLM providers
+- Enhanced analysis tools
+- Improved UI/UX
+- Mobile support

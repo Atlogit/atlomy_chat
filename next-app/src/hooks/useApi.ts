@@ -73,13 +73,22 @@ export function useApi<T>(): ApiHookResult<T> {
           } else if (typeof err === 'object' && err !== null) {
             // Handle structured error responses
             const errorObj = err as Record<string, any>;
-            apiError = {
-              message: errorObj.message || 'An unknown error occurred',
-              status: errorObj.status,
-              detail: typeof errorObj.detail === 'object' 
-                ? JSON.stringify(errorObj.detail, null, 2)
-                : errorObj.detail || JSON.stringify(errorObj)
-            };
+            
+            // Handle empty error object case
+            if (Object.keys(errorObj).length === 0) {
+              apiError = {
+                message: 'An error occurred while processing your request',
+                detail: 'No additional error details available'
+              };
+            } else {
+              apiError = {
+                message: errorObj.message || 'An unknown error occurred',
+                status: errorObj.status,
+                detail: typeof errorObj.detail === 'object' 
+                  ? JSON.stringify(errorObj.detail, null, 2)
+                  : errorObj.detail || JSON.stringify(errorObj)
+              };
+            }
           } else {
             apiError = {
               message: 'An unknown error occurred',

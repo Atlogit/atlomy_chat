@@ -11,6 +11,21 @@
 
 ### 2. Services Layer
 
+#### LLM Service Architecture
+- Modular design with specialized components:
+  1. BaseLLMService: Core functionality and provider management
+  2. LexicalLLMService: Lexical value generation
+  3. QueryLLMService: SQL query generation and execution
+  4. AnalysisLLMService: Text analysis
+  5. Main LLMService: Coordination and API interface
+- Organized prompt templates:
+  - lexical_prompts.py: Lexical value generation
+  - analysis_prompts.py: Text analysis
+  - prompts.py: SQL query generation
+- Enhanced error handling and logging
+- Clean separation of concerns
+- Backward-compatible API interface
+
 #### LexicalService
 - Manages lexical value creation and retrieval
 - Handles citation processing and linking
@@ -75,7 +90,14 @@
 
 ## Recent Implementations
 
-### 1. Frontend Integration
+### 1. LLM Service Restructuring
+- Split into focused components for better maintainability
+- Enhanced prompt organization
+- Improved error handling
+- Better separation of concerns
+- Maintained API compatibility
+
+### 2. Frontend Integration
 - Enhanced citation display system
 - Sentence context preview functionality
 - Version management interface
@@ -83,13 +105,13 @@
 - Improved TypeScript types
 - Fixed hydration issues
 
-### 2. Sentence-Based Citation System
+### 3. Sentence-Based Citation System
 - Added sentence boundary detection
 - Implemented full sentence context retrieval
 - Enhanced citation formatting with complete sentences
 - Optimized queries for sentence-based lookups
 
-### 3. Direct Citation Linking
+### 4. Direct Citation Linking
 ```sql
 -- Key relationships implemented
 CREATE TABLE lexical_value_citations (
@@ -100,7 +122,7 @@ CREATE TABLE lexical_value_citations (
 );
 ```
 
-### 4. JSON Storage System
+### 5. JSON Storage System
 ```python
 class JSONStorageService:
     """
@@ -142,6 +164,7 @@ class JSONStorageService:
 - `/api/lexical/citations`: Now supports sentence-based retrieval
 - `/api/lexical/values`: Enhanced with direct citation linking
 - `/api/storage/versions`: New endpoint for JSON storage management
+- `/api/llm/*`: Maintained compatibility with new LLM service structure
 
 ## Performance Considerations
 - Indexed sentence_id for efficient lookups
@@ -150,12 +173,15 @@ class JSONStorageService:
 - Proper foreign key relationships
 - Optimized frontend rendering
 - Improved component hydration
+- Enhanced LLM service modularity
 
 ## Next Steps
 1. Comprehensive testing of new features
 2. Performance monitoring and optimization
 3. Documentation updates for new features
 4. User acceptance testing
+5. Consider additional LLM providers
+6. Monitor LLM service performance
 
 ## Technical Debt
 - Consider implementing caching layer
@@ -163,3 +189,4 @@ class JSONStorageService:
 - Plan for scaling JSON storage
 - Monitor frontend performance
 - Optimize component re-renders
+- Evaluate LLM provider alternatives

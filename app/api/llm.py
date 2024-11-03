@@ -107,18 +107,13 @@ async def generate_query(
 ) -> Dict:
     """Generate and execute a SQL query from a natural language question."""
     try:
+        # Generate and execute query in one call
         sql_query, results = await llm_service.generate_and_execute_query(
             question=data.question,
             max_tokens=data.max_tokens
         )
         
-        # Get the LLM response for usage info
-        llm_response = await llm_service.generate_query(
-            question=data.question,
-            max_tokens=data.max_tokens
-        )
-        
-        # Convert results to proper format
+        # For query assistant, keep results as structured data
         formatted_results = []
         for result in results:
             if isinstance(result, dict):
@@ -142,9 +137,9 @@ async def generate_query(
         return {
             "sql": sql_query,
             "results": formatted_results,
-            "usage": llm_response.usage,
-            "model": llm_response.model,
-            "raw_response": llm_response.raw_response,
+            "usage": {},  # Usage info not needed for query assistant
+            "model": "",  # Model info not needed for query assistant
+            "raw_response": None,
             "error": None
         }
     except LLMServiceError as e:
@@ -180,7 +175,7 @@ async def generate_precise_query(
         if data.query_type not in valid_query_types:
             raise ValueError(f"Invalid query type. Must be one of: {valid_query_types}")
 
-        # Generate query based on type
+        # Generate question based on type
         if data.query_type == "lemma_search":
             if "lemma" not in data.parameters:
                 raise ValueError("Lemma parameter is required for lemma_search")
@@ -215,19 +210,13 @@ async def generate_precise_query(
             Include full citation information and text content.
             """
 
-        # Generate and execute the query
+        # Generate and execute query in one call
         sql_query, results = await llm_service.generate_and_execute_query(
             question=question,
             max_tokens=data.max_tokens
         )
         
-        # Get LLM response for usage info
-        llm_response = await llm_service.generate_query(
-            question=question,
-            max_tokens=data.max_tokens
-        )
-        
-        # Convert results to proper format
+        # For query assistant, keep results as structured data
         formatted_results = []
         for result in results:
             if isinstance(result, dict):
@@ -251,9 +240,9 @@ async def generate_precise_query(
         return {
             "sql": sql_query,
             "results": formatted_results,
-            "usage": llm_response.usage,
-            "model": llm_response.model,
-            "raw_response": llm_response.raw_response,
+            "usage": {},  # Usage info not needed for query assistant
+            "model": "",  # Model info not needed for query assistant
+            "raw_response": None,
             "error": None
         }
     except (LLMServiceError, ValueError) as e:
