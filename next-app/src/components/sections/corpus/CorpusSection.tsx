@@ -5,6 +5,7 @@ import { ListTexts } from './ListTexts'
 import { SearchForm } from './SearchForm'
 import { TextDisplay } from './TextDisplay'
 import { ResultsDisplay } from '../../../components/ui/ResultsDisplay'
+import { Text } from '../../../utils/api'
 
 type ActiveView = 'list' | 'search' | 'view'
 
@@ -19,6 +20,7 @@ export function CorpusSection() {
   const [selectedText, setSelectedText] = useState<string | null>(null)
   const [error, setError] = useState<ViewError | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [texts, setTexts] = useState<Text[]>([])
 
   const handleError = (err: Error | ViewError) => {
     console.error('Corpus section error:', err)
@@ -140,7 +142,11 @@ export function CorpusSection() {
           ) : (
             <div className="view-container">
               {activeView === 'list' && (
-                <ListTexts onTextSelect={handleTextSelect} />
+                <ListTexts 
+                  onTextSelect={handleTextSelect} 
+                  texts={texts}
+                  setTexts={setTexts}
+                />
               )}
               {activeView === 'search' && (
                 <SearchForm onResultSelect={handleTextSelect} />

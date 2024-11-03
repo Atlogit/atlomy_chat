@@ -50,7 +50,7 @@ export function SearchForm({ onResultSelect }: SearchFormProps) {
 
     const request: TextSearchRequest = {
       query: query.trim(),
-      searchLemma,
+      search_lemma: searchLemma,
       categories: selectedCategories.length > 0 ? selectedCategories : undefined
     }
 
@@ -68,19 +68,16 @@ export function SearchForm({ onResultSelect }: SearchFormProps) {
 
   const renderCitation = (result: SearchResult) => {
     const parts = []
-    const div = result.division
 
-    // Citation components
-    if (div.author_id_field) parts.push(`[${div.author_id_field}]`)
-    if (div.work_number_field) parts.push(`[${div.work_number_field}]`)
-    if (div.epithet_field) parts.push(`[${div.epithet_field}]`)
-    if (div.fragment_field) parts.push(`(fr. ${div.fragment_field})`)
+    // Citation components based on actual returned fields
+    if (result.author_name) parts.push(result.author_name)
+    if (result.work_name) parts.push(result.work_name)
 
     // Structural components
     const structural = []
-    if (div.volume) structural.push(`Vol. ${div.volume}`)
-    if (div.chapter) structural.push(`Ch. ${div.chapter}`)
-    if (div.section) structural.push(`§${div.section}`)
+    if (result.volume) structural.push(`Vol. ${result.volume}`)
+    if (result.chapter) structural.push(`Ch. ${result.chapter}`)
+    if (result.section) structural.push(`§${result.section}`)
     
     if (structural.length > 0) {
       parts.push(structural.join(', '))
@@ -196,10 +193,12 @@ export function SearchForm({ onResultSelect }: SearchFormProps) {
               <div className="card-body">
                 <div className="flex justify-between items-start">
                   <div>
-                    <h3 className="card-title text-lg">{result.text_title}</h3>
-                    {result.author && (
+                    <h3 className="card-title text-lg">
+                      {result.work_name}
+                    </h3>
+                    {result.author_name && (
                       <p className="text-base-content/70 text-sm">
-                        by {result.author}
+                        by {result.author_name}
                       </p>
                     )}
                   </div>
@@ -219,22 +218,12 @@ export function SearchForm({ onResultSelect }: SearchFormProps) {
                       {renderCitation(result)}
                     </span>
                     <span className="text-xs text-base-content/70">
-                      Line {result.line_number}
+                      Line {result.min_line_number}
                     </span>
                   </div>
 
-                  {/* Title if present */}
-                  {result.division.is_title && (
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="badge badge-primary">Title</span>
-                      {result.division.title_number && (
-                        <span className="text-sm font-mono">{result.division.title_number}</span>
-                      )}
-                    </div>
-                  )}
-
                   {/* Content */}
-                  <p className="text-sm whitespace-pre-line">{result.content}</p>
+                  <p className="text-sm whitespace-pre-line">{result.sentence_text}</p>
 
                   {/* Categories */}
                   {result.categories && result.categories.length > 0 && (

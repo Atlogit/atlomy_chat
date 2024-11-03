@@ -44,17 +44,11 @@ export function TextDisplay({ textId }: TextDisplayProps) {
     const parts = []
     
     // Citation components
-    if (division.author_id_field) {
-      parts.push(`[${division.author_id_field}]`)
+    if (division.author_name) {
+      parts.push(division.author_name)
     }
-    if (division.work_number_field) {
-      parts.push(`[${division.work_number_field}]`)
-    }
-    if (division.epithet_field) {
-      parts.push(`[${division.epithet_field}]`)
-    }
-    if (division.fragment_field) {
-      parts.push(`(fr. ${division.fragment_field})`)
+    if (division.work_name) {
+      parts.push(division.work_name)
     }
     
     // Structural components
@@ -62,7 +56,6 @@ export function TextDisplay({ textId }: TextDisplayProps) {
     if (division.volume) structural.push(`Vol. ${division.volume}`)
     if (division.chapter) structural.push(`Ch. ${division.chapter}`)
     if (division.section) structural.push(`§${division.section}`)
-    if (division.line) structural.push(`l.${division.line}`)
     
     if (structural.length > 0) {
       parts.push(structural.join(', '))
@@ -112,8 +105,8 @@ export function TextDisplay({ textId }: TextDisplayProps) {
             {division.is_title && (
               <div className="title-info flex items-center gap-2">
                 <span className="badge badge-primary">Title</span>
-                {division.title_number && (
-                  <span className="text-sm font-mono">{division.title_number}</span>
+                {division.title_text && (
+                  <span className="text-sm font-mono">{division.title_text}</span>
                 )}
               </div>
             )}
@@ -193,7 +186,14 @@ export function TextDisplay({ textId }: TextDisplayProps) {
     <div className="space-y-6">
       {/* Text Header */}
       <div className="text-header space-y-2">
-        <h3 className="text-2xl font-bold">{text.title}</h3>
+        <h3 className="text-2xl font-bold">
+          {text.work_name || text.title}
+          {text.title !== text.work_name && text.title && (
+            <span className="text-base-content/70 text-lg ml-2">
+              ({text.title})
+            </span>
+          )}
+        </h3>
         {text.author && (
           <p className="text-base-content/70">by {text.author}</p>
         )}
