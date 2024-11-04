@@ -65,6 +65,24 @@
 - Sentence context preview integration
 - Version information display
 
+#### QueryForm
+- Natural language query interface
+- Multiple search types support:
+  - Natural language queries
+  - Lemma search
+  - Category search
+  - Citation search
+- Enhanced results display with:
+  - Generated SQL query view
+  - Paginated results
+  - Citation formatting
+  - Loading states
+  - Error handling
+- Optimized API integration:
+  - Direct results handling
+  - Removed redundant API calls
+  - Improved error messaging
+
 #### API Integration
 - Updated API types for new features
 - Enhanced error handling
@@ -105,13 +123,35 @@
 - Improved TypeScript types
 - Fixed hydration issues
 
-### 3. Sentence-Based Citation System
+### 3. Natural Language Query Improvements
+- Enhanced citation formatting in API responses
+- Optimized frontend-backend data flow
+- Removed redundant API calls
+- Improved error handling and loading states
+- Better integration with PaginatedResults component
+- Structured data format for citations:
+  ```typescript
+  interface Citation {
+    id: string;
+    sentence_text: string;
+    author_name: string;
+    work_name: string;
+    volume?: string;
+    chapter?: string;
+    section?: string;
+    line_numbers: number[];
+    prev_sentence?: string;
+    next_sentence?: string;
+  }
+  ```
+
+### 4. Sentence-Based Citation System
 - Added sentence boundary detection
 - Implemented full sentence context retrieval
 - Enhanced citation formatting with complete sentences
 - Optimized queries for sentence-based lookups
 
-### 4. Direct Citation Linking
+### 5. Direct Citation Linking
 ```sql
 -- Key relationships implemented
 CREATE TABLE lexical_value_citations (
@@ -122,7 +162,7 @@ CREATE TABLE lexical_value_citations (
 );
 ```
 
-### 5. JSON Storage System
+### 6. JSON Storage System
 ```python
 class JSONStorageService:
     """
@@ -165,6 +205,7 @@ class JSONStorageService:
 - `/api/lexical/values`: Enhanced with direct citation linking
 - `/api/storage/versions`: New endpoint for JSON storage management
 - `/api/llm/*`: Maintained compatibility with new LLM service structure
+- `/api/llm/generate-query`: Enhanced with proper citation formatting
 
 ## Performance Considerations
 - Indexed sentence_id for efficient lookups
@@ -174,6 +215,7 @@ class JSONStorageService:
 - Optimized frontend rendering
 - Improved component hydration
 - Enhanced LLM service modularity
+- Optimized natural language query processing
 
 ## Next Steps
 1. Comprehensive testing of new features
@@ -182,6 +224,8 @@ class JSONStorageService:
 4. User acceptance testing
 5. Consider additional LLM providers
 6. Monitor LLM service performance
+7. Consider caching for frequent queries
+8. Evaluate citation format improvements
 
 ## Technical Debt
 - Consider implementing caching layer
@@ -190,3 +234,5 @@ class JSONStorageService:
 - Monitor frontend performance
 - Optimize component re-renders
 - Evaluate LLM provider alternatives
+- Consider query result caching
+- Review error recovery mechanisms

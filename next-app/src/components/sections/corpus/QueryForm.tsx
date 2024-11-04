@@ -175,6 +175,40 @@ export function QueryForm() {
     }
   }
 
+  const renderError = (error: any) => {
+    if (!error) return null;
+
+    return (
+      <div className="alert alert-error">
+        <p className="font-semibold">{error.message}</p>
+        {error.detail && (
+          <div className="text-sm mt-2">
+            {typeof error.detail === 'object' ? (
+              <>
+                {error.detail.message && <p>{error.detail.message}</p>}
+                {error.detail.error_type && (
+                  <p className="text-xs mt-1 opacity-75">
+                    Error type: {error.detail.error_type}
+                  </p>
+                )}
+                {error.detail.sql_query && (
+                  <div className="mt-2">
+                    <p className="font-semibold">Generated SQL:</p>
+                    <pre className="text-xs mt-1 bg-base-300 p-2 rounded">
+                      {error.detail.sql_query}
+                    </pre>
+                  </div>
+                )}
+              </>
+            ) : (
+              <p>{error.detail}</p>
+            )}
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="form-control gap-4">
       <div>
@@ -211,14 +245,7 @@ export function QueryForm() {
         Search
       </Button>
 
-      {(queryError || searchError) && (
-        <div className="alert alert-error">
-          <p>{(queryError || searchError)?.message || 'An error occurred'}</p>
-          {(queryError || searchError)?.detail && (
-            <p className="text-sm mt-1">{(queryError || searchError)?.detail}</p>
-          )}
-        </div>
-      )}
+      {(queryError || searchError) && renderError(queryError || searchError)}
 
       {(isSearching || isGenerating) && (
         <div className="flex items-center justify-center p-8">

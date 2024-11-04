@@ -131,13 +131,14 @@ export function DeleteForm() {
       </div>
 
       {valueToDelete && (
-        <div className={`alert ${triggerId ? 'alert-error' : 'alert-warning'}`}>
+        <div className={`alert ${triggerId ? 'alert-error' : 'alert-warning'} max-h-[60vh] overflow-auto`}>
           <div>
-            <h3 className="font-bold">{triggerId ? 'Final Confirmation' : 'Confirm Deletion'}</h3>
-            <p>{triggerId ? 'This action cannot be undone. Are you absolutely sure?' : 'Are you sure you want to delete this lexical value?'}</p>
-            <pre className="mt-2 p-2 bg-base-200 rounded">
-              {JSON.stringify(valueToDelete, null, 2)}
-            </pre>
+            <h3 className="font-bold mb-4">{triggerId ? 'Final Confirmation' : 'Confirm Deletion'}</h3>
+            <p className="mb-4">{triggerId ? 'This action cannot be undone. Are you absolutely sure?' : 'Are you sure you want to delete this lexical value?'}</p>
+            <ResultsDisplay
+              title="Value to Delete"
+              content={valueToDelete}
+            />
           </div>
         </div>
       )}

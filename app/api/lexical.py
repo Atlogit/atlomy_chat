@@ -266,6 +266,35 @@ async def get_lexical_value(
             }
         )
 
+@router.get("/versions/{lemma}")
+async def get_lexical_versions(
+    lemma: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """Get available versions of a lexical value."""
+    try:
+        logger.info(f"Getting versions for lexical value: {lemma}")
+        lexical_service = LexicalService(db)
+        versions = await lexical_service.get_json_versions(lemma)
+        
+        if versions:
+            logger.debug(f"Found {len(versions)} versions for {lemma}")
+            return {"versions": versions}
+            
+        logger.warning(f"No versions found for: {lemma}")
+        return {"versions": []}
+        
+    except Exception as e:
+        logger.error(f"Error getting versions for {lemma}: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "message": str(e),
+                "type": type(e).__name__,
+                "lemma": lemma
+            }
+        )
+
 @router.get("/list")
 async def list_lexical_values(
     offset: int = 0,

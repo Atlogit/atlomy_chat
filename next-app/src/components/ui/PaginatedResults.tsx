@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react'
-import { LexicalValue } from '../../utils/api'
+import { SearchResult } from '../../utils/api'
 import { ResultsDisplay } from './ResultsDisplay'
 
 interface PaginatedResultsProps {
   title?: string
-  results: any[]
+  results: SearchResult[]
   pageSize?: number
   className?: string
   isLoading?: boolean
@@ -18,55 +18,19 @@ export function PaginatedResults({
   isLoading = false,
 }: PaginatedResultsProps) {
   const [currentPage, setCurrentPage] = useState(1)
-  const [paginatedResults, setPaginatedResults] = useState<LexicalValue | null>(null)
+  const [paginatedResults, setPaginatedResults] = useState<SearchResult[]>([])
   const totalPages = Math.ceil(results.length / pageSize)
 
   useEffect(() => {
     if (!results.length) {
-      setPaginatedResults(null)
+      setPaginatedResults([])
       return
     }
 
     const start = (currentPage - 1) * pageSize
     const end = start + pageSize
     const pageResults = results.slice(start, end)
-
-    // Create a LexicalValue structure for the paginated results
-    const lexicalValue: LexicalValue = {
-      id: `query-results-page-${currentPage}`,
-      lemma: `Results (Page ${currentPage} of ${totalPages})`,
-      categories: [],
-      analyses: [],
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      version: '1.0',
-      citations_used: pageResults.map(result => ({
-        sentence: {
-          id: result.sentence_id || '',
-          text: result.sentence_text || result.text || '',
-          prev_sentence: result.prev_sentence || '',
-          next_sentence: result.next_sentence || '',
-          tokens: result.tokens || {}
-        },
-        citation: result.citation || '',
-        context: {
-          line_id: result.line_id || '',
-          line_text: result.line_text || '',
-          line_numbers: result.line_numbers || []
-        },
-        location: {
-          volume: result.volume || '',
-          chapter: result.chapter || '',
-          section: result.section || ''
-        },
-        source: {
-          author: result.author || '',
-          work: result.work || ''
-        }
-      }))
-    }
-
-    setPaginatedResults(lexicalValue)
+    setPaginatedResults(pageResults)
   }, [results, currentPage, pageSize])
 
   if (isLoading) {
@@ -81,7 +45,11 @@ export function PaginatedResults({
   }
 
   if (!results.length) {
-    return null
+    return (
+      <div className={`space-y-4 ${className}`}>
+        <p className="text-center text-base-content/70">No results found</p>
+      </div>
+    )
   }
 
   return (
@@ -93,10 +61,43 @@ export function PaginatedResults({
         </div>
       </div>
 
-      <ResultsDisplay
-        content={paginatedResults}
-        className="p-4 bg-base-200 rounded-lg"
-      />
+      <div className="space-y-4">
+        {paginatedResults.map((result, index) => (
+          <div key={`${result.sentence_id || index}-${index}`} className="p-4 bg-base-200 rounded-lg">
+            <div className="mb-2">
+              <span className="font-semibold">Source: </span>
+              <span>
+                {[result.author_name, result.work_name].filter(Boolean).join(' - ') || 'Unknown source'}
+              </span>
+              {(result.volume || result.chapter || result.section) && (
+                <span className="ml-2 text-base-content/70">
+                  ({[
+                    result.volume && `Vol. ${result.volume}`,
+                    result.chapter && `Ch. ${result.chapter}`,
+                    result.section && `Sec. ${result.section}`
+                  ].filter(Boolean).join(', ')})
+                </span>
+              )}
+            </div>
+            
+            {result.prev_sentence && (
+              <div className="text-base-content/70 mb-2">{result.prev_sentence}</div>
+            )}
+            
+            <div className="font-medium">{result.sentence_text || 'No text available'}</div>
+            
+            {result.next_sentence && (
+              <div className="text-base-content/70 mt-2">{result.next_sentence}</div>
+            )}
+            
+            {result.line_numbers && result.line_numbers.length > 0 && (
+              <div className="mt-2 text-sm text-base-content/70">
+                Line numbers: {result.line_numbers.join(', ')}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
 
       {totalPages > 1 && (
         <div className="flex justify-center gap-2 mt-4">

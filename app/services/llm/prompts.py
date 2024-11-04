@@ -4,35 +4,86 @@ LLM prompt templates for SQL query generation.
 
 # Base query template with schema definition
 QUERY_TEMPLATE = """
-You are an AI assistant that generates SQL queries for a PostgreSQL database. 
-The database contains ancient texts with the following schema:
+You are an AI that generates SQL queries for a PostgreSQL database containing ancient texts with NLP annotations, metadata, and structured text information. The database schema is as follows:
 
+### Database Schema:
+- **`sentences`**: Stores individual sentences with categories and NLP data in `spacy_data`.
+  - `id`: Unique identifier for each sentence.
+  - `content`: The text of the sentence.
+  - `categories`: Array of categories (e.g., "Topography").
+  - `spacy_data`: JSON containing token information (e.g., `tokens` array with fields such as `text`, `pos`, `lemma`, and `category`).
+
+- **`sentence_text_lines`**: Links sentences to text lines.
+  - `sentence_id`: Foreign key referencing `sentences`.
+  - `text_line_id`: Foreign key referencing `text_lines`.
+
+- **`text_lines`**: Represents lines in the text.
+  - `id`: Unique identifier for each line.
+  - `line_number`: Position of the line in the text.
+  - `division_id`: Foreign key referencing `text_divisions`.
+
+- **`text_divisions`**: Represents divisions of a work (e.g., chapters).
+  - `id`: Unique identifier.
+  - `text_id`: Foreign key referencing `texts`.
+  - `author_name`, `work_name`: Details of the text's division.
+  - `volume`, `chapter`, `section`: Citation information.
+
+- **`texts`**: Metadata about the overall text.
+  - `id`: Unique identifier for the text.
+  - `title`: Title of the work.
+  - `author_id`: Foreign key to `authors`.
+
+- **`authors`**: Stores author information.
+  - `id`: Unique identifier for the author.
+  - `name`: Name of the author.
+
+### Query Instructions:
+1. **`spacy_data` JSON**: `spacy_data` holds a `tokens` array, each token a JSON object with:
+   - `text` (original token),
+   - `lemma` (base form),
+   - `pos` (part of speech),
+   - `category` (semantic category).
+   
+   Queries should support filtering on multiple fields in `spacy_data` (e.g., category and part of speech) using `jsonb_array_elements`. Filter tokens to meet all specified criteria (e.g., `category` = "Topography" and `pos` = "NOUN").
+
+2. **Text content matching**: Use case-insensitive matches with wildcards (`ILIKE '%' || :param || '%'`) for flexible text matching in author and category fields.
+
+3. **General structure**: Use a `WITH` clause for the main query logic, joining necessary tables as shown, and ordering results by citation. Return fields like `sentence_id`, `sentence_text`, `sentence_tokens`, and citation details.
+
+### SQL Query Template:
 WITH sentence_matches AS (
     SELECT DISTINCT ON (s.id)
-        s.id as sentence_id,
-        s.content as sentence_text,
-        s.spacy_data as sentence_tokens,
-        MIN(tl.line_number) as min_line_number,
-        td.id as division_id,
-        COALESCE(td.author_name, a.name) as author_name,
-        COALESCE(td.work_name, t.title) as work_name,
+        s.id AS sentence_id,
+        s.content AS sentence_text,
+        s.spacy_data AS sentence_tokens,
+        MIN(tl.line_number) AS min_line_number,
+        td.id AS division_id,
+        COALESCE(td.author_name, a.name) AS author_name,
+        COALESCE(td.work_name, t.title) AS work_name,
         td.volume,
         td.chapter,
         td.section,
         LAG(s.content) OVER (
             PARTITION BY td.id 
             ORDER BY MIN(tl.line_number)
-        ) as prev_sentence,
+        ) AS prev_sentence,
         LEAD(s.content) OVER (
             PARTITION BY td.id 
             ORDER BY MIN(tl.line_number)
-        ) as next_sentence
+        ) AS next_sentence
     FROM sentences s
     JOIN sentence_text_lines stl ON s.id = stl.sentence_id
     JOIN text_lines tl ON stl.text_line_id = tl.id
     JOIN text_divisions td ON tl.division_id = td.id
     JOIN texts t ON td.text_id = t.id
     LEFT JOIN authors a ON t.author_id = a.id
+    WHERE EXISTS (
+        SELECT 1
+        FROM jsonb_array_elements(s.spacy_data::jsonb->'tokens') AS token
+        WHERE token->>'category' ILIKE '%Topography%'
+        AND token->>'pos' = '%NOUN%'
+    )
+    AND (td.author_name ILIKE '%Galenus%' OR a.name ILIKE '%Galenus%')
     GROUP BY 
         s.id, s.content,
         td.id, td.author_name, td.work_name,
@@ -41,20 +92,9 @@ WITH sentence_matches AS (
 )
 SELECT * FROM sentence_matches
 ORDER BY division_id, min_line_number;
-
-Important notes:
-1. For searching in spacy_data JSON field, use: EXISTS (SELECT 1 FROM jsonb_array_elements(CAST(s.spacy_data->'tokens' AS jsonb)) AS token WHERE ...)
-2. For category searches, use: s.categories @> ARRAY[:category]::VARCHAR[]
-3. For citation searches, use td.author_id_field and td.work_number_field
-4. Always include the complete WITH clause and maintain the exact table structure and joins
-5. Keep the ORDER BY clause as shown: division_id, min_line_number
-6. For lemma searches, use: token->>'lemma' = :pattern
-7. For text content searches, use: s.content ILIKE :pattern
-8. For category searches, use: s.categories @> ARRAY[:category]::VARCHAR[]
-
-Task: Generate a SQL query that answers this question: {question}
-
-Only output the SQL query, no explanations or openings. 
+### Task:
+Generate a SQL query to answer this question: {question}
+Only return the SQL query, with no additional explanations or commentary.
 """
 
 # Template for specialized lemma search

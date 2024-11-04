@@ -45,7 +45,7 @@ class QueryResponse(BaseModel):
     usage: Dict[str, int]
     model: str
     raw_response: Optional[Dict[str, Any]]
-    error: Optional[str] = None  # Added error field
+    error: Optional[Dict[str, Any]] = None  # Changed from str to Dict to handle structured errors
 
 class TokenCountResponse(BaseModel):
     count: int
@@ -131,14 +131,13 @@ async def analyze_term(
             "raw_response": response.raw_response
         }
     except LLMServiceError as e:
-        # Convert error to string format
-        error_msg = str(e.detail) if hasattr(e, 'detail') else str(e)
+        error_detail = e.detail if hasattr(e, 'detail') else {"message": str(e)}
         return {
             "text": "",
             "usage": {},
             "model": "",
             "raw_response": None,
-            "error": error_msg
+            "error": error_detail
         }
     except Exception as e:
         return {
@@ -146,7 +145,7 @@ async def analyze_term(
             "usage": {},
             "model": "",
             "raw_response": None,
-            "error": str(e)
+            "error": {"message": str(e), "error_type": "unexpected_error"}
         }
 
 @router.post("/generate-query", response_model=QueryResponse)
@@ -184,15 +183,14 @@ async def generate_query(
             "error": None
         }
     except LLMServiceError as e:
-        # Convert error to string format
-        error_msg = str(e.detail) if hasattr(e, 'detail') else str(e)
+        error_detail = e.detail if hasattr(e, 'detail') else {"message": str(e)}
         return {
             "sql": "",
             "results": [],
             "usage": {},
             "model": "",
             "raw_response": None,
-            "error": error_msg
+            "error": error_detail
         }
     except Exception as e:
         return {
@@ -201,7 +199,7 @@ async def generate_query(
             "usage": {},
             "model": "",
             "raw_response": None,
-            "error": str(e)
+            "error": {"message": str(e), "error_type": "unexpected_error"}
         }
 
 @router.post("/generate-precise-query", response_model=QueryResponse)
@@ -279,14 +277,14 @@ async def generate_precise_query(
             "error": None
         }
     except (LLMServiceError, ValueError) as e:
-        error_msg = str(e.detail) if hasattr(e, 'detail') else str(e)
+        error_detail = e.detail if hasattr(e, 'detail') else {"message": str(e)}
         return {
             "sql": "",
             "results": [],
             "usage": {},
             "model": "",
             "raw_response": None,
-            "error": error_msg
+            "error": error_detail
         }
     except Exception as e:
         return {
@@ -295,7 +293,7 @@ async def generate_precise_query(
             "usage": {},
             "model": "",
             "raw_response": None,
-            "error": str(e)
+            "error": {"message": str(e), "error_type": "unexpected_error"}
         }
 
 @router.post("/token-count", response_model=TokenCountResponse)
@@ -312,17 +310,17 @@ async def count_tokens(
             "within_limits": within_limits
         }
     except LLMServiceError as e:
-        error_msg = str(e.detail) if hasattr(e, 'detail') else str(e)
+        error_detail = e.detail if hasattr(e, 'detail') else {"message": str(e)}
         return {
             "count": 0,
             "within_limits": False,
-            "error": error_msg
+            "error": error_detail
         }
     except Exception as e:
         return {
             "count": 0,
             "within_limits": False,
-            "error": str(e)
+            "error": {"message": str(e), "error_type": "unexpected_error"}
         }
 
 @router.post("/analyze/stream")
@@ -347,11 +345,11 @@ async def analyze_term_stream(
             )
         )
     except LLMServiceError as e:
-        error_msg = str(e.detail) if hasattr(e, 'detail') else str(e)
+        error_detail = e.detail if hasattr(e, 'detail') else {"message": str(e)}
         return {
-            "error": error_msg
+            "error": error_detail
         }
     except Exception as e:
         return {
-            "error": str(e)
+            "error": {"message": str(e), "error_type": "unexpected_error"}
         }

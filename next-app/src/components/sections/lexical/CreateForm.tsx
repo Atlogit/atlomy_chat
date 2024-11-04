@@ -466,11 +466,9 @@ export function CreateForm() {
                 
                 <div className="divider">Short Description</div>
                 <p>{taskStatus.entry.short_description}</p>
-                <p className="mt-2">{taskStatus.entry.short_description}</p>
                 
                 <div className="divider">Long Description</div>
                 <p>{taskStatus.entry.long_description}</p>
-                <p className="mt-2">{taskStatus.entry.long_description}</p>
 
                 <div className="divider">Citations Used</div>
                 <div className="space-y-4">

@@ -80,10 +80,10 @@ class JSONStorageService:
                 "version": data.get("metadata", {}).get("version", "1.0")
             }
             
-            # Save current version
+            # Save current version with proper JSON serialization
             current_file = self._get_file_path(lemma)
             with open(current_file, 'w', encoding='utf-8') as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
+                json.dump(data, f, ensure_ascii=False, indent=2, default=str)
             logger.info(f"Saved current version: {current_file}")
             
             # Create versioned copy if requested

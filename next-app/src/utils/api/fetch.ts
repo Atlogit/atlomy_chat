@@ -38,26 +38,34 @@ export async function fetchApi<T>(
     // Handle non-ok responses
     if (!response.ok) {
       let errorMessage = `HTTP error! status: ${response.status}`;
-      let errorDetail = '';
+      let errorDetail = null;
       
       // Try to parse error response if it exists
       if (responseText) {
         try {
           const errorJson = JSON.parse(responseText);
-          if (errorJson.detail) {
+          if (errorJson.error) {
+            // Handle structured error object
+            if (typeof errorJson.error === 'object') {
+              errorMessage = errorJson.error.message || errorMessage;
+              errorDetail = errorJson.error;
+            } else {
+              errorDetail = { message: errorJson.error };
+            }
+          } else if (errorJson.detail) {
             // Handle structured error details from backend
             if (typeof errorJson.detail === 'object') {
               errorMessage = errorJson.detail.message || errorMessage;
-              errorDetail = JSON.stringify(errorJson.detail, null, 2);
-            } else {
               errorDetail = errorJson.detail;
+            } else {
+              errorDetail = { message: errorJson.detail };
             }
           } else if (errorJson.message) {
-            errorDetail = errorJson.message;
+            errorDetail = { message: errorJson.message };
           }
         } catch (e) {
           // If response is not JSON, use the raw text
-          errorDetail = responseText;
+          errorDetail = { message: responseText };
         }
       }
 
@@ -66,14 +74,14 @@ export async function fetchApi<T>(
         throw {
           message: 'Resource not found',
           status: 404,
-          detail: errorDetail || 'The requested resource could not be found'
+          detail: errorDetail || { message: 'The requested resource could not be found' }
         } as ApiError;
       }
 
       throw {
         message: errorMessage,
         status: response.status,
-        detail: errorDetail || `Server returned status ${response.status}`
+        detail: errorDetail || { message: `Server returned status ${response.status}` }
       } as ApiError;
     }
 
@@ -93,7 +101,10 @@ export async function fetchApi<T>(
       console.error('Raw response:', responseText);
       throw {
         message: 'Invalid JSON response from server',
-        detail: `Failed to parse response: ${responseText.substring(0, 100)}${responseText.length > 100 ? '...' : ''}`
+        detail: {
+          message: `Failed to parse response: ${responseText.substring(0, 100)}${responseText.length > 100 ? '...' : ''}`,
+          error_type: 'parse_error'
+        }
       } as ApiError;
     }
   } catch (error) {
@@ -108,12 +119,13 @@ export async function fetchApi<T>(
     throw {
       message: error instanceof Error ? error.message : 'An unexpected error occurred',
       status: 500,
-      detail: error instanceof Error ? error.stack : 
-             typeof error === 'object' ? 
-               (Object.keys(error || {}).length === 0 ? 
-                 'No error details available' : 
-                 JSON.stringify(error, null, 2)) : 
-               String(error)
+      detail: error instanceof Error ? 
+        { message: error.stack || error.message, error_type: 'unexpected_error' } : 
+        typeof error === 'object' ? 
+          (Object.keys(error || {}).length === 0 ? 
+            { message: 'No error details available', error_type: 'empty_error' } : 
+            { ...error, error_type: 'structured_error' }) : 
+          { message: String(error), error_type: 'unknown_error' }
     } as ApiError;
   }
 }
