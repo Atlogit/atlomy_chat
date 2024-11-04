@@ -235,13 +235,14 @@ async def get_task_status(task_id: str):
 @router.get("/get/{lemma}")
 async def get_lexical_value(
     lemma: str,
+    version: Optional[str] = None,
     db: AsyncSession = Depends(get_db)
 ):
     """Get a lexical value by its lemma."""
     try:
-        logger.info(f"Getting lexical value for: {lemma}")
+        logger.info(f"Getting lexical value for: {lemma} (version: {version})")
         lexical_service = LexicalService(db)
-        entry = await lexical_service.get_lexical_value(lemma)
+        entry = await lexical_service.get_lexical_value(lemma, version)
         
         if entry:
             logger.debug(f"Found lexical value for {lemma}")

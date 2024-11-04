@@ -40,40 +40,48 @@ class LexicalService:
         self.cache_ttl = 3600  # 1 hour cache TTL
         logger.info("Initialized LexicalService")
 
-    async def _get_cached_value(self, lemma: str) -> Optional[Dict]:
+    async def _get_cached_value(self, lemma: str, version: Optional[str] = None) -> Optional[Dict]:
         """Get lexical value from cache if available."""
         try:
-            cache_key = f"lexical_value:{lemma}"
+            cache_key = f"lexical_value:{lemma}:{version}" if version else f"lexical_value:{lemma}"
             cached = await redis_client.get(cache_key)
             if cached:
-                logger.info(f"Cache hit for lexical value: {lemma}")
+                logger.info(f"Cache hit for lexical value: {lemma} (version: {version})")
                 return json.loads(cached)
             else:
-                logger.info(f"Cache miss for lexical value: {lemma}")
+                logger.info(f"Cache miss for lexical value: {lemma} (version: {version})")
                 return None
         except Exception as e:
             logger.error(f"Cache error for lexical value {lemma}: {str(e)}")
             return None
 
-    async def _cache_value(self, lemma: str, data: Dict):
+    async def _cache_value(self, lemma: str, data: Dict, version: Optional[str] = None):
         """Cache lexical value data."""
         try:
-            cache_key = f"lexical_value:{lemma}"
+            cache_key = f"lexical_value:{lemma}:{version}" if version else f"lexical_value:{lemma}"
             await redis_client.set(
                 cache_key,
                 json.dumps(data),
                 ttl=self.cache_ttl
             )
-            logger.info(f"Cached lexical value: {lemma}")
+            logger.info(f"Cached lexical value: {lemma} (version: {version})")
         except Exception as e:
             logger.error(f"Failed to cache lexical value {lemma}: {str(e)}")
 
     async def _invalidate_cache(self, lemma: str):
         """Invalidate lexical value cache."""
         try:
-            cache_key = f"lexical_value:{lemma}"
-            await redis_client.delete(cache_key)
-            logger.info(f"Invalidated cache for lexical value: {lemma}")
+            # Get all versions
+            versions = await self.get_json_versions(lemma)
+            
+            # Delete cache for current version
+            await redis_client.delete(f"lexical_value:{lemma}")
+            
+            # Delete cache for all versions
+            for version in versions:
+                await redis_client.delete(f"lexical_value:{lemma}:{version}")
+                
+            logger.info(f"Invalidated cache for lexical value: {lemma} and all versions")
         except Exception as e:
             logger.error(f"Failed to invalidate cache for {lemma}: {str(e)}")
 
@@ -211,21 +219,25 @@ class LexicalService:
             logger.error(f"Error creating lexical value for {lemma}: {str(e)}", exc_info=True)
             raise
 
-    async def get_lexical_value(self, lemma: str) -> Optional[LexicalValue]:
+    async def get_lexical_value(self, lemma: str, version: Optional[str] = None) -> Optional[LexicalValue]:
         """Get a lexical value by its lemma with linked citations."""
         try:
             # Try cache first
-            cached = await self._get_cached_value(lemma)
+            cached = await self._get_cached_value(lemma, version)
             if cached:
                 return LexicalValue.from_dict(cached)
 
-            # Try JSON storage
-            json_data = self.json_storage.load(lemma)
+            # Try JSON storage with version
+            json_data = self.json_storage.load(lemma, version)
             if json_data:
-                await self._cache_value(lemma, json_data)
+                await self._cache_value(lemma, json_data, version)
                 return LexicalValue.from_dict(json_data)
 
-            # Query database with proper relationship loading
+            # If version was requested but not found, return None
+            if version:
+                return None
+
+            # Query database for current version
             query = (
                 select(LexicalValue)
                 .where(LexicalValue.lemma == lemma)

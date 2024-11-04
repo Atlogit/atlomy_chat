@@ -51,13 +51,10 @@ export function CreateForm() {
   const [batchProgress, setBatchProgress] = useState<BatchCreateResponse | null>(null)
   const [selectedCitation, setSelectedCitation] = useState<Citation | string | null>(null)
   const [showCitationModal, setShowCitationModal] = useState(false)
-  const [versions, setVersions] = useState<string[]>([])
-  const [selectedVersion, setSelectedVersion] = useState<string | null>(null)
   
   const createApi = useApi<CreateResponse>()
   const batchCreateApi = useApi<BatchCreateResponse>()
   const statusApi = useApi<TaskStatus>()
-  const versionsApi = useApi<{ versions: string[] }>()
 
   // Task status polling
   useEffect(() => {
@@ -79,11 +76,6 @@ export function CreateForm() {
               if (status.status === 'completed' && status.action === 'update') {
                 setExistingEntry(status.entry || null)
                 setShowUpdateConfirmation(true)
-              }
-
-              // Load versions if entry was created/updated successfully
-              if (status.status === 'completed' && status.entry) {
-                loadVersions(status.entry.lemma)
               }
             }
           }
@@ -107,20 +99,6 @@ export function CreateForm() {
       if (intervalId) clearInterval(intervalId)
     }
   }, [taskId, statusApi, retryCount])
-
-  /**
-   * Loads available versions for a lemma
-   */
-  const loadVersions = async (lemma: string) => {
-    try {
-      const result = await versionsApi.execute(API.lexical.versions(lemma), { method: 'GET' })
-      if (result) {
-        setVersions(result.versions)
-      }
-    } catch (err) {
-      console.error('Error loading versions:', err)
-    }
-  }
 
   /**
    * Handles the form submission to create a new lexical value.
@@ -428,27 +406,6 @@ export function CreateForm() {
             </div>
           )}
 
-          {/* Version Selection */}
-          {versions.length > 0 && (
-            <div className="form-control">
-              <label className="label">
-                <span className="label-text">Version</span>
-              </label>
-              <select
-                className="select select-bordered"
-                value={selectedVersion || ''}
-                onChange={(e) => setSelectedVersion(e.target.value || null)}
-              >
-                <option value="">Latest Version</option>
-                {versions.map((version) => (
-                  <option key={version} value={version}>
-                    Version {version}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
           {/* Error Display */}
           {(createApi.error || statusApi.error) && (
             <div className="mt-4">
@@ -469,7 +426,14 @@ export function CreateForm() {
                 
                 <div className="divider">Long Description</div>
                 <p>{taskStatus.entry.long_description}</p>
-
+                
+                <div className="divider">Related Terms</div>
+                <div className="flex flex-wrap gap-2">
+                  {taskStatus.entry.related_terms?.map((term: string, index: number) => (
+                    <div key={`${term}-${index}`} className="badge badge-primary">{term}</div>
+                  ))}
+                </div>
+                
                 <div className="divider">Citations Used</div>
                 <div className="space-y-4">
                   {taskStatus.entry.citations_used?.map((citation: Citation | string, index: number) => (
@@ -485,13 +449,6 @@ export function CreateForm() {
                     <div key={index}>
                       {renderCitation(citation)}
                     </div>
-                  ))}
-                </div>
-                
-                <div className="divider">Related Terms</div>
-                <div className="flex flex-wrap gap-2">
-                  {taskStatus.entry.related_terms?.map((term: string, index: number) => (
-                    <div key={`${term}-${index}`} className="badge badge-primary">{term}</div>
                   ))}
                 </div>
                 

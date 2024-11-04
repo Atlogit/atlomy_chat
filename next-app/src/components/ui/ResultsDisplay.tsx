@@ -142,6 +142,17 @@ export function ResultsDisplay({
                 </>
               )}
 
+              {content.related_terms && content.related_terms.length > 0 && (
+                <>
+                  <div className="divider">Related Terms</div>
+                  <div className="flex flex-wrap gap-2">
+                    {content.related_terms.map((term: string, index: number) => (
+                      <div key={index} className="badge badge-primary">{term}</div>
+                    ))}
+                  </div>
+                </>
+              )}
+              
               {content.citations_used && content.citations_used.length > 0 && (
                 <>
                   <div className="divider">Citations Used</div>
@@ -167,17 +178,6 @@ export function ResultsDisplay({
                 </>
               )}
 
-              {content.related_terms && content.related_terms.length > 0 && (
-                <>
-                  <div className="divider">Related Terms</div>
-                  <div className="flex flex-wrap gap-2">
-                    {content.related_terms.map((term: string, index: number) => (
-                      <div key={index} className="badge badge-primary">{term}</div>
-                    ))}
-                  </div>
-                </>
-              )}
-              
               {(content.created_at || content.updated_at || content.version) && (
                 <>
                   <div className="divider">Version Info</div>
