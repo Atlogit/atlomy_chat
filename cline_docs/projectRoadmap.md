@@ -17,7 +17,7 @@
 - [x] Modern web interface for system access
 - [x] Parallel processing for batch operations
 - [ ] Chatbot interface for user queries
-- [ ] Fact-based response system with reference backing
+- [x] Fact-based response system with reference backing
 - [ ] Multi-source reference integration (TLG and beyond)
 - [ ] Customizable citation formatting
 
@@ -47,7 +47,7 @@
 - [x] Implement single attempt creation for lexical values
 - [x] Enhance corpus manager UI with improved loading and state management
 - [ ] Develop chatbot interface
-- [ ] Implement fact-based response system
+- [x] Implement fact-based response system
 - [ ] Conduct thorough testing and refinement
 - [ ] Deploy the application
 - [ ] Develop integrations for non-TLG ancient text sources

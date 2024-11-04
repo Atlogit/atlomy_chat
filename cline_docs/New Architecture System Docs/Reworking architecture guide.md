@@ -173,18 +173,15 @@ CREATE TABLE lemma_analyses (
 - **Citation Structure**: Text divisions now include both citation components (author_id_field, work_number_field, etc.) and structural components (volume, chapter, line, section) to support flexible citation formats.
 - **Title Support**: Added title-specific fields (is_title, title_number, title_text) to handle title entries properly.
 - **JSONB Columns**: Fields like `metadata`, `spacy_tokens`, and `division_metadata` use JSONB for flexible storage of variable attributes.
-- **Relationships**: Tables are linked through foreign keys to maintain referential integrity and streamline queries.
+- **Relationships**: Tables are linked through foreign keys (e.g., `lemmas` to `lemma_analyses`, `text_divisions` to `text_lines`) to maintain referential integrity and streamline queries.
 - **Categories**: Text lines include a categories array for efficient categorization and searching.
-- **Indexes**: Create indexes on frequently queried fields:
+- **Indexes**: Create indexes on frequently queried fields like `lemma`, `category`, and token properties within `spacy_tokens`:
   ```sql
   CREATE INDEX idx_text_divisions_citation ON text_divisions(author_id_field, work_number_field);
   CREATE INDEX idx_text_lines_categories ON text_lines USING GIN(categories);
   CREATE INDEX idx_text_lines_spacy_tokens ON text_lines USING GIN(spacy_tokens);
   ```
 
-- **JSONB Columns**: Fields like `metadata` and `spacy_tokens` are JSONB, allowing for flexible storage of variable token attributes and custom metadata.
-- **Relationships**: Tables are linked through foreign keys (e.g., `lemmas` to `lemma_analyses`, `text_divisions` to `text_lines`) to maintain referential integrity and streamline queries.
-- **Indexes**: Create indexes on frequently queried fields like `lemma`, `category`, and token properties within `spacy_tokens`.
 
 ---
 

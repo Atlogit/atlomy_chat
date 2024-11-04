@@ -6,7 +6,7 @@
 ### 1. Initialize Database
 ```bash
 # Create database
-createdb ancient_texts_db
+createdb amta_greek
 
 # Initialize Alembic
 alembic init migrations
@@ -119,9 +119,5 @@ async def test_performance():
 ```
 
 ## Next Steps
-- Follow [Coda Migration Guide](coda_migration.md)
-- Review [Elasticsearch Migration](elastic_migration.md)
-- Implement using [Toolkit Guide](../implementation/toolkit_guide.md)
 ```
 
-Would you like me to continue with the remaining documentation files?

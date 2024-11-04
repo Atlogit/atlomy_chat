@@ -1,151 +1,166 @@
-# Technology Stack
+# Tech Stack
 
-## Backend
+This document outlines the key technologies, frameworks, and tools used in the Ancient Medical Texts Analysis App.
 
-### Core Framework
-- FastAPI: Modern, fast web framework
-- Uvicorn: ASGI server
-- Python 3.9+: Language runtime
+## Core Technologies
 
-### Database
-- PostgreSQL: Primary database
+### Programming Languages
+- Python 3.9+: Primary language for backend development and NLP tasks
+- TypeScript 5.6.3: Frontend development with type safety
+- HTML/CSS: Frontend structure and styling with Tailwind CSS
+
+### Backend Framework
+- FastAPI: Modern, high-performance web framework
+  - RESTful API endpoints
+  - Static file serving
+  - Automatic OpenAPI documentation
+  - Built-in error handling
+  - SSE (Server-Sent Events) support via sse-starlette
+- Uvicorn: ASGI server implementation
+
+### Database & Storage
+- PostgreSQL with asyncpg driver
+  - JSONB for flexible data storage
+  - Async database operations
 - SQLAlchemy: ORM and database toolkit
 - Alembic: Database migrations
-- JSONB: For flexible data storage
+- Redis (aioredis >= 2.0.0): Caching layer
+- AWS S3 (boto3): Cloud storage
+
+### Data Processing
+- Pandas: Data manipulation and analysis
+- NumPy: Numerical computing
+- Pydantic: Data validation
+- Typing extensions: Enhanced type hints
+
+### Frontend
+- Next.js 15.0.1: React framework
+  - Server-side rendering
+  - API routes
+  - File-based routing
+  - Built-in optimization
+- React 18.3.1: UI library
+- TypeScript: Static typing
+- TailwindCSS 3.4.14: Utility-first CSS framework
+  - Just-In-Time engine
+  - Built-in PurgeCSS
+  - Modern browser support
+  - Custom plugin support
+- DaisyUI 4.12.13: Component library
+  - Pre-built UI components
+  - Theme system
+  - Responsive design
+  - Accessibility features
+
+## NLP & Machine Learning
+
+### Core NLP Stack
+- spaCy with CUDA 12.x support
+  - Transformer models
+  - Entity recognition
+  - Linguistic annotations
+- spaCy-transformers: Advanced NLP capabilities
+- spaCy-lookups-data: Additional linguistic data
 
 ### LLM Integration
-- Architecture:
-  - Modular service design
-  - Provider-agnostic interface
-  - Specialized components for different tasks
-- Components:
-  1. BaseLLMService: Core functionality
-  2. LexicalLLMService: Lexical analysis
-  3. QueryLLMService: SQL generation
-  4. AnalysisLLMService: Text analysis
-- Providers:
-  - AWS Bedrock (Claude): Primary LLM
-  - Extensible for other providers
-- Features:
-  - Token counting
-  - Context length management
-  - Error handling
+- LangChain: LLM framework
+- AWS Bedrock integration via langchain-aws
+- Custom services:
+  - Token management
+  - Context handling
   - Streaming support
-
-### Storage
-- JSON file system for lexical values
-- Redis for caching
-- AWS S3 for backups
-
-### Text Processing
-- spaCy: NLP toolkit
-- Custom tokenizers
-- Citation processors
-
-## Frontend
-
-### Framework
-- Next.js: React framework
-- TypeScript: Type safety
-- TailwindCSS: Styling
-
-### State Management
-- React Query: Server state
-- Context API: Local state
-- Custom hooks
-
-### Components
-- Modular design
-- Reusable patterns
-- Type-safe props
-
-## Infrastructure
-
-### Deployment
-- Docker containers
-- AWS hosting
-- CI/CD pipelines
-
-### Monitoring
-- Custom logging
-- Error tracking
-- Performance metrics
 
 ## Development Tools
 
-### Code Quality
-- ESLint: JavaScript/TypeScript linting
-- Pylint: Python linting
-- Black: Python formatting
-- Prettier: Frontend formatting
+### Version Control
+- Git: Source code management
+- GitPython: Git operations from Python
 
-### Testing
-- pytest: Backend testing
-- Jest: Frontend testing
-- React Testing Library
-- Integration tests
+### Code Quality & Testing
+- ESLint 9.13.0: JavaScript/TypeScript linting
+- Jest 29.7.0: JavaScript testing
+  - jest-environment-jsdom
+  - @testing-library/jest-dom
+  - @testing-library/react
+  - @testing-library/user-event
+- Pytest: Python testing
+  - pytest-asyncio
+  - pytest-cov
+  - Coverage reporting
+- TypeScript type checking
+
+### Build Tools
+- Node.js (>= 20.18.0 LTS): JavaScript runtime
+- NPM (>= 10.8.2): Package management
+- PostCSS 8.4.47: CSS processing
+  - Autoprefixer 10.4.20
+  - Plugin ecosystem
+- Babel 7.x: JavaScript compiler
+  - React JSX support
+  - TypeScript support
+
+## Build Process
+
+### Development
+1. Frontend development:
+   ```bash
+   npm run dev  # Next.js development server
+   ```
+   - Hot module replacement
+   - Fast refresh
+   - TypeScript compilation
+
+2. CSS processing:
+   ```bash
+   npm run dev  # Tailwind watch mode
+   ```
+   - Watches input.css
+   - Compiles Tailwind utilities
+   - Updates styles.css in real-time
+
+3. Backend development:
+   ```bash
+   uvicorn app.main:app --reload
+   ```
+   - Auto-reload
+   - Debug mode
+   - API documentation
+
+### Production
+1. Frontend build:
+   ```bash
+   npm run build
+   ```
+   - Production optimization
+   - Code splitting
+   - Static generation
+
+2. CSS optimization:
+   ```bash
+   npm run build  # Tailwind production build
+   ```
+   - Purges unused CSS
+   - Minifies output
+   - Optimizes for production
+
+## Additional Tools
+
+### HTTP Clients
+- HTTPX: Async HTTP client
+- Async support via asyncio
+
+### Environment & Configuration
+- python-dotenv: Environment variables
+- pydantic-settings: Settings management
+
+### Logging & Monitoring
+- Loguru: Enhanced logging
+- Custom logging configuration
+- Performance monitoring
 
 ### Documentation
-- Markdown documentation
-- API documentation
-- Architecture diagrams
-- Code comments
+- Automatic API documentation (FastAPI)
+- Type hints and docstrings
+- Inline code documentation
 
-## Security
-
-### Authentication
-- JWT tokens
-- Session management
-- Role-based access
-
-### Data Protection
-- Encryption at rest
-- Secure API endpoints
-- Input validation
-
-## Integration Points
-
-### APIs
-- RESTful endpoints
-- WebSocket connections
-- Server-sent events
-
-### External Services
-- AWS services
-- Database connections
-- Cache layers
-
-## Development Workflow
-
-### Version Control
-- Git
-- Feature branches
-- Pull request reviews
-
-### CI/CD
-- Automated testing
-- Deployment pipelines
-- Environment management
-
-### Monitoring
-- Error tracking
-- Performance metrics
-- Usage analytics
-
-## Future Considerations
-
-### Scalability
-- Horizontal scaling
-- Load balancing
-- Caching strategies
-
-### Maintenance
-- Dependency updates
-- Security patches
-- Performance optimization
-
-### Features
-- Additional LLM providers
-- Enhanced analysis tools
-- Improved UI/UX
-- Mobile support
+Note: This tech stack document reflects the current state of the project with all dependencies updated to their latest stable versions as found in package.json, requirements.txt, and various configuration files. The modern tooling ensures optimal development experience, robust testing, efficient API handling, and production performance while maintaining compatibility with current web standards.
