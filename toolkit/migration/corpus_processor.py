@@ -7,7 +7,7 @@ and their NLP analysis.
 """
 
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 from pathlib import Path
 import spacy
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -47,20 +47,70 @@ class CorpusProcessor:
             model_path=model_path,
             use_gpu=use_gpu
         )
-        
-    def _convert_to_parser_text_line(self, db_line: TextLine) -> ParserTextLine:
-        """Convert database TextLine to parser TextLine.
+
+    def _find_line_position(self, sentence_text: str, line_content: str, prev_end: int = 0) -> Tuple[int, int]:
+        """Find the position of a line's content within a sentence, handling hyphenation.
         
         Args:
-            db_line: Database TextLine model instance
+            sentence_text: The complete sentence text
+            line_content: The content of the current line
+            prev_end: The end position of the previous line
             
         Returns:
-            Parser TextLine instance
+            Tuple of (start_position, end_position)
         """
+        # Clean the texts
+        clean_sentence = sentence_text.strip()
+        clean_line = line_content.strip()
+        
+        # Handle hyphenated words
+        if clean_line.endswith('-'):
+            # Remove hyphen for matching
+            clean_line = clean_line.rstrip('-')
+            # Find where this partial word appears after the previous position
+            pos = clean_sentence.find(clean_line, prev_end)
+            if pos >= 0:
+                # For hyphenated words, extend the end position to include the rest of the word
+                # Find the end of the word in the sentence
+                space_pos = clean_sentence.find(' ', pos + len(clean_line))
+                if space_pos >= 0:
+                    return (pos, space_pos)
+                else:
+                    return (pos, len(clean_sentence))
+                
+        # Try exact match first
+        pos = clean_sentence.find(clean_line, prev_end)
+        if pos >= 0:
+            return (pos, pos + len(clean_line))
+            
+        # If exact match fails, try matching word by word
+        words = clean_line.split()
+        if not words:
+            return (-1, -1)
+            
+        # Find first word after previous position
+        start_pos = clean_sentence.find(words[0], prev_end)
+        if start_pos < 0:
+            # Try finding the word without any preceding punctuation
+            clean_word = ''.join(c for c in words[0] if c.isalpha())
+            if clean_word:
+                start_pos = clean_sentence.find(clean_word, prev_end)
+                if start_pos < 0:
+                    return (-1, -1)
+            
+        # Find last word
+        end_pos = clean_sentence.find(words[-1], start_pos) + len(words[-1])
+        if end_pos < start_pos:
+            return (-1, -1)
+            
+        return (start_pos, end_pos)
+
+    def _convert_to_parser_text_line(self, db_line: TextLine) -> ParserTextLine:
+        """Convert database TextLine to parser TextLine."""
         return ParserTextLine(
             content=str(db_line.content) if db_line.content else "",
-            citation=None,  # We don't need citation for sentence parsing
-            is_title=False  # We don't need title info for sentence parsing
+            citation=None,
+            is_title=False
         )
 
     def _process_doc_to_dict(self, doc: spacy.tokens.Doc) -> Dict[str, Any]:
@@ -282,7 +332,9 @@ class CorpusProcessor:
                             self.session.add(new_sentence)
                             await self.session.flush()  # Get the sentence ID
 
-
+                            # Track position in sentence for line mapping
+                            prev_end = 0
+                            
                             # Map NLP results back to individual lines
                             for source_line in sentence.source_lines:
                                 db_line = next(
@@ -302,17 +354,22 @@ class CorpusProcessor:
                                         db_line.spacy_tokens = line_analysis
                                         db_line.categories = self._extract_categories(line_analysis)
                                         
-                                        # Create sentence-line association with positions
-                                        #start_pos = sentence.content.find(source_line.content)
-                                        #end_pos = start_pos + len(source_line.content)
-                                        
-                                        stmt = sentence_text_lines.insert().values(
-                                            sentence_id=new_sentence.id,
-                                            text_line_id=db_line.id,
-                                            position_start=doc.text.find(source_line.content),
-                                            position_end=doc.text.find(source_line.content) + len(source_line.content)
+                                        # Find line position in sentence text
+                                        start_pos, end_pos = self._find_line_position(
+                                            doc.text,
+                                            source_line.content,
+                                            prev_end
                                         )
-                                        await self.session.execute(stmt)
+                                        
+                                        if start_pos >= 0:
+                                            stmt = sentence_text_lines.insert().values(
+                                                sentence_id=new_sentence.id,
+                                                text_line_id=db_line.id,
+                                                position_start=start_pos,
+                                                position_end=end_pos
+                                            )
+                                            await self.session.execute(stmt)
+                                            prev_end = end_pos
                                             
                             await self.session.flush()
                     
