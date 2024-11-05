@@ -33,6 +33,27 @@ export function PaginatedResults({
     setPaginatedResults(pageResults)
   }, [results, currentPage, pageSize])
 
+  const formatCitation = (result: SearchResult): string => {
+    const authorWork = result.author_name && result.work_name ? 
+      `${result.author_name}, ${result.work_name}` :
+      'Unknown Source'
+
+    const locationParts = [
+      result.volume && `Volume ${result.volume}`,
+      result.chapter && `Chapter ${result.chapter}`,
+      result.section && `Section ${result.section}`,
+      result.line_numbers?.length > 0 && (
+        result.line_numbers.length === 1 
+          ? `Line ${result.line_numbers[0]}`
+          : `Lines ${result.line_numbers[0]}-${result.line_numbers[result.line_numbers.length - 1]}`
+      )
+    ].filter(Boolean)
+    
+    const location = locationParts.length > 0 ? `(${locationParts.join(', ')})` : ''
+    
+    return location ? `${authorWork} ${location}` : authorWork
+  }
+
   if (isLoading) {
     return (
       <div className={`space-y-4 ${className}`}>
@@ -63,36 +84,36 @@ export function PaginatedResults({
 
       <div className="space-y-4">
         {paginatedResults.map((result, index) => (
-          <div key={`${result.sentence_id || index}-${index}`} className="p-4 bg-base-200 rounded-lg">
-            <div className="mb-2">
-              <span className="font-semibold">Source: </span>
-              <span>
-                {[result.author_name, result.work_name].filter(Boolean).join(' - ') || 'Unknown source'}
-              </span>
-              {(result.volume || result.chapter || result.section) && (
-                <span className="ml-2 text-base-content/70">
-                  ({[
-                    result.volume && `Vol. ${result.volume}`,
-                    result.chapter && `Ch. ${result.chapter}`,
-                    result.section && `Sec. ${result.section}`
-                  ].filter(Boolean).join(', ')})
-                </span>
-              )}
+          <div key={`${result.sentence_id || index}-${index}`} className="card bg-base-200 p-4">
+            {/* Citation Header */}
+            <div className="flex justify-between items-start">
+              <div className="font-medium">{formatCitation(result)}</div>
             </div>
             
+            {/* Previous Sentence Context */}
             {result.prev_sentence && (
-              <div className="text-base-content/70 mb-2">{result.prev_sentence}</div>
-            )}
-            
-            <div className="font-medium">{result.sentence_text || 'No text available'}</div>
-            
-            {result.next_sentence && (
-              <div className="text-base-content/70 mt-2">{result.next_sentence}</div>
-            )}
-            
-            {result.line_numbers && result.line_numbers.length > 0 && (
               <div className="mt-2 text-sm text-base-content/70">
-                Line numbers: {result.line_numbers.join(', ')}
+                {result.prev_sentence}
+              </div>
+            )}
+            
+            {/* Main Sentence */}
+            <div className="mt-2 text-base font-medium border-l-4 border-primary pl-4 py-2">
+              {result.sentence_text || 'No text available'}
+            </div>
+            
+            {/* Next Sentence Context */}
+            {result.next_sentence && (
+              <div className="mt-2 text-sm text-base-content/70">
+                {result.next_sentence}
+              </div>
+            )}
+            
+            {/* Line Context - Only show if different from sentence text */}
+            {result.line_text && result.line_text !== result.sentence_text && (
+              <div className="mt-4 text-sm">
+                <span className="font-medium">Line Context: </span>
+                <span className="text-base-content/70">{result.line_text}</span>
               </div>
             )}
           </div>

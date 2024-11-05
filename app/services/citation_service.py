@@ -84,14 +84,18 @@ class CitationService:
                 for key, value in division_data.items():
                     setattr(division, key, value)
             
-            # Get line number and ensure it's a list
-            line_number = row.get("min_line_number")
-            line_numbers = [line_number] if line_number else []
+            # Get line numbers from the row
+            line_numbers = row.get("line_numbers", [])
+            if not line_numbers and row.get("min_line_number"):
+                # Fallback to min/max if line_numbers array not available
+                min_line = row.get("min_line_number")
+                max_line = row.get("max_line_number", min_line)
+                line_numbers = list(range(min_line, max_line + 1))
             
-            # Create line ID if we have both text ID and line number
+            # Create line ID if we have both text ID and line numbers
             line_id = ""
-            if division_data and division_data.get('text_id') and line_number:
-                line_id = f"{division_data['text_id']}-{line_number}"
+            if division_data and division_data.get('text_id') and line_numbers:
+                line_id = f"{division_data['text_id']}-{line_numbers[0]}"
             
             # Use author_name directly from the row data
             author_name = row.get('author_name')
@@ -157,12 +161,22 @@ class CitationService:
                 work_name=citation['source']['work'],
                 volume=citation['location'].get('volume'),
                 chapter=citation['location'].get('chapter'),
-                line=citation['context'].get('line_numbers', [None])[0],
                 section=citation['location'].get('section')
             )
             
+            # Get line numbers and determine if it's a range
+            line_numbers = citation['context'].get('line_numbers', [])
+            if len(line_numbers) > 1:
+                line_text = f"Lines {line_numbers[0]}-{line_numbers[-1]}"
+            elif len(line_numbers) == 1:
+                line_text = f"Line {line_numbers[0]}"
+            else:
+                line_text = None
+            
             # Format citation using TextDivision's method
             citation_text = division.format_citation(abbreviated=abbreviated)
+            if line_text:
+                citation_text = f"{citation_text} ({line_text})"
             
             # Append sentence text if available
             if citation['sentence'].get('text'):

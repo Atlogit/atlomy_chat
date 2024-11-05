@@ -41,64 +41,15 @@ class AnalysisResponse(BaseModel):
 
 class QueryResponse(BaseModel):
     sql: str
-    results: List[Dict[str, Any]]  # Changed from List[Citation] to handle warnings
+    results: List[Citation]  # Now using Citation directly
     usage: Dict[str, int]
     model: str
     raw_response: Optional[Dict[str, Any]]
-    error: Optional[Dict[str, Any]] = None  # Changed from str to Dict to handle structured errors
+    error: Optional[str] = None
 
 class TokenCountResponse(BaseModel):
     count: int
     within_limits: bool
-
-def format_citation_for_frontend(citation_text: str) -> Dict[str, Any]:
-    """Format a citation text into structured data for frontend display."""
-    # Split citation into metadata and text parts
-    parts = citation_text.split(":")
-    if len(parts) < 2:
-        return {
-            "id": "",
-            "sentence_text": citation_text,
-            "author_name": "",
-            "work_name": "",
-            "volume": None,
-            "chapter": None,
-            "section": None,
-            "line_numbers": []
-        }
-    
-    metadata = parts[0].split(",")
-    text = ":".join(parts[1:]).strip()
-    
-    # Initialize result with default values
-    result = {
-        "id": "",
-        "sentence_text": text,
-        "author_name": "",
-        "work_name": "",
-        "volume": None,
-        "chapter": None,
-        "section": None,
-        "line_numbers": []
-    }
-    
-    # Parse metadata parts
-    for part in metadata:
-        part = part.strip()
-        if "Chapter" in part:
-            result["chapter"] = part.replace("Chapter", "").strip()
-        elif "Line" in part:
-            try:
-                line_num = int(part.replace("Line", "").strip())
-                result["line_numbers"] = [line_num]
-            except ValueError:
-                pass
-        elif not result["author_name"]:
-            result["author_name"] = part
-        elif not result["work_name"]:
-            result["work_name"] = part
-    
-    return result
 
 # Routes
 @router.post("/analyze", response_model=AnalysisResponse)
@@ -131,13 +82,13 @@ async def analyze_term(
             "raw_response": response.raw_response
         }
     except LLMServiceError as e:
-        error_detail = e.detail if hasattr(e, 'detail') else {"message": str(e)}
+        error_msg = str(e.detail) if hasattr(e, 'detail') else str(e)
         return {
             "text": "",
             "usage": {},
             "model": "",
             "raw_response": None,
-            "error": error_detail
+            "error": error_msg
         }
     except Exception as e:
         return {
@@ -145,7 +96,7 @@ async def analyze_term(
             "usage": {},
             "model": "",
             "raw_response": None,
-            "error": {"message": str(e), "error_type": "unexpected_error"}
+            "error": str(e)
         }
 
 @router.post("/generate-query", response_model=QueryResponse)
@@ -156,41 +107,28 @@ async def generate_query(
     """Generate and execute a SQL query from a natural language question."""
     try:
         # Generate and execute query
-        sql_query, citations_text = await llm_service.generate_and_execute_query(
+        sql_query, citations = await llm_service.generate_and_execute_query(
             question=data.question,
             max_tokens=data.max_tokens
         )
         
-        # Format results for frontend
-        formatted_results = []
-        if isinstance(citations_text, str):
-            # Split the citations text into individual citations
-            citations = citations_text.split("\n\n")
-            for idx, citation in enumerate(citations):
-                if citation.strip():
-                    formatted_citation = format_citation_for_frontend(citation)
-                    formatted_citation["id"] = str(idx)  # Ensure unique ID
-                    formatted_results.append(formatted_citation)
-        elif isinstance(citations_text, list):
-            formatted_results = citations_text
-        
         return {
             "sql": sql_query,
-            "results": formatted_results,
+            "results": citations,  # Now passing Citation objects directly
             "usage": {},
             "model": "",
             "raw_response": None,
             "error": None
         }
     except LLMServiceError as e:
-        error_detail = e.detail if hasattr(e, 'detail') else {"message": str(e)}
+        error_msg = str(e.detail) if hasattr(e, 'detail') else str(e)
         return {
             "sql": "",
             "results": [],
             "usage": {},
             "model": "",
             "raw_response": None,
-            "error": error_detail
+            "error": error_msg
         }
     except Exception as e:
         return {
@@ -199,7 +137,7 @@ async def generate_query(
             "usage": {},
             "model": "",
             "raw_response": None,
-            "error": {"message": str(e), "error_type": "unexpected_error"}
+            "error": str(e)
         }
 
 @router.post("/generate-precise-query", response_model=QueryResponse)
@@ -250,41 +188,28 @@ async def generate_precise_query(
             """
 
         # Generate and execute query
-        sql_query, citations_text = await llm_service.generate_and_execute_query(
+        sql_query, citations = await llm_service.generate_and_execute_query(
             question=question,
             max_tokens=data.max_tokens
         )
         
-        # Format results for frontend
-        formatted_results = []
-        if isinstance(citations_text, str):
-            # Split the citations text into individual citations
-            citations = citations_text.split("\n\n")
-            for idx, citation in enumerate(citations):
-                if citation.strip():
-                    formatted_citation = format_citation_for_frontend(citation)
-                    formatted_citation["id"] = str(idx)  # Ensure unique ID
-                    formatted_results.append(formatted_citation)
-        elif isinstance(citations_text, list):
-            formatted_results = citations_text
-        
         return {
             "sql": sql_query,
-            "results": formatted_results,
+            "results": citations,  # Now passing Citation objects directly
             "usage": {},
             "model": "",
             "raw_response": None,
             "error": None
         }
     except (LLMServiceError, ValueError) as e:
-        error_detail = e.detail if hasattr(e, 'detail') else {"message": str(e)}
+        error_msg = str(e.detail) if hasattr(e, 'detail') else str(e)
         return {
             "sql": "",
             "results": [],
             "usage": {},
             "model": "",
             "raw_response": None,
-            "error": error_detail
+            "error": error_msg
         }
     except Exception as e:
         return {
@@ -293,7 +218,7 @@ async def generate_precise_query(
             "usage": {},
             "model": "",
             "raw_response": None,
-            "error": {"message": str(e), "error_type": "unexpected_error"}
+            "error": str(e)
         }
 
 @router.post("/token-count", response_model=TokenCountResponse)
@@ -310,17 +235,17 @@ async def count_tokens(
             "within_limits": within_limits
         }
     except LLMServiceError as e:
-        error_detail = e.detail if hasattr(e, 'detail') else {"message": str(e)}
+        error_msg = str(e.detail) if hasattr(e, 'detail') else str(e)
         return {
             "count": 0,
             "within_limits": False,
-            "error": error_detail
+            "error": error_msg
         }
     except Exception as e:
         return {
             "count": 0,
             "within_limits": False,
-            "error": {"message": str(e), "error_type": "unexpected_error"}
+            "error": str(e)
         }
 
 @router.post("/analyze/stream")
@@ -345,11 +270,11 @@ async def analyze_term_stream(
             )
         )
     except LLMServiceError as e:
-        error_detail = e.detail if hasattr(e, 'detail') else {"message": str(e)}
+        error_msg = str(e.detail) if hasattr(e, 'detail') else str(e)
         return {
-            "error": error_detail
+            "error": error_msg
         }
     except Exception as e:
         return {
-            "error": {"message": str(e), "error_type": "unexpected_error"}
+            "error": str(e)
         }

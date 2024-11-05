@@ -35,17 +35,11 @@ class QueryLLMService(BaseLLMService):
                 result = await self.session.execute(text(sql_query))
                 rows = result.mappings().all()
                 
-                # Use CitationService to format citations
+                # Use CitationService to format citations and return them directly
                 citations = await self.citation_service.format_citations(rows)
-                
-                # Format citations as text for LLM
-                citations_text = "\n\n".join(
-                    self.citation_service.format_citation_text(citation)
-                    for citation in citations
-                )
                     
                 logger.debug(f"Query returned {len(citations)} results")
-                return sql_query, citations_text
+                return sql_query, citations
 
             except Exception as e:
                 logger.error(f"Error executing SQL query: {str(e)}", exc_info=True)

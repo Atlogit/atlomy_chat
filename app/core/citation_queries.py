@@ -10,7 +10,7 @@ WITH sentence_matches AS (
         s.id as sentence_id,
         s.content as sentence_text,
         s.spacy_data as sentence_tokens,
-        MIN(tl.line_number) as min_line_number,
+        array_agg(tl.line_number ORDER BY tl.line_number) as line_numbers,
         td.id as division_id,
         COALESCE(td.author_name, a.name) as author_name,
         COALESCE(td.work_name, t.title) as work_name,
@@ -40,7 +40,7 @@ WITH sentence_matches AS (
         td.volume, td.chapter, td.section
 )
 SELECT * FROM sentence_matches
-ORDER BY division_id, min_line_number
+ORDER BY division_id, line_numbers[1]
 """
 
 # Direct sentence query for efficient lemma lookups
@@ -50,7 +50,7 @@ WITH sentence_matches AS (
         s.id as sentence_id,
         s.content as sentence_text,
         s.spacy_data as sentence_tokens,
-        MIN(tl.line_number) as min_line_number,
+        array_agg(tl.line_number ORDER BY tl.line_number) as line_numbers,
         td.id as division_id,
         COALESCE(td.author_name, a.name) as author_name,
         COALESCE(td.work_name, t.title) as work_name,
@@ -81,7 +81,7 @@ WITH sentence_matches AS (
         td.volume, td.chapter, td.section
 )
 SELECT * FROM sentence_matches
-ORDER BY division_id, min_line_number
+ORDER BY division_id, line_numbers[1]
 """
 
 # Query for lemma search using spacy_data JSON field
