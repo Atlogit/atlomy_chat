@@ -22,6 +22,7 @@ class TextLine:
     content: str  # The actual text content
     citation: Optional[Citation] = None  # Parsed citation object
     is_title: bool = False  # Whether this line is a title
+    line_number: Optional[int] = None  # Line number in the source text
 
 class TextParser:
     """Handles the extraction and cleaning of ancient text files."""
@@ -56,10 +57,12 @@ class TextParser:
         # Process each line
         parsed_lines = []
         current_citation = None  # Track current citation for subsequent lines
+        line_number = 1  # Track line numbers
         
         for line in content.splitlines():
             line = self._clean_text(line)
             if not line:
+                line_number += 1
                 continue
             
             # Let CitationParser handle all reference parsing
@@ -90,7 +93,8 @@ class TextParser:
                     parsed_line = TextLine(
                         content=line,
                         citation=citation,
-                        is_title=is_title
+                        is_title=is_title,
+                        line_number=line_number
                     )
                     parsed_lines.append(parsed_line)
             else:
@@ -99,9 +103,12 @@ class TextParser:
                     parsed_line = TextLine(
                         content=line,
                         citation=current_citation,
-                        is_title=False
+                        is_title=False,
+                        line_number=line_number
                     )
                     parsed_lines.append(parsed_line)
+            
+            line_number += 1
         
         return parsed_lines
 

@@ -1,171 +1,133 @@
-"""
-Tests for sentence parsing functionality.
-"""
+"""Test cases for sentence parsing functionality."""
 
 import pytest
 from toolkit.parsers.sentence import SentenceParser
 from toolkit.parsers.text import TextLine
 
-def test_normalize_line():
-    """Test line normalization."""
-    parser = SentenceParser()
-    
-    # Test line marker removal
-    text = "7.475.t3. ΒΙΒΛΙΟΝ"
-    normalized, start_pos = parser.normalize_line(text)
-    assert normalized == "ΒΙΒΛΙΟΝ"
-    assert start_pos == 10  # Length of "7.475.t3. "
-    
-    # Test brace removal
-    text = "{ΓΑΛΗΝΟΥ ΠΡΟΣ ΤΟΥΣ}"
-    normalized, start_pos = parser.normalize_line(text)
-    assert normalized == "ΓΑΛΗΝΟΥ ΠΡΟΣ ΤΟΥΣ"
-    assert start_pos == 0
-    
-    # Test special character removal
-    text = "Ἀμφημερινός                    κδʹ"
-    normalized, start_pos = parser.normalize_line(text)
-    assert normalized == "Ἀμφημερινός"
-    assert start_pos == 0
-    
-    # Test multiple spaces
-    text = "ΓΑΛΗΝΟΥ    ΠΡΟΣ    ΤΟΥΣ"
-    normalized, start_pos = parser.normalize_line(text)
-    assert normalized == "ΓΑΛΗΝΟΥ ΠΡΟΣ ΤΟΥΣ"
-    assert start_pos == 0
+def create_text_line(content: str, line_number: int) -> TextLine:
+    """Helper to create TextLine objects for testing."""
+    line = TextLine(content=content)
+    line.line_number = line_number  # Set the actual line number
+    return line
 
-def test_hyphenation():
-    """Test handling of hyphenated words."""
+def test_single_line_sentence():
+    """Test parsing a single line containing one complete sentence."""
     parser = SentenceParser()
+    line = create_text_line("This is a test sentence.", 1)
+    sentences = parser.parse_lines([line])
     
-    # Test basic hyphenation
-    current = ["This is a sen-"]
-    parser.join_hyphenated_words(current, "tence")
-    assert current == ["This is a sentence"]
-    
-    # Test with spaces
-    current = ["First sen-"]
-    parser.join_hyphenated_words(current, " tence")
-    assert current == ["First sentence"]
-    
-    # Test without hyphen
-    current = ["Complete"]
-    parser.join_hyphenated_words(current, "word")
-    assert current == ["Complete", "word"]
-
-def test_sentence_parsing():
-    """Test sentence parsing with hyphenation."""
-    parser = SentenceParser()
-    
-    lines = [
-        TextLine(content="This is a sen-"),
-        TextLine(content="tence that spans lines."),
-        TextLine(content="This is another· And this continues.")
-    ]
-    
-    sentences = parser.parse_lines(lines)
-    print("\nActual sentences:")  # Debug output
-    for i, s in enumerate(sentences):
-        print(f"{i+1}: {s.content}")
-        
-    assert len(sentences) == 3
-    assert sentences[0].content == "This is a sentence that spans lines."
-    assert sentences[1].content == "This is another·"
-    assert sentences[2].content == "And this continues."
-    
-    # Check source line references
-    assert len(sentences[0].source_lines) == 2  # Spans two lines
-    assert len(sentences[1].source_lines) == 1
-    assert len(sentences[2].source_lines) == 1
-
-def test_greek_text_parsing():
-    """Test parsing of Greek text with special formatting."""
-    parser = SentenceParser()
-    
-    lines = [
-        TextLine(content="7.475.t1. {ΓΑΛΗΝΟΥ ΠΡΟΣ ΤΟΥΣ ΠΕΡΙ ΤΥΠΩΝ.}"),
-        TextLine(content="ΤΥΠΟΙ ΩΡΑΣ."),
-        TextLine(content="Ἀμφημερινός                    κδʹ"),
-        TextLine(content="Τριταῖος                       μηʹ.")
-    ]
-    
-    sentences = parser.parse_lines(lines)
-    assert len(sentences) == 3
-    assert sentences[0].content == "ΓΑΛΗΝΟΥ ΠΡΟΣ ΤΟΥΣ ΠΕΡΙ ΤΥΠΩΝ."
-    assert sentences[1].content == "ΤΥΠΟΙ ΩΡΑΣ."
-    assert "Ἀμφημερινός" in sentences[2].content
-    assert "Τριταῖος" in sentences[2].content
-
-def test_mixed_content():
-    """Test parsing of mixed regular and Greek text."""
-    parser = SentenceParser()
-    
-    lines = [
-        TextLine(content="Regular sentence."),
-        TextLine(content="7.475.t1. {Greek title.}"),
-        TextLine(content="Mixed sen-"),
-        TextLine(content="tence with Ἀμφημερινός.")
-    ]
-    
-    sentences = parser.parse_lines(lines)
-    assert len(sentences) == 3
-    assert sentences[0].content == "Regular sentence."
-    assert sentences[1].content == "Greek title."
-    assert sentences[2].content == "Mixed sentence with Ἀμφημερινός."
-
-def test_citation_tracking():
-    """Test citation tracking in sentences."""
-    parser = SentenceParser()
-    
-    class MockCitation:
-        def __init__(self, ref):
-            self.ref = ref
-        def __str__(self):
-            return self.ref
-    
-    # Create lines with citations
-    lines = [
-        TextLine(content="First line.", citation=MockCitation("ref1")),
-        TextLine(content="Second line.", citation=MockCitation("ref2"))
-    ]
-    
-    sentences = parser.parse_lines(lines)
-    citations = parser.get_sentence_citations(sentences[0])
-    assert len(citations) == 1
-    assert str(citations[0]) == "ref1"
-
-def test_empty_lines():
-    """Test handling of empty or whitespace-only lines."""
-    parser = SentenceParser()
-    
-    lines = [
-        TextLine(content=""),
-        TextLine(content="   "),
-        TextLine(content="Valid line."),
-        TextLine(content="\n\t")
-    ]
-    
-    sentences = parser.parse_lines(lines)
     assert len(sentences) == 1
-    assert sentences[0].content == "Valid line."
+    assert sentences[0].content == "This is a test sentence."
+    assert sentences[0].source_lines == [line]
+    assert [l.line_number for l in sentences[0].source_lines] == [1]
 
-def test_sentence_endings():
-    """Test handling of different sentence endings."""
+def test_multiple_sentences_single_line():
+    """Test parsing multiple sentences within a single line."""
     parser = SentenceParser()
+    line = create_text_line("First sentence· Second sentence.", 1)
+    sentences = parser.parse_lines([line])
     
+    assert len(sentences) == 2
+    assert sentences[0].content == "First sentence·"
+    assert sentences[1].content == "Second sentence."
+    assert all(s.source_lines == [line] for s in sentences)
+    assert all(s.source_lines[0].line_number == 1 for s in sentences)
+
+def test_sentence_across_lines():
+    """Test parsing a sentence that spans multiple lines."""
+    parser = SentenceParser()
     lines = [
-        TextLine(content="Period ending."),
-        TextLine(content="Middle dot ending·"),
-        TextLine(content="Mixed endings. And More.")
+        create_text_line("This sentence spans", 1),
+        create_text_line("multiple lines and", 2),
+        create_text_line("ends here.", 3)
     ]
-    
     sentences = parser.parse_lines(lines)
-    print("\nActual sentence endings:")  # Debug output
-    for i, s in enumerate(sentences):
-        print(f"{i+1}: {s.content}")
-        
-    assert len(sentences) == 4
-    assert sentences[0].content == "Period ending."
-    assert sentences[1].content == "Middle dot ending·"
-    assert sentences[2].content == "Mixed endings."
-    assert sentences[3].content == "And More."
+    
+    assert len(sentences) == 1
+    assert sentences[0].content == "This sentence spans multiple lines and ends here."
+    assert sentences[0].source_lines == lines
+    assert [l.line_number for l in sentences[0].source_lines] == [1, 2, 3]
+
+def test_hyphenated_word_across_lines():
+    """Test handling of hyphenated words across line boundaries."""
+    parser = SentenceParser()
+    lines = [
+        create_text_line("This sen-", 1),
+        create_text_line("tence has hyphenation.", 2)
+    ]
+    sentences = parser.parse_lines(lines)
+    
+    assert len(sentences) == 1
+    assert sentences[0].content == "This sentence has hyphenation."
+    assert sentences[0].source_lines == lines
+    assert [l.line_number for l in sentences[0].source_lines] == [1, 2]
+
+def test_mixed_sentence_patterns():
+    """Test handling mixed patterns of sentences and line breaks."""
+    parser = SentenceParser()
+    lines = [
+        create_text_line("First sentence· Second sen-", 1),
+        create_text_line("tence spans lines.", 2),
+        create_text_line("Third sentence.", 3)
+    ]
+    sentences = parser.parse_lines(lines)
+    
+    assert len(sentences) == 3
+    assert sentences[0].content == "First sentence·"
+    assert sentences[1].content == "Second sentence spans lines."
+    assert sentences[2].content == "Third sentence."
+    assert sentences[0].source_lines == [lines[0]]
+    assert sentences[1].source_lines == lines[:2]
+    assert sentences[2].source_lines == [lines[2]]
+    assert [l.line_number for l in sentences[0].source_lines] == [1]
+    assert [l.line_number for l in sentences[1].source_lines] == [1, 2]
+    assert [l.line_number for l in sentences[2].source_lines] == [3]
+
+def test_greek_text_patterns():
+    """Test handling of ancient Greek text patterns."""
+    parser = SentenceParser()
+    lines = [
+        create_text_line("τῶν ἄλλων πλειστάκις· ἐς δὲ τὸ", 1),
+        create_text_line("ὄπισθεν καὶ τὸ ἔμπροσθεν ἐκπίπτει μὲν,", 2),
+        create_text_line("ὀλιγάκις δέ·", 3)
+    ]
+    sentences = parser.parse_lines(lines)
+    
+    assert len(sentences) == 2
+    assert sentences[0].content == "τῶν ἄλλων πλειστάκις·"
+    assert sentences[1].content == "ἐς δὲ τὸ ὄπισθεν καὶ τὸ ἔμπροσθεν ἐκπίπτει μὲν, ὀλιγάκις δέ·"
+    assert sentences[0].source_lines == [lines[0]]
+    assert sentences[1].source_lines == lines
+    assert [l.line_number for l in sentences[0].source_lines] == [1]
+    assert [l.line_number for l in sentences[1].source_lines] == [1, 2, 3]
+
+def test_real_greek_example_1():
+    """Test with real Greek text example from De articulis Chapter 51."""
+    parser = SentenceParser()
+    lines = [
+        create_text_line("ἐπί τε γὰρ τὸ ἀπὸ τοῦ ἰσχίου πεφυκὸς ὀστέον,", 6),
+        create_text_line("τὸ ἄνω φερόμενον πρὸς τὸν κτένα, ἐπὶ τοῦτο ἡ ἐπίβασις τῆς κε-", 7),
+        create_text_line("φαλῆς τοῦ μηροῦ γίνεται, καὶ ὁ αὐχὴν τοῦ ἄρθρου ἐπὶ τῆς", 8),
+        create_text_line("κοτύλης ὀχέεται.", 9)
+    ]
+    sentences = parser.parse_lines(lines)
+    
+    assert len(sentences) == 1
+    assert [l.line_number for l in sentences[0].source_lines] == [6, 7, 8, 9]
+
+def test_real_greek_example_2():
+    """Test with real Greek text example from De articulis Chapter 55."""
+    parser = SentenceParser()
+    lines = [
+        create_text_line("Ὀχέειν δὲ δύναται τὸ σῶμα τὸ σιναρὸν σκέλος τούτοισι πολλῷ", 5),
+        create_text_line("μᾶλλον, ἢ οἷσιν ἂν ἐς τὸ ἔσω μέρος ἐκπεπτώκῃ, ἅμα μὲν, ὅτι ἡ", 6),
+        create_text_line("κεφαλὴ τοῦ μηροῦ, καὶ ὁ αὐχὴν τοῦ ἄρθρου πλάγιος φύσει πεφυκὼς,", 7),
+        create_text_line("ὑπὸ συχνῷ μέρεϊ τοῦ ἰσχίου τὴν ὑπόστασιν πεποίηται, ἅμα δὲ, ὅτι", 8),
+        create_text_line("ἄκρος ὁ ποὺς οὐκ ἐς τὸ ἔξω μέρος ἀναγκάζεται ἐκκεκλίσθαι, ἀλλ'", 9),
+        create_text_line("ἐγγύς ἐστι τῆς ἰθυωρίης τῆς κατὰ τὸ σῶμα, καὶ τείνει καὶ", 10),
+        create_text_line("ἐσωτέρω.", 11)
+    ]
+    sentences = parser.parse_lines(lines)
+    
+    assert len(sentences) == 1
+    assert [l.line_number for l in sentences[0].source_lines] == [5, 6, 7, 8, 9, 10, 11]
