@@ -91,8 +91,9 @@ class TextService:
                         "is_title": div.is_title,
                         "author_id_field": div.author_id_field,
                         "work_number_field": div.work_number_field,
-                        "epithet_field": div.epithet_field,
-                        "fragment_field": div.fragment_field
+                        "work_abbreviation_field": div.work_abbreviation_field,
+                        "author_abbreviation_field": div.author_abbreviation_field,
+                        "fragment": div.fragment
                     }
                     for div in text.divisions
                 ]

@@ -1,6 +1,6 @@
 {
     "version": 1,
-    "disable_existing_loggers": true,
+    "disable_existing_loggers": false,
     "formatters": {
         "standard": {
             "format": "%(asctime)s - %(name)s - %(levelname)s - %(module)s:%(funcName)s:%(lineno)d - %(message)s"
@@ -9,7 +9,7 @@
     "handlers": {
         "console": {
             "class": "logging.StreamHandler",
-            "level": "DEBUG",
+            "level": "INFO",
             "formatter": "standard",
             "stream": "ext://sys.stdout"
         },
@@ -24,24 +24,44 @@
         }
     },
     "root": {
-        "level": "DEBUG",
+        "level": "INFO",
         "handlers": ["console", "file"],
         "propagate": false
     },
     "loggers": {
         "uvicorn": {
             "handlers": [],
-            "level": "DEBUG",
+            "level": "INFO",
             "propagate": true
         },
         "fastapi": {
             "handlers": [],
-            "level": "DEBUG",
+            "level": "INFO",
             "propagate": true
         },
         "atlomy_chat": {
             "handlers": [],
+            "level": "INFO",
+            "propagate": true
+        },
+        "migration": {
+            "handlers": [],
             "level": "DEBUG",
+            "propagate": true
+        },
+        "migration.citation": {
+            "handlers": [],
+            "level": "DEBUG",
+            "propagate": true
+        },
+        "migration.database": {
+            "handlers": [],
+            "level": "DEBUG",
+            "propagate": true
+        },
+        "watchfiles": {
+            "handlers": [],
+            "level": "WARNING",
             "propagate": true
         }
     }

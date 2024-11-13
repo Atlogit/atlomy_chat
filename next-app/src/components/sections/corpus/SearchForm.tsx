@@ -4,30 +4,18 @@ import { useState } from 'react'
 import { Button } from '../../../components/ui/Button'
 import { ResultsDisplay } from '../../../components/ui/ResultsDisplay'
 import { useLoading } from '../../../hooks/useLoading'
-import { fetchApi, API, TextSearchRequest, SearchResult } from '../../../utils/api'
+import { fetchApi, API, TextSearchRequest, Citation, CitationObject, TokenInfo } from '../../../utils/api'
 
 interface SearchFormProps {
   onResultSelect: (textId: string) => void
-}
-
-interface SpacyToken {
-  text: string
-  lemma_: string
-  pos_: string
-  tag_: string
-  dep_: string
-  is_stop: boolean
-  has_vector: boolean
-  vector_norm: number
-  is_oov: boolean
 }
 
 export function SearchForm({ onResultSelect }: SearchFormProps) {
   const [query, setQuery] = useState('')
   const [searchLemma, setSearchLemma] = useState(false)
   const [selectedCategories, setSelectedCategories] = useState<string[]>([])
-  const [results, setResults] = useState<SearchResult[]>([])
-  const { isLoading, error, execute } = useLoading<SearchResult[]>()
+  const [results, setResults] = useState<CitationObject[]>([])
+  const { isLoading, error, execute } = useLoading<CitationObject[]>()
 
   // Categories for ancient medical texts
   const availableCategories = [
@@ -55,7 +43,7 @@ export function SearchForm({ onResultSelect }: SearchFormProps) {
     }
 
     const searchResults = await execute(
-      fetchApi<SearchResult[]>(API.corpus.search, {
+      fetchApi<CitationObject[]>(API.corpus.search, {
         method: 'POST',
         body: JSON.stringify(request)
       })
@@ -66,18 +54,18 @@ export function SearchForm({ onResultSelect }: SearchFormProps) {
     }
   }
 
-  const renderCitation = (result: SearchResult) => {
+  const renderCitation = (result: CitationObject) => {
     const parts = []
 
-    // Citation components based on actual returned fields
-    if (result.author_name) parts.push(result.author_name)
-    if (result.work_name) parts.push(result.work_name)
+    // Citation components from source
+    if (result.source.author) parts.push(result.source.author)
+    if (result.source.work) parts.push(result.source.work)
 
-    // Structural components
+    // Structural components from location
     const structural = []
-    if (result.volume) structural.push(`Vol. ${result.volume}`)
-    if (result.chapter) structural.push(`Ch. ${result.chapter}`)
-    if (result.section) structural.push(`§${result.section}`)
+    if (result.location.volume) structural.push(`Vol. ${result.location.volume}`)
+    if (result.location.chapter) structural.push(`Ch. ${result.location.chapter}`)
+    if (result.location.section) structural.push(`§${result.location.section}`)
     
     if (structural.length > 0) {
       parts.push(structural.join(', '))
@@ -86,27 +74,26 @@ export function SearchForm({ onResultSelect }: SearchFormProps) {
     return parts.join(' ')
   }
 
-  const renderSpacyTokens = (result: SearchResult) => {
-    if (!result.spacy_data) return null
+  const renderSpacyTokens = (result: CitationObject) => {
+    if (!result.sentence.tokens) return null
 
-    // Extract interesting token attributes
-    const tokens = Object.entries(result.spacy_data as Record<string, SpacyToken>)
-      .filter(([_, token]) => 
-        token.is_stop === false && 
-        (token.pos_ === 'NOUN' || token.pos_ === 'VERB' || token.pos_ === 'ADJ')
-      )
+    // Filter interesting tokens
+    const tokens = result.sentence.tokens.filter(token => 
+      !token.is_stop && 
+      (token.pos === 'NOUN' || token.pos === 'VERB' || token.pos === 'ADJ')
+    )
 
     if (tokens.length === 0) return null
 
     return (
       <div className="flex flex-wrap gap-1 mt-2">
-        {tokens.map(([word, token]) => (
+        {tokens.map((token, index) => (
           <span 
-            key={word} 
+            key={`${token.text}-${index}`}
             className="text-xs px-1 py-0.5 rounded bg-base-100"
-            title={`POS: ${token.pos_}, Lemma: ${token.lemma_}`}
+            title={`POS: ${token.pos}, Lemma: ${token.lemma}`}
           >
-            {word}
+            {token.text}
           </span>
         ))}
       </div>
@@ -189,21 +176,21 @@ export function SearchForm({ onResultSelect }: SearchFormProps) {
       ) : results.length > 0 ? (
         <div className="search-results space-y-6">
           {results.map((result, idx) => (
-            <div key={`${result.text_id}-${idx}`} className="card bg-base-200">
+            <div key={`${result.context.line_id}-${idx}`} className="card bg-base-200">
               <div className="card-body">
                 <div className="flex justify-between items-start">
                   <div>
                     <h3 className="card-title text-lg">
-                      {result.work_name}
+                      {result.source.work}
                     </h3>
-                    {result.author_name && (
+                    {result.source.author && (
                       <p className="text-base-content/70 text-sm">
-                        by {result.author_name}
+                        by {result.source.author}
                       </p>
                     )}
                   </div>
                   <Button
-                    onClick={() => onResultSelect(result.text_id)}
+                    onClick={() => onResultSelect(result.context.line_id.split('-')[0])}
                     variant="outline"
                     className="btn-sm"
                   >
@@ -218,24 +205,22 @@ export function SearchForm({ onResultSelect }: SearchFormProps) {
                       {renderCitation(result)}
                     </span>
                     <span className="text-xs text-base-content/70">
-                      Line {result.min_line_number}
+                      Line {result.context.line_numbers[0]}
                     </span>
                   </div>
 
                   {/* Content */}
-                  <p className="text-sm whitespace-pre-line">{result.sentence_text}</p>
+                  <p className="text-sm whitespace-pre-line">{result.sentence.text}</p>
 
-                  {/* Categories */}
-                  {result.categories && result.categories.length > 0 && (
-                    <div className="flex gap-1 mt-2">
-                      {result.categories.map((category) => (
-                        <span
-                          key={category}
-                          className="badge badge-sm badge-ghost"
-                        >
-                          {category}
-                        </span>
-                      ))}
+                  {/* Context */}
+                  {(result.sentence.prev_sentence || result.sentence.next_sentence) && (
+                    <div className="mt-2 text-sm text-base-content/70">
+                      {result.sentence.prev_sentence && (
+                        <div className="mb-1">↑ {result.sentence.prev_sentence}</div>
+                      )}
+                      {result.sentence.next_sentence && (
+                        <div className="mt-1">↓ {result.sentence.next_sentence}</div>
+                      )}
                     </div>
                   )}
 

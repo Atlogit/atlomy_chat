@@ -30,6 +30,7 @@ typing-extensions
 pathlib
 pydantic
 pydantic_settings
+regex
 
 # Testing
 pytest

@@ -4,22 +4,10 @@ import { useState, useEffect } from 'react'
 import { Button } from '../../../components/ui/Button'
 import { ResultsDisplay } from '../../../components/ui/ResultsDisplay'
 import { useLoading } from '../../../hooks/useLoading'
-import { fetchApi, API, Text, TextDivision, TextLine } from '../../../utils/api'
+import { fetchApi, API, Text, TextDivision, TextLine, TokenInfo } from '../../../utils/api'
 
 interface TextDisplayProps {
   textId: string
-}
-
-interface SpacyToken {
-  text: string
-  lemma_: string
-  pos_: string
-  tag_: string
-  dep_: string
-  is_stop: boolean
-  has_vector: boolean
-  vector_norm: number
-  is_oov: boolean
 }
 
 export function TextDisplay({ textId }: TextDisplayProps) {
@@ -67,24 +55,23 @@ export function TextDisplay({ textId }: TextDisplayProps) {
   const renderSpacyTokens = (line: TextLine) => {
     if (!line.spacy_tokens) return null
 
-    // Extract interesting token attributes
-    const tokens = Object.entries(line.spacy_tokens as Record<string, SpacyToken>)
-      .filter(([_, token]) => 
-        token.is_stop === false && 
-        (token.pos_ === 'NOUN' || token.pos_ === 'VERB' || token.pos_ === 'ADJ')
-      )
+    // Filter interesting tokens
+    const tokens = line.spacy_tokens.filter(token => 
+      !token.is_stop && 
+      (token.pos === 'NOUN' || token.pos === 'VERB' || token.pos === 'ADJ')
+    )
 
     if (tokens.length === 0) return null
 
     return (
       <div className="flex flex-wrap gap-1 mt-1">
-        {tokens.map(([word, token]) => (
+        {tokens.map((token, index) => (
           <span 
-            key={word} 
+            key={`${token.text}-${index}`}
             className="text-xs px-1 py-0.5 rounded bg-base-300"
-            title={`POS: ${token.pos_}, Lemma: ${token.lemma_}`}
+            title={`POS: ${token.pos}, Lemma: ${token.lemma}`}
           >
-            {word}
+            {token.text}
           </span>
         ))}
       </div>

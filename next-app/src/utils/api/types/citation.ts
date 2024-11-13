@@ -11,15 +11,22 @@ export interface CitationObject {
     line_id: string;
     line_text: string;
     line_numbers: number[];
+    
   };
   location: {
     volume?: string;
+    book?: string;
     chapter?: string;
     section?: string;
+    page?: string;
+    fragment?: string;
+    line?: string;
   };
   source: {
     author: string;
     work: string;
+    author_id?: string;
+    work_id?: string;
   };
 }
 

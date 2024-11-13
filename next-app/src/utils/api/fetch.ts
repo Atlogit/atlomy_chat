@@ -115,16 +115,26 @@ export async function fetchApi<T>(
       throw error as ApiError;
     }
     
-    // Handle empty error objects or unknown errors
+    // Enhanced handling for empty or unknown errors
+    if (!error || (typeof error === 'object' && Object.keys(error).length === 0)) {
+      throw {
+        message: 'API request failed',
+        status: 500,
+        detail: {
+          message: 'The server returned an empty response or no error details',
+          error_type: 'empty_response'
+        }
+      } as ApiError;
+    }
+    
+    // Handle other types of errors
     throw {
       message: error instanceof Error ? error.message : 'An unexpected error occurred',
       status: 500,
       detail: error instanceof Error ? 
         { message: error.stack || error.message, error_type: 'unexpected_error' } : 
         typeof error === 'object' ? 
-          (Object.keys(error || {}).length === 0 ? 
-            { message: 'No error details available', error_type: 'empty_error' } : 
-            { ...error, error_type: 'structured_error' }) : 
+          { ...error, error_type: 'structured_error' } : 
           { message: String(error), error_type: 'unknown_error' }
     } as ApiError;
   }

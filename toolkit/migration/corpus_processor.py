@@ -1,323 +1,287 @@
 """
-Corpus processor for integrating text parsing and NLP analysis.
+Main corpus processor for text analysis.
 
-This module coordinates the various parsers and NLP pipeline to process
-texts in the corpus, maintaining relationships between lines, sentences,
-and their NLP analysis.
+Coordinates specialized processors for line processing,
+sentence formation, and database operations.
 """
 
 import logging
-from typing import List, Dict, Any, Optional, Tuple
-from pathlib import Path
-import spacy
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from typing import Optional, Dict, Any, List
 from tqdm import tqdm
-import torch
 
-from toolkit.parsers.sentence import SentenceParser, Sentence, SentenceBoundary
+from .corpus_db import CorpusDB
 from toolkit.parsers.citation import CitationParser
-from toolkit.parsers.text import TextLine as ParserTextLine
-from toolkit.nlp.pipeline import NLPPipeline
-from app.models.text import Text
-from app.models.text_line import TextLine
-from app.models.text_division import TextDivision
-from app.models.sentence import sentence_text_lines, Sentence as Sentence_Model
+from toolkit.parsers.citation_utils import map_level_to_field
 
 logger = logging.getLogger(__name__)
 
-class CorpusProcessor:
-    """Coordinates text processing and NLP analysis for the corpus."""
+class CorpusProcessor(CorpusDB):
+    """Main coordinator for corpus processing."""
 
-    def __init__(self, 
-                 session: AsyncSession, 
-                 model_path: Optional[str] = None,
-                 use_gpu: Optional[bool] = None):
+    def __init__(self, session: Any, model_path: Optional[str] = None, use_gpu: Optional[bool] = None, report: Optional[Any] = None):
         """Initialize the corpus processor.
         
         Args:
             session: SQLAlchemy async session
             model_path: Optional path to spaCy model
             use_gpu: Whether to use GPU for NLP processing (None for auto-detect)
+            report: Optional PipelineReport for tracking issues
         """
-        self.session = session
-        self.sentence_parser = SentenceParser()
-        self.citation_parser = CitationParser()
-        self.nlp_pipeline = NLPPipeline(
-            model_path=model_path,
-            use_gpu=use_gpu
-        )
+        super().__init__(session, model_path=model_path, use_gpu=use_gpu)
+        self._current_metadata = None  # Track current metadata
+        self.report = report  # Store report for tracking issues
+        
+        # Set report in citation parser
+        if report:
+            CitationParser.get_instance().set_report(report)
+            
+        logger.info("CorpusProcessor initialized")
 
-    def _convert_to_parser_text_line(self, db_line: TextLine) -> ParserTextLine:
-        """Convert database TextLine to parser TextLine."""
-        return ParserTextLine(
-            content=str(db_line.content) if db_line.content else "",
-            citation=None,
-            is_title=False,
-            line_number=db_line.line_number  # Set the line number from the database
-        )
+    def _set_metadata(self, metadata: Optional[Dict[str, str]]) -> None:
+        """Set current metadata context."""
+        self._current_metadata = metadata
+        if metadata:
+            logger.debug("Set current metadata context: author_id=%s, work_id=%s", 
+                        metadata.get('author_id'), metadata.get('work_id'))
+        else:
+            logger.debug("Cleared metadata context")
 
-    def _process_doc_to_dict(self, doc: spacy.tokens.Doc) -> Dict[str, Any]:
-        """Convert spaCy Doc to dictionary format."""
+    def _get_division_field_value(self, division) -> tuple[str, str]:
+        """Get the appropriate field and value based on work structure.
+        Uses the parent field of 'line' from the work structure."""
         try:
-            processed_doc = {
-                "text": doc.text,
-                'tokens': []
-            }
+            # Get work structure
+            structure = self.citation_parser.get_work_structure(
+                division.author_id_field,
+                division.work_number_field
+            )
             
-            for token in doc:
-                token_data = {
-                    'text': token.text,
-                    'lemma': token.lemma_,
-                    'pos': token.pos_,
-                    'tag': token.tag_,
-                    'dep': token.dep_,
-                    'morph': str(token.morph.to_dict()),
-                    'category': ''
-                }
+            if structure:
+                # Convert structure to lowercase for consistent comparison
+                structure_levels = [level.lower() for level in structure]
+                logger.debug(f"Found work structure: {structure_levels}")
                 
-                # Add categories if spans exist
-                if hasattr(doc, 'spans') and 'sc' in doc.spans:
-                    token_data['category'] = ', '.join(
-                        span.label_ 
-                        for span in doc.spans['sc'] 
-                        if span.start <= token.i < span.end
-                    )
-                
-                processed_doc['tokens'].append(token_data)
-                
+                # Find 'line' in structure and get its parent
+                try:
+                    line_index = structure_levels.index('line')
+                    if line_index > 0:  # If 'line' has a parent level
+                        parent_level = structure_levels[line_index - 1]
+                        logger.debug(f"Found parent level of line: {parent_level}")
+                        
+                        # Map the parent level to a database field
+                        db_field = map_level_to_field(parent_level, structure)
+                        logger.debug(f"Mapped {parent_level} to database field {db_field}")
+                        
+                        # Get value for the parent field
+                        value = getattr(division, db_field)
+                        if value is not None:
+                            logger.debug(f"Using {db_field} value: {value}")
+                            return db_field, value
+                        else:
+                            logger.debug(f"No value found for {db_field}, using default '1'")
+                            return db_field, "1"
+                except ValueError:
+                    logger.debug("'line' not found in structure")
+            
+            # If no structure or no line field found, try common fields in order
+            for field in ['page', 'chapter', 'section', 'book', 'volume']:
+                value = getattr(division, field)
+                if value is not None:
+                    logger.debug(f"Using {field} value: {value}")
+                    return field, value
+            
+            # If no valid field found, default to chapter "1"
+            logger.debug("No valid division field found, defaulting to chapter 1")
+            return 'chapter', "1"
+            
         except Exception as e:
-            logger.error(f"Error creating token data: {str(e)}")
-            
-        return processed_doc
-
-    def _extract_categories(self, line_analysis: Dict[str, Any]) -> List[str]:
-        """Extract unique categories from line analysis."""
-        categories = set()
-        for token in line_analysis['tokens']:
-            if token['category']:
-                categories.update(cat.strip() for cat in token['category'].split(','))
-        return sorted(list(categories))
-
-    def _get_sentence_lines(self, sentence: Sentence, db_lines: List[TextLine]) -> List[TextLine]:
-        """Get the database lines that make up a sentence.
-        
-        This ensures we include all lines from the start of the sentence
-        through its end, even if a line contains multiple sentences.
-        """
-        # Find start and end lines
-        start_line = min(sentence.source_lines, key=lambda x: x.line_number)
-        end_line = max(sentence.source_lines, key=lambda x: x.line_number)
-        
-        # Get all lines between start and end
-        sentence_lines = []
-        for db_line in db_lines:
-            if start_line.line_number <= db_line.line_number <= end_line.line_number:
-                sentence_lines.append(db_line)
-                
-        return sentence_lines
+            logger.error(f"Error getting division field value: {str(e)}")
+            # Default to chapter "1" on error
+            return 'chapter', "1"
 
     async def process_work(self, work_id: int, pbar: Optional[tqdm] = None) -> None:
         """Process all text in a work through the NLP pipeline."""
-        # Get work details
-        stmt = select(Text).where(Text.id == work_id)
-        result = await self.session.execute(stmt)
-        work = result.scalar_one()
-        
-        # Get divisions
-        stmt = select(TextDivision).where(TextDivision.text_id == work_id)
-        result = await self.session.execute(stmt)
-        divisions = result.scalars().all()
-        
-        # Progress bar setup
-        sentences_pbar = None
-        if not pbar:
-            total_lines = 0
-            for division in divisions:
-                stmt = select(TextLine).where(TextLine.division_id == division.id)
-                result = await self.session.execute(stmt)
-                total_lines += len(result.scalars().all())
-            sentences_pbar = tqdm(total=total_lines, desc="Processing sentences", unit="sent")
-        
-        async with self.session.begin_nested():
-            for division in divisions:
-                try:
-                    # Get lines
-                    stmt = select(TextLine).where(TextLine.division_id == division.id)
-                    result = await self.session.execute(stmt)
-                    db_lines = result.scalars().all()
-                    
-                    if not db_lines:
-                        logger.warning(f"No lines found in division {division.id}")
-                        continue
-                    
-                    # Map content to IDs
-                    content_to_id_map = {db_line.content: db_line.id for db_line in db_lines}
-                    
-                    # Parse sentences
-                    try:
-                        parser_lines = [self._convert_to_parser_text_line(line) for line in db_lines if line.content]
-                        sentences = self.sentence_parser.parse_lines(parser_lines)                    
-                    except Exception as e:
-                        logger.error(f"Error parsing sentences in division {division.id}: {str(e)}")
-                        continue
-                    
-                    # Process each sentence
-                    for sentence in sentences:
-                        try:
-                            # Process with spaCy
-                            doc = self.nlp_pipeline.nlp(sentence.content)
-                            if not doc or not doc.text:
-                                logger.error(f"Failed to process sentence: {sentence.content}")
-                                continue
-                            
-                            processed_doc = self._process_doc_to_dict(doc)
-                            
-                            # Get all lines for this sentence
-                            sentence_lines = self._get_sentence_lines(sentence, db_lines)
-                            source_line_ids_array = [line.id for line in sentence_lines]
-
-                            # Create sentence record
-                            new_sentence = Sentence_Model(
-                                content=doc.text,
-                                source_line_ids=source_line_ids_array,
-                                start_position=0,
-                                end_position=len(doc.text),
-                                spacy_data=processed_doc,
-                                categories=self._extract_categories(processed_doc)
-                            )
-                                
-                            self.session.add(new_sentence)
-                            await self.session.flush()
-
-                            # Map tokens to lines
-                            for db_line in sentence_lines:
-                                if processed_doc['tokens']:
-                                    # Map tokens
-                                    line_analysis = {
-                                        "text": db_line.content,
-                                        "tokens": [
-                                            token for token in processed_doc['tokens']
-                                            if token['text'] in db_line.content
-                                        ]
-                                    }
-                                    
-                                    if line_analysis['tokens']:
-                                        # Update line
-                                        db_line.spacy_tokens = line_analysis
-                                        db_line.categories = self._extract_categories(line_analysis)
-                                        
-                                        # Create association
-                                        stmt = sentence_text_lines.insert().values(
-                                            sentence_id=new_sentence.id,
-                                            text_line_id=db_line.id,
-                                            position_start=db_line.content.find(line_analysis['tokens'][0]['text']),
-                                            position_end=db_line.content.rfind(line_analysis['tokens'][-1]['text']) + 
-                                                       len(line_analysis['tokens'][-1]['text'])
-                                        )
-                                        await self.session.execute(stmt)
-                                            
-                            await self.session.flush()
-                    
-                            if sentences_pbar:
-                                sentences_pbar.update(1)
-                                
-                        except RuntimeError as e:
-                            if "size of tensor" in str(e):
-                                logger.warning(
-                                    f"Tensor size mismatch:\n"
-                                    f"Author ID: {work.author_id}\n"
-                                    f"Work ID: {work.id}\n"
-                                    f"Work Title: {work.title}\n"
-                                    f"Reference Code: {work.reference_code}\n"
-                                    f"Division ID: {division.id}\n"
-                                    f"Sentence: {sentence.content}\n"
-                                    f"Source Lines:\n" + "\n".join(
-                                        f"  Line {i+1}: {line.content}"
-                                        for i, line in enumerate(sentence.source_lines)
-                                    ) + f"\nError: {str(e)}"
-                                )
-                                continue
-                            raise
+        try:
+            # Get work details
+            work = await self.get_work(work_id)
+            if not work:
+                logger.error("Could not find work with ID %d", work_id)
+                if self.report:
+                    self.report.add_sentence_issue(f"work_{work_id}", "Work not found")
+                return
                 
-                        except Exception as e:
-                            logger.error(f"Error processing sentence in division {division.id}: {str(e)}")
+            # Get divisions
+            divisions = await self.get_divisions(work_id)
+            if not divisions:
+                logger.warning("No divisions found for work %d", work_id)
+                if self.report:
+                    self.report.add_sentence_issue(f"work_{work_id}", "No divisions found")
+                return
+            
+            # Only clear metadata context, don't reset everything
+            self._set_metadata(None)
+            
+            async with self.session.begin_nested():
+                for division in divisions:
+                    try:
+                        # Get appropriate field and value based on work structure
+                        field_name, field_value = self._get_division_field_value(division)
+                        logger.info("Processing division %d (%s %s)", 
+                                  division.id, field_name, field_value)
+                        
+                        # Get lines
+                        db_lines = await self.get_division_lines(division.id)
+                        if not db_lines:
+                            logger.warning("No lines found in division %d", division.id)
+                            if self.report:
+                                self.report.add_sentence_issue(f"division_{division.id}", "No lines found")
                             continue
-                    
-                    if pbar:
-                        pbar.update(1)
-                        pbar.set_description(f"Processing divisions")
+                        
+                        # Convert lines to parser format
+                        parser_lines = self.process_lines(db_lines, division)
+                        if not parser_lines:
+                            logger.warning("No parser lines created for division %d", division.id)
+                            if self.report:
+                                self.report.add_sentence_issue(f"division_{division.id}", "No parser lines created")
+                            continue
+                        
+                        # Check first line for metadata but keep it in parser_lines
+                        if parser_lines and hasattr(parser_lines[0], 'is_metadata') and parser_lines[0].is_metadata:
+                            self._set_metadata(parser_lines[0].metadata)
+                        
+                        # Parse sentences
+                        sentences = self.parse_sentences(parser_lines)
+                        if not sentences:
+                            logger.warning("No sentences parsed from division %d", division.id)
+                            if self.report:
+                                self.report.add_sentence_issue(f"division_{division.id}", "No sentences parsed")
+                            continue
+                        
+                        # Process each sentence
+                        for sentence in sentences:
+                            try:
+                                # Process through NLP
+                                processed_doc = self.process_sentence(sentence)
+                                if not processed_doc:
+                                    if self.report:
+                                        self.report.add_nlp_issue(f"division_{division.id}", "NLP processing failed")
+                                    continue
+                                
+                                # Get database lines for sentence
+                                sentence_lines = self.get_sentence_lines(sentence, db_lines)
+                                if not sentence_lines:
+                                    logger.warning("No database lines found for sentence: %s", 
+                                                sentence.content)
+                                    logger.debug("Source lines had line numbers: %s",
+                                               [str(self._get_line_number(line)) 
+                                                for line in sentence.source_lines])
+                                    if self.report:
+                                        self.report.add_sentence_issue(f"division_{division.id}", "No database lines found for sentence")
+                                    continue
+                                    
+                                # Create mapping of line numbers to line IDs
+                                line_map = {}
+                                for line in db_lines:
+                                    line_num = self._get_line_number(line)
+                                    if line_num is not None:
+                                        line_map[line_num] = line.id
+                                
+                                # Get source line IDs in order
+                                source_line_ids = []
+                                for line in sentence.source_lines:
+                                    line_num = self._get_line_number(line)
+                                    if line_num is not None and line_num in line_map:
+                                        source_line_ids.append(line_map[line_num])
 
-                except Exception as e:
-                    logger.error(f"Error processing division {division.id}: {str(e)}")
-                    continue
+                                # Create sentence record with ordered source_line_ids
+                                new_sentence = await self.create_sentence_record(
+                                    sentence, 
+                                    processed_doc,
+                                    source_line_ids
+                                )
+                                if not new_sentence:
+                                    if self.report:
+                                        self.report.add_sentence_issue(f"division_{division.id}", "Failed to create sentence record")
+                                    continue
 
-        if sentences_pbar:
-            sentences_pbar.close()
+                                # Update line analysis
+                                for db_line in sentence_lines:
+                                    if processed_doc['tokens']:
+                                        line_analysis = self._map_tokens_to_line(
+                                            db_line.content,
+                                            processed_doc
+                                        )
+                                        
+                                        if line_analysis:
+                                            first_token_pos = db_line.content.find(
+                                                line_analysis['tokens'][0]['text']
+                                            )
+                                            last_token_pos = (
+                                                db_line.content.rfind(line_analysis['tokens'][-1]['text']) + 
+                                                len(line_analysis['tokens'][-1]['text'])
+                                            )
+                                            
+                                            await self.update_line_analysis(
+                                                db_line,
+                                                line_analysis,
+                                                new_sentence.id,
+                                                first_token_pos,
+                                                last_token_pos
+                                            )
+                                                
+                                await self.session.flush()
+                                    
+                            except Exception as e:
+                                logger.error("Error processing sentence in division %d: %s", 
+                                           division.id, str(e))
+                                if self.report:
+                                    self.report.add_sentence_issue(f"division_{division.id}", f"Error processing sentence: {str(e)}")
+                                continue
+                        
+                        if pbar:
+                            pbar.update(1)
+                            pbar.set_description(f"Processing work {work_id}")
+
+                    except Exception as e:
+                        logger.error("Error processing division %d: %s", division.id, str(e))
+                        if self.report:
+                            self.report.add_sentence_issue(f"division_{division.id}", f"Error processing division: {str(e)}")
+                        continue
+
+        except Exception as e:
+            logger.error("Error processing work %d: %s", work_id, str(e))
+            if self.report:
+                self.report.add_sentence_issue(f"work_{work_id}", f"Error processing work: {str(e)}")
 
     async def process_corpus(self) -> None:
         """Process all works in the corpus."""
-        stmt = select(Text)
-        result = await self.session.execute(stmt)
-        works = result.scalars().all()
-        
+        # Get all works
+        works = await self.get_work_list()
+        if not works:
+            logger.error("No works found in corpus")
+            if self.report:
+                self.report.add_sentence_issue("corpus", "No works found")
+            return
+            
         total_works = len(works)
-        logger.info(f"Starting sequential processing of {total_works} works")
+        logger.info("Starting sequential processing of %d works", total_works)
         
-        total_divisions = 0
-        for work in works:
-            stmt = select(TextDivision).where(TextDivision.text_id == work.id)
-            result = await self.session.execute(stmt)
-            total_divisions += len(result.scalars().all())
-        
-        with tqdm(total=total_divisions, desc="Processing corpus", unit="div") as pbar:
-            for i, work in enumerate(works, 1):
+        # Process each work
+        with tqdm(total=total_works, desc="Processing corpus", unit="work") as pbar:
+            for work in works:
                 try:
                     await self.process_work(work.id, pbar)
                     await self.session.commit()
+                    logger.info("Committed changes for work %d", work.id)
                 except Exception as e:
-                    logger.error(f"Error processing work {work.id}: {str(e)}")
+                    logger.error("Error processing work %d: %s", work.id, str(e))
+                    if self.report:
+                        self.report.add_sentence_issue(f"work_{work.id}", f"Failed to process work: {str(e)}")
                     await self.session.rollback()
+                    logger.info("Rolled back changes for work %d", work.id)
                     continue
 
-    async def get_work_sentences(self, work_id: int) -> List[Sentence]:
-        """Get all sentences for a work."""
-        stmt = select(TextDivision).where(TextDivision.text_id == work_id)
-        result = await self.session.execute(stmt)
-        divisions = result.scalars().all()
-        
-        all_sentences = []
-        for division in divisions:
-            stmt = select(TextLine).where(TextLine.division_id == division.id)
-            result = await self.session.execute(stmt)
-            db_lines = result.scalars().all()
-            
-            try:
-                parser_lines = [
-                    self._convert_to_parser_text_line(line) 
-                    for line in db_lines 
-                    if line.content
-                ]
-                if parser_lines:
-                    sentences = self.sentence_parser.parse_lines(parser_lines)
-                    all_sentences.extend(sentences)
-            except Exception as e:
-                logger.error(f"Error parsing sentences in division {division.id}: {str(e)}")
-                continue
-            
-        return all_sentences
-
-    async def get_sentence_analysis(self, sentence: Sentence) -> Dict[str, Any]:
-        """Get NLP analysis for a sentence."""
-        if not sentence.source_lines:
-            return None
-            
-        line_content = sentence.source_lines[0].content
-        
-        stmt = select(TextLine).where(TextLine.content == line_content)
-        result = await self.session.execute(stmt)
-        line = result.scalar_one_or_none()
-        
-        if line:
-            return line.spacy_tokens
-        return None
+    def reset(self):
+        """Reset processor state."""
+        self._set_metadata(None)
+        logger.debug("Reset CorpusProcessor state")

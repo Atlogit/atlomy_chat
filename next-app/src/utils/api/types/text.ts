@@ -1,8 +1,20 @@
+export interface TokenInfo {
+  text: string;
+  lemma: string;
+  pos: string;
+  tag: string;
+  dep: string;
+  morph: string;
+  category: string;
+  is_stop: boolean;
+  is_punct: boolean;
+}
+
 export interface TextLine {
   line_number: number;
   content: string;
   categories?: string[];
-  spacy_tokens?: Record<string, any>;
+  spacy_tokens?: TokenInfo[];  // Now an array of token objects
 }
 
 export interface TextDivision {
@@ -12,20 +24,18 @@ export interface TextDivision {
   volume?: string;
   chapter?: string;
   section?: string;
-  is_title?: boolean;
+  is_title: boolean;
   title_text?: string;
   metadata?: Record<string, any>;
-  division_metadata?: Record<string, any>;
   lines?: TextLine[];
 }
 
 export interface Text {
   id: string;
   title: string;
-  author?: string;
   work_name?: string;
+  author?: string;
   reference_code?: string;
-  text_content?: string;
   metadata?: Record<string, any>;
   divisions?: TextDivision[];
 }

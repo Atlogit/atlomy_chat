@@ -29,6 +29,7 @@ def setup_migration_logging(log_dir: Path = None, level: str = "INFO") -> None:
     # Create formatters
     file_formatter = logging.Formatter(
         '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        #'%(name)s - %(message)s'
     )
     console_formatter = logging.Formatter(
         '%(levelname)s: %(message)s'
@@ -40,27 +41,33 @@ def setup_migration_logging(log_dir: Path = None, level: str = "INFO") -> None:
         maxBytes=10*1024*1024,  # 10MB
         backupCount=5
     )
-    file_handler.setLevel(logging.DEBUG)
+    file_handler.setLevel(numeric_level)  # Respect passed level
     file_handler.setFormatter(file_formatter)
     
     # Create and configure console handler
     console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(numeric_level)
+    console_handler.setLevel(numeric_level)  # Respect passed level
     console_handler.setFormatter(console_formatter)
     
     # Configure root logger
     root_logger = logging.getLogger()
-    root_logger.setLevel(logging.DEBUG)
+    root_logger.setLevel(numeric_level)  # Respect passed level
+    
+    # Remove any existing handlers to prevent duplicate logging
+    for handler in root_logger.handlers[:]:
+        root_logger.removeHandler(handler)
+        
     root_logger.addHandler(file_handler)
     root_logger.addHandler(console_handler)
     
-    # Create specific loggers
+    # Create specific loggers with migration prefix to match get_migration_logger
     loggers = {
-        'migration': logging.getLogger('migration'),
-        'citation': logging.getLogger('citation'),
-        'database': logging.getLogger('database')
+        'migration': logging.getLogger('migration.core'),
+        'citation': logging.getLogger('migration.citation'),
+        'database': logging.getLogger('migration.database')
     }
     
+    # Set all loggers to respect passed level
     for logger in loggers.values():
         logger.setLevel(numeric_level)
         

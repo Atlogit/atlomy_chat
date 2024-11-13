@@ -7,7 +7,7 @@ citation and reference parsing to CitationParser.
 
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import logging
 from functools import wraps
 
@@ -23,6 +23,10 @@ class TextLine:
     citation: Optional[Citation] = None  # Parsed citation object
     is_title: bool = False  # Whether this line is a title
     line_number: Optional[int] = None  # Line number in the source text
+    title_number: Optional[int] = None  # Title line number (if is_title=True)
+    is_metadata: bool = False  # Whether this line contains metadata
+    metadata: Optional[Dict[str, str]] = None  # Metadata information if present
+    joined_line_numbers: List[int] = field(default_factory=list)  # Line numbers for joined lines
 
 class TextParser:
     """Handles the extraction and cleaning of ancient text files."""
@@ -57,12 +61,15 @@ class TextParser:
         # Process each line
         parsed_lines = []
         current_citation = None  # Track current citation for subsequent lines
-        line_number = 1  # Track line numbers
+        title_line_number = 1  # Track title line numbers
+        in_title = False  # Track if we're in a multi-line title
+        title_lines = []  # Collect lines of multi-line title
+        title_citation = None  # Store citation for multi-line title
+        current_line_numbers = []  # Track line numbers for joined lines
         
-        for line in content.splitlines():
-            line = self._clean_text(line)
+        for line_num, line in enumerate(content.splitlines(), 1):
+            line = line.strip()
             if not line:
-                line_number += 1
                 continue
             
             # Let CitationParser handle all reference parsing
@@ -77,6 +84,7 @@ class TextParser:
                 is_title = False
                 if citation.title_number is not None:
                     is_title = True
+                    title_citation = citation
                     # For title lines, don't carry over the citation
                     current_citation = None
                 elif citation.author_id:
@@ -88,27 +96,90 @@ class TextParser:
                     current_citation = citation
                     is_title = False
                 
+                # Handle title state
+                if is_title:
+                    in_title = True
+                    title_lines = []
+                
                 # Create TextLine object with the parsed content
                 if line or citation:  # Create line if there's content or a citation
+                    if in_title:
+                        # Add to title lines collection
+                        title_lines.append(line)
+                        continue
+                    
+                    # Use line number from citation if available
+                    line_number = None
+                    if citation.line and citation.line.isdigit():
+                        line_number = int(citation.line)
+                    else:
+                        line_number = line_num
+                    
                     parsed_line = TextLine(
                         content=line,
                         citation=citation,
                         is_title=is_title,
-                        line_number=line_number
+                        line_number=line_number if not is_title else None,
+                        title_number=title_line_number if is_title else None,
+                        joined_line_numbers=[line_number] if line_number else []
                     )
                     parsed_lines.append(parsed_line)
+                    
+                    # Increment title counter if this was a title
+                    if is_title:
+                        title_line_number += 1
             else:
-                # No citation found, use current citation
-                if line:  # Only create line if there's content
+                # No citation found
+                if in_title:
+                    # Add to title lines collection
+                    title_lines.append(line)
+                    # Check if this line ends the title
+                    if '}' in line:
+                        in_title = False
+                        # Create title line with all collected content
+                        title_content = ' '.join(title_lines)
+                        parsed_line = TextLine(
+                            content=title_content,
+                            citation=title_citation,
+                            is_title=True,
+                            line_number=None,
+                            title_number=title_line_number,
+                            joined_line_numbers=[]
+                        )
+                        parsed_lines.append(parsed_line)
+                        title_line_number += 1
+                        title_lines = []
+                        title_citation = None
+                elif line:  # Only create line if there's content
+                    # For lines without their own citation, use line number from current citation if available
+                    line_number = None
+                    if current_citation and current_citation.line and current_citation.line.isdigit():
+                        line_number = int(current_citation.line)
+                    else:
+                        line_number = line_num
+                    
                     parsed_line = TextLine(
                         content=line,
                         citation=current_citation,
                         is_title=False,
-                        line_number=line_number
+                        line_number=line_number,
+                        title_number=None,
+                        joined_line_numbers=[line_number] if line_number else []
                     )
                     parsed_lines.append(parsed_line)
-            
-            line_number += 1
+        
+        # Handle any remaining title lines
+        if in_title and title_lines:
+            title_content = ' '.join(title_lines)
+            parsed_line = TextLine(
+                content=title_content,
+                citation=title_citation,
+                is_title=True,
+                line_number=None,
+                title_number=title_line_number,
+                joined_line_numbers=[]
+            )
+            parsed_lines.append(parsed_line)
         
         return parsed_lines
 
@@ -126,9 +197,6 @@ class TextParser:
         if not text:
             return ""
             
-        # Remove unwanted characters but preserve brackets and dots for citations
-        text = text.replace('{', '').replace('}', '')
-        
         # Normalize apostrophes
         apostrophes = [' ̓', "᾿", "᾽", "'", "'", "'"]
         for apostrophe in apostrophes:
@@ -137,12 +205,3 @@ class TextParser:
         # Normalize spaces but preserve dots for citations (e.g., 128.32.5)
         parts = text.split()
         return ' '.join(part for part in parts if part)
-
-    def extract_title_text(self, content: str) -> Optional[str]:
-        """Extract title text from content enclosed in angle brackets."""
-        if '<' in content and '>' in content:
-            start = content.find('<') + 1
-            end = content.find('>')
-            if start < end:
-                return content[start:end].strip()
-        return None

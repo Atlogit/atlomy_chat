@@ -10,6 +10,9 @@ interface PaginatedResultsProps {
   isLoading?: boolean
 }
 
+type LocationField = 'book' | 'fragment' | 'volume' | 'page' | 'chapter' | 'section' | 'line'
+type AvailableFields = Record<LocationField, string | null>
+
 export function PaginatedResults({
   title = 'Results',
   results,
@@ -34,24 +37,48 @@ export function PaginatedResults({
   }, [results, currentPage, pageSize])
 
   const formatCitation = (result: SearchResult): string => {
-    const authorWork = result.author_name && result.work_name ? 
-      `${result.author_name}, ${result.work_name}` :
-      'Unknown Source'
+    // More strict checking for source properties
+    if (!result.source || typeof result.source !== 'object') {
+      return 'Unknown Source'
+    }
 
-    const locationParts = [
-      result.volume && `Volume ${result.volume}`,
-      result.chapter && `Chapter ${result.chapter}`,
-      result.section && `Section ${result.section}`,
-      result.line_numbers?.length > 0 && (
-        result.line_numbers.length === 1 
-          ? `Line ${result.line_numbers[0]}`
-          : `Lines ${result.line_numbers[0]}-${result.line_numbers[result.line_numbers.length - 1]}`
-      )
-    ].filter(Boolean)
+    const { author, work } = result.source
+    if (!author || !work || author === 'Unknown' || work === 'Unknown') {
+      return 'Unknown Source'
+    }
+
+    const authorWork = `${author}, ${work}`
+    const locationParts: string[] = []
+
+    // Get all available location fields
+    const location = result.location || {}
+    const availableFields: AvailableFields = {
+      book: location.book ? `book ${location.book}` : null,
+      fragment: location.fragment ? `Fragment ${location.fragment}` : null,
+      volume: location.volume ? `Volume ${location.volume}` : null,
+      page: location.page ? `Page ${location.page}` : null,
+      chapter: location.chapter ? `Chapter ${location.chapter}` : null,
+      section: location.section ? `Section ${location.section}` : null,
+      line: result.context?.line_numbers?.length ? (
+        result.context.line_numbers.length === 1 
+          ? `Line ${result.context.line_numbers[0]}`
+          : `Lines ${result.context.line_numbers[0]}-${result.context.line_numbers[result.context.line_numbers.length - 1]}`
+      ) : null
+    }
+
+    // Add fields in the order they appear in the work structure
+    // This ensures we respect the citation format for each work
+    const fieldOrder: LocationField[] = ['book', 'fragment', 'volume', 'page', 'chapter', 'section', 'line']
+    fieldOrder.forEach(field => {
+      const value = availableFields[field]
+      if (value) {
+        locationParts.push(value)
+      }
+    })
     
-    const location = locationParts.length > 0 ? `(${locationParts.join(', ')})` : ''
+    const locationStr = locationParts.length > 0 ? ` (${locationParts.join(', ')})` : ''
     
-    return location ? `${authorWork} ${location}` : authorWork
+    return `${authorWork}${locationStr}`
   }
 
   if (isLoading) {
@@ -84,36 +111,37 @@ export function PaginatedResults({
 
       <div className="space-y-4">
         {paginatedResults.map((result, index) => (
-          <div key={`${result.sentence_id || index}-${index}`} className="card bg-base-200 p-4">
+          <div key={`${result.sentence?.id || index}-${index}`} className="card bg-base-200 p-4">
             {/* Citation Header */}
             <div className="flex justify-between items-start">
               <div className="font-medium">{formatCitation(result)}</div>
             </div>
             
             {/* Previous Sentence Context */}
-            {result.prev_sentence && (
+            {result.sentence?.prev_sentence && (
               <div className="mt-2 text-sm text-base-content/70">
-                {result.prev_sentence}
+                {result.sentence.prev_sentence}
               </div>
             )}
             
             {/* Main Sentence */}
             <div className="mt-2 text-base font-medium border-l-4 border-primary pl-4 py-2">
-              {result.sentence_text || 'No text available'}
+              {result.sentence?.text || 'No text available'}
             </div>
             
             {/* Next Sentence Context */}
-            {result.next_sentence && (
+            {result.sentence?.next_sentence && (
               <div className="mt-2 text-sm text-base-content/70">
-                {result.next_sentence}
+                {result.sentence.next_sentence}
               </div>
             )}
             
             {/* Line Context - Only show if different from sentence text */}
-            {result.line_text && result.line_text !== result.sentence_text && (
+            {result.context?.line_text && result.sentence?.text && 
+             result.context.line_text !== result.sentence.text && (
               <div className="mt-4 text-sm">
                 <span className="font-medium">Line Context: </span>
-                <span className="text-base-content/70">{result.line_text}</span>
+                <span className="text-base-content/70">{result.context.line_text}</span>
               </div>
             )}
           </div>

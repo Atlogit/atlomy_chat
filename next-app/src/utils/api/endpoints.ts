@@ -26,5 +26,6 @@ export const API = {
     all: '/api/v1/corpus/all',
     text: (id: string) => `/api/v1/corpus/text/${encodeURIComponent(id)}`,
     category: (category: string) => `/api/v1/corpus/category/${encodeURIComponent(category)}`,
+    clearCache: '/api/v1/corpus/cache/clear',
   },
 };

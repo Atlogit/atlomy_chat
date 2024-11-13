@@ -1,24 +1,11 @@
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from sqlalchemy import String, Integer, ForeignKey, JSON, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from . import Base
+from toolkit.parsers.citation import CitationParser
 
 class TextDivision(Base):
-    """Model for storing text divisions with both citation and structural components.
-    
-    Citation components:
-    1. Author ID field (e.g., [0086])
-    2. Work number field (e.g., [055])
-    3. Abbreviation/epithet field (optional, e.g., [Divis])
-    4. Fragment field (optional, e.g., [])
-    
-    Structural components:
-    - Volume
-    - Chapter
-    - Line
-    - Section (e.g., 847a)
-    - Title information
-    """
+    """Model for storing text divisions with both citation and structural components."""
     __tablename__ = "text_divisions"
 
     # Primary key
@@ -33,18 +20,21 @@ class TextDivision(Base):
     # Citation components
     author_id_field: Mapped[str] = mapped_column(String, nullable=False)
     work_number_field: Mapped[str] = mapped_column(String, nullable=False)
-    epithet_field: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    fragment_field: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    work_abbreviation_field: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    author_abbreviation_field: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     
     # Author and work names
     author_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     work_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     
     # Structural components
+    fragment: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     volume: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    book: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # Added book field
     chapter: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    line: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     section: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    page: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    line: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     
     # Title components
     is_title: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -87,7 +77,7 @@ class TextDivision(Base):
                 return abbrev
                 
         # Fallback to ID field
-        return f"[{self.author_id_field}]"
+        return self.author_id_field
 
     def _get_abbreviated_work_name(self) -> str:
         """Get abbreviated work name."""
@@ -99,12 +89,12 @@ class TextDivision(Base):
             work_name = self.text.title
             
         if not work_name:
-            return f"[{self.work_number_field}]"
+            return self.work_number_field
             
         # Split work name into words
         words = work_name.split()
         if not words:
-            return f"[{self.work_number_field}]"
+            return self.work_number_field
             
         # Take first letter of each significant word
         abbrev = ""
@@ -120,6 +110,55 @@ class TextDivision(Base):
             abbrev = words[0][:3].capitalize()
             
         return abbrev + "."
+
+    def _get_work_structure(self) -> Optional[List[str]]:
+        """Get work structure from citation parser."""
+        if self.author_id_field and self.work_number_field:
+            parser = CitationParser.get_instance()
+            return parser.get_work_structure(self.author_id_field, self.work_number_field)
+        return None
+
+    def _get_location_components(self, structure: Optional[List[str]] = None) -> List[str]:
+        """Get location components in the correct order based on work structure."""
+        components = []
+        
+        # If we have a work structure, use it to order the components
+        if structure:
+            structure_levels = [level.lower() for level in structure]
+            field_map = {
+                'fragment': ('fragment', 'Fragment'),
+                'volume': ('volume', 'Volume'),
+                'book': ('book', 'Book'),  # Added book mapping
+                'page': ('page', 'Page'),
+                'chapter': ('chapter', 'Chapter'),
+                'section': ('section', 'Section'),
+                'line': ('line', 'Line')
+            }
+            
+            # Add components in structure order
+            for level in structure_levels:
+                for field_key, (attr, label) in field_map.items():
+                    if level == field_key and getattr(self, attr):
+                        components.append(f"{label} {getattr(self, attr)}")
+                        break
+        else:
+            # Fallback to default order if no structure
+            if self.fragment:
+                components.append(f"Fragment {self.fragment}")
+            if self.volume:
+                components.append(f"Volume {self.volume}")
+            if self.book:  # Added book component
+                components.append(f"Book {self.book}")
+            if self.chapter:
+                components.append(f"Chapter {self.chapter}")
+            if self.page:
+                components.append(f"Page {self.page}")
+            if self.section:
+                components.append(f"Section {self.section}")
+            if self.line:
+                components.append(f"Line {self.line}")
+                
+        return components
     
     def __repr__(self) -> str:
         citation_parts = []
@@ -128,42 +167,26 @@ class TextDivision(Base):
         if self.author_name:
             citation_parts.append(self.author_name)
         else:
-            citation_parts.append(f"[{self.author_id_field}]")
+            citation_parts.append(self.author_id_field)
             
         if self.work_name:
             citation_parts.append(self.work_name)
         else:
-            citation_parts.append(f"[{self.work_number_field}]")
+            citation_parts.append(self.work_number_field)
             
-        if self.epithet_field:
-            citation_parts.append(f"[{self.epithet_field}]")
-        if self.fragment_field:
-            citation_parts.append(f"[{self.fragment_field}]")
+        if self.work_abbreviation_field:
+            citation_parts.append(f"[{self.work_abbreviation_field}]")
+        if self.author_abbreviation_field:
+            citation_parts.append(f"[{self.author_abbreviation_field}]")
             
-        structure_parts = []
-        if self.is_title:
-            if self.section:
-                structure_parts.append(f".{self.section}.t")
-            else:
-                structure_parts.append(".t")
-            if self.title_number:
-                structure_parts.append(f".{self.title_number}")
-        else:
-            if self.volume:
-                structure_parts.append(f"Vol={self.volume}")
-            if self.chapter:
-                structure_parts.append(f"Ch={self.chapter}")
-            if self.line:
-                structure_parts.append(f"Lin={self.line}")
-            if self.section:
-                structure_parts.append(f"Sec={self.section}")
+        # Get work structure for ordering components
+        structure = self._get_work_structure()
+        components = self._get_location_components(structure)
         
-        return (
-            f"TextDivision(id={self.id}, "
-            f"citation={', '.join(citation_parts)}"
-            + (f", {', '.join(structure_parts)}" if structure_parts else "")
-            + ")"
-        )
+        if components:
+            citation_parts.append(f"({', '.join(components)})")
+        
+        return f"TextDivision(id={self.id}, citation={', '.join(citation_parts)})"
 
     def format_citation(self, abbreviated: bool = False) -> str:
         """Format a citation string.
@@ -180,15 +203,42 @@ class TextDivision(Base):
             # Start with author and work
             citation = f"{author} {work}"
             
-            # Add location components with minimal formatting
-            if self.volume:
-                citation += f" {self.volume}"
-            if self.chapter:
-                citation += f".{self.chapter}"
-            if self.line:
-                citation += f".{self.line}"
-            if self.section:
-                citation += f".{self.section}"
+            # Get work structure for ordering components
+            structure = self._get_work_structure()
+            
+            # Add location components in structure order
+            if structure:
+                structure_levels = [level.lower() for level in structure]
+                field_map = {
+                    'fragment': self.fragment,
+                    'volume': self.volume,
+                    'book': self.book,  # Added book field
+                    'page': self.page,
+                    'chapter': self.chapter,
+                    'section': self.section,
+                    'line': self.line
+                }
+                
+                # Add components in structure order
+                for level in structure_levels:
+                    if level in field_map and field_map[level]:
+                        citation += f".{field_map[level]}"
+            else:
+                # Fallback to default order if no structure
+                if self.fragment:
+                    citation += f".{self.fragment}"
+                if self.volume:
+                    citation += f".{self.volume}"
+                if self.book:  # Added book field
+                    citation += f".{self.book}"
+                if self.chapter:
+                    citation += f".{self.chapter}"
+                if self.page:
+                    citation += f".{self.page}"
+                if self.section:
+                    citation += f".{self.section}"
+                if self.line:
+                    citation += f".{self.line}"
                 
             return citation.strip()
         else:
@@ -199,7 +249,7 @@ class TextDivision(Base):
             author = (
                 self.author_name or 
                 (self.text.author.name if self.text and self.text.author else None) or 
-                f"Author {self.author_id_field}"
+                self.author_id_field
             )
             
             # Try to get work name in this order:
@@ -209,22 +259,15 @@ class TextDivision(Base):
             work = (
                 self.work_name or 
                 (self.text.title if self.text else None) or 
-                f"Work {self.work_number_field}"
+                self.work_number_field
             )
             
             citation = f"{author}, {work}"
             
-            # Add structural components if available
-            components = []
-            if self.volume:
-                components.append(f"Volume {self.volume}")
-            if self.chapter:
-                components.append(f"Chapter {self.chapter}")
-            if self.line:
-                components.append(f"Line {self.line}")
-            if self.section:
-                components.append(f"Section {self.section}")
-                
+            # Get work structure for ordering components
+            structure = self._get_work_structure()
+            components = self._get_location_components(structure)
+            
             if components:
                 citation += f", {', '.join(components)}"
                 
@@ -245,11 +288,17 @@ class TextDivision(Base):
                 self.section = citation.section
         else:
             self.is_title = False
+            if citation.fragment:
+                self.fragment = citation.fragment
             if citation.section:
                 self.section = citation.section
             if citation.volume:
                 self.volume = citation.volume
+            if citation.book:  # Added book field
+                self.book = citation.book
             if citation.chapter:
                 self.chapter = citation.chapter
+            if citation.page:
+                self.page = citation.page
             if citation.line:
                 self.line = citation.line

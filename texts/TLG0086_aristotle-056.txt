@@ -1,0 +1,158 @@
+
+[0086]  [056]  [Divis]  []
+
+-Z/3c,646,F/1/1	  / Incipit liber (Aristotelis) de inundacione Nili. / (1) propter 
+-Z/3c,646,F/1/2	quid aliis fluminibus in hyeme quidem augmen/tatis, in estate autem multo 
+-Z/3c,646,F/1/3	factis minoribus, solus eorum, / qui in mare fluunt, multum estate excedit, 
+-Z/3c,646,F/1/4	fitque tantus, ut / civitates solae supersint velut insulae? crescit autem a ver-/
+-Z/3c,646,F/1/5	sionibus estivalibus qualibet die, et rursum abscedit. exundat / autem per 
+-Z/3c,646,F/1/6	labia fluminis aqua et non, sicut quidem aiunt, / super terram, verumptamen 
+-Z/3c,646,F/1/7	iuxta ipsum fluvium putei ap/ponunt. circa ipsum quidem igitur accidentia 
+-Z/3c,646,F/1/8	talia, causam / autem sumat quis sic quaerens: necesse enim aut estate // 
+-Z/3c,646,F/1/9	ipsi advenire aliunde aquam, aut hyeme auferri, videlicet / desursum a sole 
+-Z/3c,646,F/1/10	attractam (hic enim manifeste hoc facit), / aut in terra desiccatam. per eam 
+-Z/3c,646,F/1/11	quidem igitur qu(a)e in / hyeme ablationem sic utique in estate fiet maior, per 
+-Z/3c,646,F/1/12	ap/positionem autem hoc modo: aut enim propria supernatante / propter 
+-Z/3c,646,F/1/13	obstructionem, velut etiam accidit canalibus—si enim / aliquis intercipiat, 
+-Z/3c,646,F/1/14	fluens congregatum excrescit ad alta—aut / aliena superveniente. hoc autem 
+-Z/3c,646,F/1/15	utique fiet, si fontes plenis/simi fiant, aliunde adsupernatante aqua; 
+-Z/3c,646,F/1/16	apponantur autem / utique aut liquescente aliquo aut pluente. / modi 
+-Z/3c,646,F/1/17	quidem igitur tales et tanti, per quos utique crescit / fluvius solus. horum 
+-Z/3c,646,F/1/18	autem qui quidem existunt dicti prius / a dubitantibus de ipso, hos nos 
+-Z/3c,646,F/1/19	dicemus. / 
+-Z/3c,646,F/1/20	  (2) <T(h)ales> <ὁ Ἐξαμύου> <Milesius> (Vorsokr.5 11 A 1 § 37; A 16) 
+-Z/3c,646,F/1/21	a ventis annualibus / repulsum inquit / fluvium inundare: crescit enim, 
+-Z/3c,646,F/1/22	si illi flant, / et e regione fluit ipsorum. accidit autem contrarium: super/natat 
+-Z/3c,646,F/1/23	enim ad modicum desubtus, principium autem reple/tionis videtur deorsum. 
+-Z/3c,646,F/1/24	adhuc idem alios oportebat pati / magis fluvios, qui ex opposito fluunt  
+-Z/3c,646,F/1/25	ipsis magis, et mi/nores existentes faciles sunt cogi a ventis. frequenter 
+-Z/3c,646,F/1/26	autem / et annuales non flant, fluvius autem [non] videtur idem faciens. / 
+-Z/3c,646,F/1/27	  (3) <Diogenes> autem †nakithemius <Apolloniates> (cf. Vorsokr.5 64 A 
+-Z/3c,646,F/1/28	18) fontibus ait / addi aquam, attrahente terra propter arefieri a sole in 
+-Z/3c,646,F/1/29	estate; / natum esse enim indigens trahere ex propinquo. accidit / au-
+-Z/3c,646,F/1/30	tem et huic, unum quidem quod frigidissimum estate quod / secundum terram 
+-Z/3c,646,F/1/31	est, trahit autem omne calidum existens et / quando utique maxime fuerit 
+-Z/3c,646,F/1/32	calidum. ** adhuc autem quia / alios oportebat fluvios eos, qui in Libia, 
+-Z/3c,646,F/1/33	idem facere: non / enim singulariter sol illius desiccat fontes. // 
+-Z/3c,646,F/1/34	  (4) <Anaxagoras> autem <(H)egesibuli Clazomenius> (Vorsokr.5 A 
+-Z/3c,646,F/1/35	42 § 5; A 91) propter lique/fieri nivem estate repleri fluvium ait. contingit 
+-Z/3c,646,F/1/36	quidem enim / sic augeri quemadmodum diximus, sed multitudo inpropor-
+-Z/3c,646,F/1/37	tionata facta in excrescentia fluvii: multum enim super/ excedit quam ut 
+-Z/3c,646,F/1/38	verisimile a nive liquefacta; et multa enim modica fit aqua, Nilus autem 
+-Z/3c,646,F/1/39	multam superinfundit regionem, / et profundum iam aliquando etiam super 
+-Z/3c,646,F/1/40	triginta cubitos / fuit. adhuc autem neque locus existens videtur talis puta, / 
+-Z/3c,646,F/1/41	unde possibile sit ipsum fluere a nive: Ethyopia enim et / Libia inhabi-
+-Z/3c,646,F/1/42	tabiles propter estum, ex Asia autem non con/tingit ipsum fluere. Sytonis 
+-Z/3c,646,F/1/43	enim lacus apud mare est / illud quod est iuxta Syriam, huius autem et 
+-Z/3c,646,F/1/44	Rubri quod / intermedium mille stadia sunt. Rubrum quidem mare aiunt / 
+-Z/3c,646,F/1/45	quidam coniungi ad id quod extra: ab hoc quidem non / videtur fluens, 
+-Z/3c,646,F/1/46	ab hoc autem inmanifestum, si possibile: / nullum enim audivimus dignum 
+-Z/3c,646,F/1/47	fide nondum de Rubro mari, / utrum ipsum per se ipsum est aut coniungitur 
+-Z/3c,646,F/1/48	ad id quod / extra Eracleas columpnas. deceptus est autem et rex / Artha-
+[0086]  [056]  [Divis]  []
+
+-Z/3c,646,F/1/49	xarxes Okhos cognominatus, quando super Egyptum / debebat militare: 
+-Z/3c,646,F/1/50	conatus est enim avertere Indorum fluvium / tamquam existentem eundem, 
+-Z/3c,646,F/1/51	audiens quia cocodrillos habet / quemadmodum Nilus; mittens autem ad 
+-Z/3c,646,F/1/52	vocatos †onifalos / audivit, quia fluit fluvius in Rubrum Mare, et cessavit 
+-Z/3c,646,F/1/53	a / conatu. iterum persuasum est dicentibus Indis, quia fluvius / alter 
+-Z/3c,646,F/1/54	esset ad illas partes Indi(a)e, fluens ex monte vocato / Aleto, ex quo quidem 
+-Z/3c,646,F/1/55	Indus: hunc autem dicebant habere / cocodrillos, et circumfluere exterius  
+-Z/3c,646,F/1/56	Rubrum mare, sive veraces / sint hoc dicentes sive mentientes. verumptamen 
+-Z/3c,646,F/1/57	rex dicebat / conari hunc avertere, sed ipsum prohibuerunt quoniam ad / 
+-Z/3c,646,F/1/58	curam hanc miserant, dicentes quia maiorem destruit regionem // quam 
+-Z/3c,646,F/1/59	accipit dominans Egyptiis. 
+-Z/3c,646,F/1/60	  (5) de principio quidem, unde / existat fluens Nilus, et de Rubro mari 
+-Z/3c,646,F/1/61	hoc modo (aut secun/dum quem <Athinagoras> dicebat <Arimnisti> [V];  
+-Z/3c,646,F/1/62	ille enim inquit / unum esse mare quod Rubrum et quod extra Eracleas 
+-Z/3c,646,F/1/63	co/ lumpnas, nichil dignum ad confirmandum ad regem dicens). / totum 
+-Z/3c,646,F/1/64	autem manifestum, quod si quidem ex hoc monte fluit / liquefacta nive, 
+-Z/3c,646,F/1/65	subcontraria multa fierent hiis quam nunc / accidunt circa ipsum. mons 
+-Z/3c,646,F/1/66	enim iste intermedius Ethyopum / et Indorum distat itinere quinque mensium, 
+-Z/3c,646,F/1/67	ut aiunt. differt / etiam quantum differt fluxus longus aut brevis: fluen-
+-Z/3c,646,F/1/68	tium / enim de prope primum pervenit fluxus plurimus, in fine / autem 
+-Z/3c,646,F/1/69	minor atque deficiens; eorum autem qu(a)e a longe, / primo quidem minus, 
+-Z/3c,646,F/1/70	in fine autem copiosissimum, quemad/modum et in ventis. propter quod 
+-Z/3c,646,F/1/71	proverbialiter loquentes / dicimus ‘inchoante autem austro et desinente 
+-Z/3c,646,F/1/72	borea’: qui /quidem enim auster quia a longe pervenit ad nos, primo / debilis 
+-Z/3c,646,F/1/73	flat, magnus autem fit consumens; boreas autem con/trarium propter habi-
+-Z/3c,646,F/1/74	tatum locum supponi ad boream. Nilus / autem venit primo maximus, 
+-Z/3c,646,F/1/75	postremo autem minoratus et / deficiens. adhuc autem conventibus mensium 
+-Z/3c,646,F/1/76	magis fluit, et / deficiente luna magis quam stante et panselenis. oportebat / 
+-Z/3c,646,F/1/77	autem contrarium: plenilunio enim congelata tabescunt, et / ventorum 
+-Z/3c,646,F/1/78	quando boree optinent, sed non quando not[h]i, quam/vis liquefaciat 
+-Z/3c,646,F/1/79	quidem borea nunc magis not[h]us. (eadem / autem dicere congruit et ad 
+-Z/3c,646,F/1/80	dicentes ab Eracleis columpnis / fluere. Promathus (?) enim Samius [V] 
+-Z/3c,646,F/1/81	ex Argenti monte, unde et / Cremetis, liquefacta nive: adhuc enim per am-
+-Z/3c,646,F/1/82	plius spacium / fieri fluxum; per totam enim Libiam ipsum fluere inquit). 
+-Z/3c,646,F/1/83	de causa quidem igitur, propter quam Anaxagoras ait // effluere Nilum, 
+-Z/3c,646,F/1/84	tanta dicta sunt.  
+-Z/3c,646,F/1/85	  (6) Reliquum autem modorum / eos qui non habent raciones verisimiles 
+-Z/3c,646,F/1/86	posterius dicemus. / sunt autem quidam qui aiunt augeri fluvium propter 
+-Z/3c,646,F/1/87	an/nuales, fontibus incidente eo quod extra mari; hii autem / calidiores 
+-Z/3c,646,F/1/88	existentes fontes per estatem superfluere, accedente / sole ad ursam: magis 
+-Z/3c,646,F/1/89	enim 〈fervore〉 fluere aquam quam / frigore. quorum utrumque mediocri 
+-Z/3c,646,F/1/90	dignum est considera/tione: qui quidem enim propter annuales, videtur 
+-Z/3c,646,F/1/91	solvi / eisdem racionibus, quas quidem et prius diximus, et quod / per totam 
+-Z/3c,646,F/1/92	Libiam fluens idem facere consuevit fluvius; qui / autem tantam suma〈n〉t 
+-Z/3c,646,F/1/93	addicionem aqu(a)e propter fervorem, / irracionabile totaliter, quia non plus 
+-Z/3c,646,F/1/94	facit propter fluere / secundum tumorem maiorem eiusdem multitudinis. / 
+-Z/3c,646,F/1/95	  (7) <Nicagoras> (V) autem <Ciprius> ait ipsum fluere amplius / 
+-Z/3c,646,F/1/96	estate eo quod fontes habeat ex terra ad illam partem, in / qua hyems est, 
+-Z/3c,646,F/1/97	quando fuerit apud nos estas. non plane / autem hoc determinat: videtur 
+-Z/3c,646,F/1/98	enim nichil negociatus esse / circa hoc quod dicitur. simul enim nobis estas 
+-Z/3c,646,F/1/99	fit et hyems / in altera zona habitantibus, intermedium autem inhabitabile / 
+-Z/3c,646,F/1/100	est, quod tropici incidunt de terra. est enim una quidem / pars h(a)ec, 
+-Z/3c,646,F/1/101	altera autem quam semper manifestus circulus et / quam semper 〈in〉mani-
+-Z/3c,646,F/1/102	festus determinant; media autem horum / et tropicorum habitari contingit 
+-Z/3c,646,F/1/103	in circuitu terr(a)e; sola autem / qu(a)e intermedia est, solis transitus exi-
+-Z/3c,646,F/1/104	stens, duarum zonarum / magnitudo, du(a)e enim decisiones sunt, qu(a)e 
+-Z/3c,646,F/1/105	autem habitatur / una. accidit igitur pertransire fluentem duplo tantam 
+-Z/3c,646,F/1/106	regio/nem latitudinis habitat(a)e et per inhabitabilem propter excessum // 
+-Z/3c,646,F/1/107	ardoris. itaque si neque stet in circuitu maris Libie, sed / continuus 
+-Z/3c,646,F/1/108	progressus, tam interminatam pertransit latitudi/nem, propter quod quidem 
+-Z/3c,646,F/1/109	et a nive dicentibus fluere accidit, / et sic dicentibus impossibile. / 
+-Z/3c,646,F/1/110	  (8) Restant autem tres adhuc modi dictorum, secundum quos / contingimus 
+-Z/3c,646,F/1/111	annuis augeri. in hyeme enim ablata / qu(a)e inerat aqua; hoc autem 
+-Z/3c,646,F/1/112	utique erit sole desiccante, / quemadmodum dicit Erodotus (2, 24/6),  
+-Z/3c,646,F/1/113	fabularum scriptor: non enim / ait in hyeme solem per Libiam facere habun-
+-Z/3c,646,F/1/114	danciam, nisi / si contingat latum hinc ducere humorem; circa versiones / 
+-Z/3c,646,F/1/115	autem estivales ad arctum venire. nequaquam autem dicitur / exquisite: 
+-Z/3c,646,F/1/116	neque enim Nilum oportebat facere solum hoc; / similiter enim ex Libia tota 
+-Z/3c,646,F/1/117	idem dicit solem trahere hu/morem; putareque supervenire habitabili solem 
+-Z/3c,646,F/1/118	secundum / quamcunque partem, stultum. ubique gnomones umbram 
+-Z/3c,646,F/1/119	ad / meridiem faciunt, et non hoc differunt, sed per maiorem aut / minorem 
+-Z/3c,646,F/1/120	facere umbram. Libiam totam amphithalassiam / esse aiunt, tamquam iste 
+-Z/3c,646,F/1/121	modus quidem causae impossibilis. 
+-Z/3c,646,F/1/122	  (9) Reliquum autem duarum utramque dicere est. est enim / una quidem 
+-Z/3c,646,F/1/123	causa, quia terra superfervens existens hyeme, / eo quod in tali fundo 
+-Z/3c,646,F/1/124	fontes sint, Nili desiccatur aqua. / quod quidem et aliis accidit: puta in 
+-Z/3c,646,F/1/125	Frigia sunt putei, / qui in hyeme quidem sunt sicci, in estate autem replen-
+-Z/3c,646,F/1/126	tur; / et in Olinthia Calcidonie quidam putei plenissimi sunt estate. / hanc 
+-Z/3c,646,F/1/127	quidem igitur causam ut racionabiliorem existentem / illa quam predicti 
+-Z/3c,646,F/1/128	assignant, dirimimus prius. // (10) Nunc autem relinquetur sola causa 
+-Z/3c,646,F/1/129	dictorum. hanc / causam dicendum, <propter quod iam non problema 
+-Z/3c,646,F/1/130	videtur / esse: in sensum enim venit, quemadmodum per se 
+-Z/3c,646,F/1/131	videntes / facti a visis> (T 2 a—d). videntur enim aqu(a)e fact(a)e in 
+-Z/3c,646,F/1/132	Ethiopia per / tempora h(a)ec a Cane usque ad Arcturum mult(a)e et 
+-Z/3c,646,F/1/133	habun/danter, hyeme autem null(a)e; et fluctus nutriuntur, cum / crescunt 
+-Z/3c,646,F/1/134	in ipsis, et propter hoc simul annualibus advenit / fluvius. isti enim ne-
+-Z/3c,646,F/1/135	bulas maxime ferunt in regionem, et / quicunque alii venti fiunt estivales 
+-Z/3c,646,F/1/136	ante hos. quibus offen/ dentibus ad montes, defluunt aqu(a)e ad stagna, 
+-Z/3c,646,F/1/137	per qu(a)e Nilus / fluit. adhuc autem et qu(a)e a nive dicentibus fluere 
+-Z/3c,646,F/1/138	sub / contrarietates testificantur huic racioni, quodque et toti con/ventibus 
+-Z/3c,646,F/1/139	mensium magis crescere fluvium; etenim aqu(a)e con/sueverunt fieri tunc  
+-Z/3c,646,F/1/140	magis. et quod non similiter copiosum / inchoans cum postremo. adhuc 
+-Z/3c,646,F/1/141	autem quando not[h]i flant / minus quam utique bore(a)e; boreas enim 
+-Z/3c,646,F/1/142	nubes fert ad locum, / ex quibus aqua facta impletur Nilus. 
+-Z/3c,646,F/1/143	  De Nilo quidem igitur h(a)ec dicta sunt. / Explicit liber de inun-
+-Z/3c,646,F/1/144	  datione Nili (Aristotilis). 
+-Z/3c,646,F/2/1	  ALEXAND. in Aristot. Meteor. 1, 12 p. 349, 8 (Comm. Ar. Gr. III 2, 
+-Z/3c,646,F/2/2	p. 53 H): λέγει τε καὶ περὶ τὴν Ἀραβίαν τε καὶ Αἰθιοπίαν τοῦ θέρους καὶ οὐ 
+-Z/3c,646,F/2/3	τοῦ χειμῶνος γίνεσθαι τοὺς ὑετούς ... ἐπιζητήσαι δ' ἄν τις, πῶς εἰ τὸ θέρος 
+-Z/3c,646,F/2/4	ξηρόν ἐστιν, ὡς προείρηκε, παρ' οἷς ξηρότατόν ἐστι τὸ θέρος, παρὰ τούτοις 
+-Z/3c,646,F/2/5	οἱ ὑετοὶ τοῦ θέρους γίνονται. ἢ αἱ μὲν ἀναθυμιάσεις καὶ αἱ τῶν νεφῶν συστάσεις 
+-Z/3c,646,F/2/6	οὐκ ἐκεῖ γίνονταί τε καὶ γεννῶνται, ἀλλ' ὑπὸ πνευμάτων τῶν ἐτησίων πρὸς τὰ 
+-Z/3c,646,F/2/7	ἐκεῖ ὄρη ὄντα ὑψηλὰ ἀπωθούμεναι συνίστανται, ὡς λέγει, τῆς δὲ ταχείας 
+-Z/3c,646,F/2/8	αὐτῶν εἰς ὑετὸν μεταβολῆς ἡ προειρημένη ἀντιπερίστασις αἰτία, ὡς λέγει ἐν 
+-Z/3c,646,F/2/9	τοῖς Περὶ τῆς τοῦ Νείλου ἀναβάσεως. 

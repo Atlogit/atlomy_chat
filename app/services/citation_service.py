@@ -33,6 +33,7 @@ class CitationService:
             ]
             
             logger.info(f"Formatted {len(citations)} citations")
+            logger.debug(f"First citation: {citations[0] if citations else None}")
             return citations
             
         except Exception as e:
@@ -52,7 +53,7 @@ class CitationService:
             if not division_ids:
                 return {}
                 
-            # Fetch all divisions in one query
+            # Fetch all divisions in one query with proper author join
             divisions_query = text("""
                 SELECT td.*, t.title, t.id as text_id, a.name as author_name
                 FROM text_divisions td
@@ -68,7 +69,7 @@ class CitationService:
             
             divisions = {d['id']: d for d in result.mappings().all()}
             logger.info(f"Fetched {len(divisions)} divisions")
-            
+            logger.debug(f"First division: {next(iter(divisions.values())) if divisions else None}")
             return divisions
             
         except Exception as e:
@@ -78,34 +79,44 @@ class CitationService:
     def _format_citation(self, row: Dict, division_data: Optional[Dict] = None) -> Dict:
         """Format a single citation with proper structure."""
         try:
-            # Create and populate TextDivision instance
-            division = TextDivision()
-            if division_data:
-                for key, value in division_data.items():
-                    setattr(division, key, value)
+            # Get line number and ensure it's a list
+            line_numbers = row.get('line_numbers', [])
+            if not isinstance(line_numbers, list):
+                line_numbers = [line_numbers] if line_numbers else []
             
-            # Get line numbers from the row
-            line_numbers = row.get("line_numbers", [])
-            if not line_numbers and row.get("min_line_number"):
-                # Fallback to min/max if line_numbers array not available
-                min_line = row.get("min_line_number")
-                max_line = row.get("max_line_number", min_line)
-                line_numbers = list(range(min_line, max_line + 1))
-            
-            # Create line ID if we have both text ID and line numbers
+            # Create line ID if we have both text ID and line number
             line_id = ""
             if division_data and division_data.get('text_id') and line_numbers:
                 line_id = f"{division_data['text_id']}-{line_numbers[0]}"
             
-            # Use author_name directly from the row data
-            author_name = row.get('author_name')
-            if not author_name and division_data:
-                author_name = division_data.get('author_name')
+            # Get author name in order of preference
+            author_name = (
+                row.get('author_name') or  # From the main query
+                (division_data.get('author_name') if division_data else None) or  # From division data
+                row.get('author_id_field')  # Fallback to ID field
+            )
             
-            # Use work_name directly from the row data
-            work_name = row.get('work_name')
-            if not work_name and division_data:
-                work_name = division_data.get('work_name')
+            # Get work name in order of preference
+            work_name = (
+                row.get('work_name') or  # From the main query
+                (division_data.get('title') if division_data else None) or  # From division data
+                row.get('work_number_field')  # Fallback to ID field
+            )
+
+            # Handle tokens - ensure we get just the array part if it's wrapped in an object
+            tokens = row.get("sentence_tokens", [])
+            if isinstance(tokens, dict) and 'tokens' in tokens:
+                tokens = tokens['tokens']
+            elif not isinstance(tokens, list):
+                tokens = []
+            
+            # Format line number as range if needed
+            line_value = None
+            if line_numbers:
+                if len(line_numbers) > 1:
+                    line_value = f"{line_numbers[0]}-{line_numbers[-1]}"
+                else:
+                    line_value = str(line_numbers[0])
             
             # Build citation structure
             citation = {
@@ -114,7 +125,7 @@ class CitationService:
                     "text": row.get("sentence_text", ""),
                     "prev_sentence": row.get("prev_sentence"),
                     "next_sentence": row.get("next_sentence"),
-                    "tokens": row.get("sentence_tokens", {})
+                    "tokens": tokens
                 },
                 "citation": "",  # Will be set after creating TextDivision
                 "context": {
@@ -124,12 +135,18 @@ class CitationService:
                 },
                 "location": {
                     "volume": row.get("volume"),
+                    "book": row.get("book"),  # Add book field
                     "chapter": row.get("chapter"),
-                    "section": row.get("section")
+                    "section": row.get("section"),
+                    "page": row.get("page"),
+                    "fragment": row.get("fragment"),
+                    "line": line_value
                 },
                 "source": {
-                    "author": author_name or row.get('author_id_field', 'Unknown'),
-                    "work": work_name or row.get('work_number_field', '')
+                    "author": author_name if author_name else "Unknown",
+                    "work": work_name if work_name else "Unknown",
+                    "author_id": row.get("author_id_field"),
+                    "work_id": row.get("work_number_field")
                 }
             }
             
@@ -139,9 +156,17 @@ class CitationService:
                 for key, value in division_data.items():
                     setattr(division, key, value)
             
-            # Set author and work names explicitly
+            # Set author and work information explicitly
             division.author_name = author_name
             division.work_name = work_name
+            division.author_id_field = row.get("author_id_field")
+            division.work_number_field = row.get("work_number_field")
+            
+            # Set location fields
+            for field in ["volume", "book", "chapter", "section", "page", "line", "fragment"]:  # Add book to fields
+                value = citation["location"].get(field)
+                if value:
+                    setattr(division, field, value)
             
             # Format citation using TextDivision
             citation["citation"] = division.format_citation()
@@ -151,7 +176,6 @@ class CitationService:
         except Exception as e:
             logger.error(f"Error formatting citation: {str(e)}", exc_info=True)
             raise
-
     def format_citation_text(self, citation: Dict, abbreviated: bool = False) -> str:
         """Format a citation as a text string."""
         try:
@@ -159,24 +183,28 @@ class CitationService:
             division = TextDivision(
                 author_name=citation['source']['author'],
                 work_name=citation['source']['work'],
-                volume=citation['location'].get('volume'),
-                chapter=citation['location'].get('chapter'),
-                section=citation['location'].get('section')
+                author_id_field=citation['source'].get('author_id'),
+                work_number_field=citation['source'].get('work_id')
             )
             
-            # Get line numbers and determine if it's a range
-            line_numbers = citation['context'].get('line_numbers', [])
-            if len(line_numbers) > 1:
-                line_text = f"Lines {line_numbers[0]}-{line_numbers[-1]}"
-            elif len(line_numbers) == 1:
-                line_text = f"Line {line_numbers[0]}"
-            else:
-                line_text = None
+            # Set location fields
+            for field in ["volume", "chapter", "section", "page", "fragment"]:
+                value = citation["location"].get(field)
+                if value:
+                    setattr(division, field, value)
+            
+            # Set line number from context as a range if needed
+            if citation.get('context', {}).get('line_numbers'):
+                line_numbers = citation['context']['line_numbers']
+                if len(line_numbers) > 1:
+                    # If multiple lines, use range format (e.g., "1-3")
+                    division.line = f"{line_numbers[0]}-{line_numbers[-1]}"
+                else:
+                    # Single line
+                    division.line = str(line_numbers[0])
             
             # Format citation using TextDivision's method
             citation_text = division.format_citation(abbreviated=abbreviated)
-            if line_text:
-                citation_text = f"{citation_text} ({line_text})"
             
             # Append sentence text if available
             if citation['sentence'].get('text'):

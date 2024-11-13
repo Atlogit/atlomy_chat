@@ -1,19 +1,14 @@
 """
 Tests for the citation parser module.
 
-Tests the parsing of various citation formats:
-1. TLG references [author_id][work_id][division][subdivision]
-2. Volume.chapter.line references
-3. Title number references with various formats
-4. Multi-line title references
-5. Invalid citation formats
-6. Standalone title parsing
+Tests the parsing of various citation formats and work structure handling.
 """
 
 import pytest
 from pathlib import Path
 from toolkit.parsers.citation import CitationParser, Citation
 from toolkit.parsers.exceptions import CitationError
+from unittest.mock import patch
 
 @pytest.fixture
 def citation_parser():
@@ -33,6 +28,56 @@ def test_tlg_reference_parsing(citation_parser):
     assert citation.work_id == "001"
     assert citation.division == "1"
     assert citation.subdivision == "2"
+
+def test_work_structure_lookup():
+    """Test looking up work structure from TLG indexes."""
+    citation = Citation(author_id="0627", work_id="010")
+    
+    # Mock TLG_WORKS_INDEX and TLG_MASTER_INDEX
+    mock_works_index = {
+        "0627": {"010": "De Articulis"}
+    }
+    mock_master_index = {
+        "hippocrates": {
+            "tlg_id": "TLG0627",
+            "works": {
+                "De Articulis": ["Section", "Line"]
+            }
+        }
+    }
+    
+    with patch('assets.indexes.work_numbers.TLG_WORKS_INDEX', mock_works_index), \
+         patch('assets.indexes.tlg_index.TLG_MASTER_INDEX', mock_master_index):
+        structure = citation._get_work_structure("0627", "010")
+        assert structure == ["Section", "Line"]
+
+def test_citation_with_work_structure(citation_parser):
+    """Test parsing citations with work structure."""
+    # Mock TLG_WORKS_INDEX and TLG_MASTER_INDEX
+    mock_works_index = {
+        "0627": {"010": "De Articulis"}
+    }
+    mock_master_index = {
+        "hippocrates": {
+            "tlg_id": "TLG0627",
+            "works": {
+                "De Articulis": ["Section", "Line"]
+            }
+        }
+    }
+    
+    with patch('assets.indexes.work_numbers.TLG_WORKS_INDEX', mock_works_index), \
+         patch('assets.indexes.tlg_index.TLG_MASTER_INDEX', mock_master_index):
+        # Test parsing .1.5 for work 010 (should be section.line)
+        text = ".1.5 Some text here"
+        remaining, citations = citation_parser.parse_citation(text, author_id="0627", work_id="010")
+        
+        assert remaining == "Some text here"
+        assert len(citations) == 1
+        citation = citations[0]
+        assert citation.section == "1"
+        assert citation.line == "5"
+        assert citation.hierarchy_levels == {"section": "1", "line": "5"}
 
 def test_volume_chapter_line_parsing(citation_parser):
     """Test parsing of volume.chapter.line format."""
@@ -104,20 +149,33 @@ def test_no_citation(citation_parser):
 
 def test_citation_formatting(citation_parser):
     """Test formatting citations back to string representation."""
-    # TLG reference
+    # TLG reference with division/subdivision
     text = "[0057] [001] [1] [2]\nSome text"
     _, citations = citation_parser.parse_citation(text)
     assert str(citations[0]) == "[0057][001][1][2]"
+    
+    # TLG reference with chapter
+    citation = Citation(author_id="0627", work_id="010", chapter="1")
+    assert str(citation) == "[0627][010].1"
+    
+    # TLG reference with chapter and line
+    citation = Citation(author_id="0627", work_id="010", chapter="1", line="5")
+    assert str(citation) == "[0627][010].1.5"
     
     # Volume.chapter.line
     text = "128.32.5 Some text"
     _, citations = citation_parser.parse_citation(text)
     assert str(citations[0]) == "128.32.5"
     
+    # Chapter.line
+    text = ".1.5 Some text"
+    _, citations = citation_parser.parse_citation(text)
+    assert str(citations[0]) == "1.5"
+    
     # Title reference
     text = "t1 Some text"
     _, citations = citation_parser.parse_citation(text)
-    assert str(citations[0]) == "t1"
+    assert str(citations[0]) == "t.1"
 
 def test_invalid_citation(citation_parser):
     """Test handling of invalid citation formats."""

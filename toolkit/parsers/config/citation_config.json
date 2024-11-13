@@ -1,29 +1,24 @@
 {
   "citation_patterns": [
     {
-      "pattern": "\\[(\\d{4})\\]\\s+\\[(\\d{3})\\]\\s+\\[(.*?)\\]\\s+\\[(.*?)\\]",
+      "pattern": "\\[(\\d{4})\\]\\s*\\[(\\d{3})\\]\\s*\\[(.*?)\\]\\s*\\[(.*?)\\]",
       "groups": ["author_id", "work_id", "division", "subdivision"],
       "format": "{author_name}, {work_name} ({division}{subdivision})"
     },
     {
-      "pattern": "^(\\d+)\\.(\\d+)\\.(\\d+)(?:\\s|$)",
-      "groups": ["Volume", "chapter", "line"],
-      "format": "Volume {volume}, Chapter {chapter}, Line {line}"
-    },
-    {
-      "pattern": "^\\.(\\w+)\\.(\\d+)(?:\\s|$)",
-      "groups": ["chapter", "line"],
-      "format": "Chapter {chapter}, Line {line}"
-    },
-    {
-      "pattern": "^(\\d+)\\.(\\d+)\\.t(\\d+)(?:\\s|$)",
-      "groups": ["Volume", "chapter", "title_number"],
-      "format": "Volume {volume}, Chapter {chapter}, Title {title_number}"
-    },
-    {
-      "pattern": "^(?:\\.t\\.|t\\.|t)(\\d+(?:\\.\\d+)?)(?:\\s|$)",
+      "pattern": "^-Z//t/(\\d+)(?:\\s|$)",
       "groups": ["title_number"],
       "format": "Title {title_number}"
+    },
+    {
+      "pattern": "^-Z//t(\\d+)(?:\\s|$)",
+      "groups": ["title_number"],
+      "format": "Title {title_number}"
+    },
+    {
+      "pattern": "^-Z/(\\d*[a-z]?)/(\\d*[a-z]?)/(\\d*[a-z]?)/(\\d+[a-z]?)(?:\\s|$)",
+      "groups": ["level1", "level2", "level3", "level4"],
+      "format": "{level1}/{level2}/{level3}/{level4}"
     }
   ]
 }

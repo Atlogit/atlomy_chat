@@ -5,38 +5,9 @@ import { Button } from '../../ui/Button'
 import { PaginatedResults } from '../../ui/PaginatedResults'
 import { ResultsDisplay } from '../../ui/ResultsDisplay'
 import { useApi } from '../../../hooks/useApi'
-import { API, SearchResult, TextSearchRequest, QueryGenerationRequest, CitationObject } from '../../../utils/api'
+import { API, SearchResult, TextSearchRequest, QueryGenerationRequest } from '../../../utils/api'
 
 type QueryType = 'natural' | 'lemma_search' | 'category_search' | 'citation_search';
-
-interface QueryResponse {
-  sql: string;
-  results: CitationObject[];  // Now expecting CitationObject for all queries
-}
-
-/**
- * Transform Citation format to SearchResult format for PaginatedResults
- */
-const transformCitationToSearchResult = (citation: CitationObject): SearchResult => ({
-  text_id: citation.context.line_id.split('-')[0] || '',
-  sentence_id: citation.sentence.id || '',
-  sentence_text: citation.sentence.text || '',
-  sentence_tokens: citation.sentence.tokens || {},
-  line_id: citation.context.line_id || '',
-  line_text: citation.context.line_text || '',
-  line_numbers: citation.context.line_numbers || [],
-  min_line_number: citation.context.line_numbers?.[0] || 0,
-  division_id: citation.context.line_id.split('-')[1] || '',  // Extract division from line_id if available
-  author_name: citation.source.author || '',
-  work_name: citation.source.work || '',
-  volume: citation.location.volume || '',
-  chapter: citation.location.chapter || '',
-  section: citation.location.section || '',
-  prev_sentence: citation.sentence.prev_sentence || '',
-  next_sentence: citation.sentence.next_sentence || '',
-  categories: [],  // Categories not available in CitationObject
-  spacy_data: citation.sentence.tokens || {}
-});
 
 /**
  * QueryForm Component
@@ -54,9 +25,10 @@ export function QueryForm() {
   const [authorId, setAuthorId] = useState('')
   const [workNumber, setWorkNumber] = useState('')
   const [generatedQuery, setGeneratedQuery] = useState('')
-  const { data: searchResults, error: searchError, isLoading: isSearching, execute: executeSearch } = useApi<CitationObject[]>()
-  const { data: queryData, error: queryError, isLoading: isGenerating, execute: executeGenerate } = useApi<QueryResponse>()
-
+  const [queryResults, setQueryResults] = useState<SearchResult[]>([])
+  const { data: searchResults, error: searchError, isLoading: isSearching, execute: executeSearch } = useApi<SearchResult[]>()
+  const { data: queryData, error: queryError, isLoading: isGenerating, execute: executeGenerate } = useApi<any>()
+  
   /**
    * Handles the form submission to search the corpus.
    * For natural language queries, first generates a search query using LLM.
@@ -85,6 +57,9 @@ export function QueryForm() {
 
           if (queryResult?.sql) {
             setGeneratedQuery(queryResult.sql)
+            if (queryResult.results) {
+              setQueryResults(queryResult.results)
+            }
           }
           break
 
@@ -234,14 +209,6 @@ export function QueryForm() {
     )
   }
 
-  // Transform all results to SearchResult format for PaginatedResults
-  const getFormattedResults = () => {
-    if (queryType === 'natural') {
-      return queryData?.results?.map(transformCitationToSearchResult) || []
-    }
-    return searchResults?.map(transformCitationToSearchResult) || []
-  }
-
   return (
     <div className="form-control gap-4">
       <div>
@@ -297,14 +264,23 @@ export function QueryForm() {
         />
       )}
 
-      {/* Show results for all search types */}
-      {((queryType === 'natural' && queryData?.results) || (queryType !== 'natural' && searchResults)) && (
+      {queryType === 'natural' && queryResults.length > 0 && (
         <PaginatedResults
           title="Search Results"
-          results={getFormattedResults()}
+          results={queryResults}
           pageSize={10}
           className="mt-4"
-          isLoading={queryType === 'natural' ? isGenerating : isSearching}
+          isLoading={isGenerating}
+        />
+      )}
+
+      {queryType !== 'natural' && searchResults && searchResults.length > 0 && (
+        <PaginatedResults
+          title="Search Results"
+          results={searchResults}
+          pageSize={10}
+          className="mt-4"
+          isLoading={isSearching}
         />
       )}
     </div>

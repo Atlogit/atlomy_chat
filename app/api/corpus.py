@@ -8,54 +8,25 @@ from pydantic import BaseModel
 import logging
 
 from app.dependencies import CorpusServiceDep
-from app.core.redis import redis_client
-from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# Request/Response Models for Search Operations
+# Request/Response Models
 class TextSearch(BaseModel):
     query: str
     search_lemma: bool = False
     categories: Optional[List[str]] = None
 
-class SearchTextLine(BaseModel):
+class TextLine(BaseModel):
     line_number: int
     content: str
     categories: Optional[List[str]] = None
-    spacy_tokens: Optional[Dict] = None
 
-# Simplified Response Models for Text Service
-class SimpleTextLine(BaseModel):
-    line_number: int
-    content: str
-
-class SimpleTextDivision(BaseModel):
-    id: str
-    citation: Optional[str] = None
-    volume: Optional[str] = None
-    chapter: Optional[str] = None
-    section: Optional[str] = None
-    is_title: bool
-    title_number: Optional[str] = None
-    title_text: Optional[str] = None
-    metadata: Optional[Dict] = None
-    lines: Optional[List[SimpleTextLine]] = None
-
-class SimpleTextResponse(BaseModel):
-    id: str
-    title: str
-    author: Optional[str]
-    work_name: Optional[str]
-    reference_code: Optional[str]
-    text_content: Optional[str]
-    metadata: Optional[Dict]
-    divisions: Optional[List[SimpleTextDivision]]
-
-# Full Models for Search Operations
 class TextDivision(BaseModel):
     id: str
+    author_name: Optional[str] = None
+    work_name: Optional[str] = None
     volume: Optional[str] = None
     chapter: Optional[str] = None
     section: Optional[str] = None
@@ -63,18 +34,23 @@ class TextDivision(BaseModel):
     title_number: Optional[str] = None
     title_text: Optional[str] = None
     metadata: Optional[Dict] = None
-    author_id_field: Optional[str] = None
-    work_number_field: Optional[str] = None
-    epithet_field: Optional[str] = None
-    fragment_field: Optional[str] = None
-    lines: Optional[List[SearchTextLine]] = None
+    lines: Optional[List[TextLine]] = None
+
+class TextResponse(BaseModel):
+    id: str
+    title: str
+    work_name: Optional[str] = None
+    author: Optional[str] = None
+    reference_code: Optional[str] = None
+    metadata: Optional[Dict] = None
+    divisions: Optional[List[TextDivision]] = None
 
 class SentenceContext(BaseModel):
     id: str
     text: str
     prev_sentence: Optional[str]
     next_sentence: Optional[str]
-    tokens: Optional[Dict]
+    tokens: Optional[List[Dict]]
 
 class CitationContext(BaseModel):
     line_id: str
@@ -97,8 +73,19 @@ class Citation(BaseModel):
     location: CitationLocation
     source: CitationSource
 
+    @classmethod
+    def from_dict(cls, data: Dict) -> 'Citation':
+        """Create Citation model from dictionary."""
+        return cls(
+            sentence=SentenceContext(**data['sentence']),
+            citation=data['citation'],
+            context=CitationContext(**data['context']),
+            location=CitationLocation(**data['location']),
+            source=CitationSource(**data['source'])
+        )
+
 # Routes
-@router.get("/list", response_model=List[SimpleTextResponse])
+@router.get("/list", response_model=List[TextResponse])
 async def list_texts(
     corpus_service: CorpusServiceDep
 ) -> List[Dict]:
@@ -109,21 +96,21 @@ async def list_texts(
 async def search_texts(
     data: TextSearch,
     corpus_service: CorpusServiceDep
-) -> List[Dict]:
-    """Search texts in the corpus using corpus-specific search."""
+) -> List[Citation]:
+    """Search texts in the corpus."""
     try:
-        # Clear search cache before performing search
-        await redis_client.clear_cache(f"{settings.redis.SEARCH_CACHE_PREFIX}*")
-        
         logger.debug(f"Search request: {data}")
         result = await corpus_service.search_texts(
             data.query,
             search_lemma=data.search_lemma,
-            categories=data.categories,
-            use_corpus_search=True  # Ensure corpus-specific search is used
+            categories=data.categories
         )
         logger.debug(f"Search result count: {len(result)}")
-        return result
+        
+        # Convert dictionary results to Citation models
+        citations = [Citation.from_dict(r) for r in result]
+        return citations
+        
     except Exception as e:
         logger.error(f"Search error: {str(e)}", exc_info=True)
         raise HTTPException(
@@ -131,29 +118,31 @@ async def search_texts(
             detail=f"Error searching texts: {str(e)}"
         )
 
-@router.get("/text/{text_id}", response_model=SimpleTextResponse)
+@router.get("/text/{text_id}", response_model=TextResponse)
 async def get_text(
-    text_id: int,
+    text_id: str,  # Changed from int to str to match frontend
     corpus_service: CorpusServiceDep
 ) -> Dict:
     """Get a specific text by ID."""
-    text = await corpus_service.get_text_by_id(text_id)
-    if not text:
-        raise HTTPException(status_code=404, detail="Text not found")
-    return text
+    try:
+        # Convert string ID to int
+        text = await corpus_service.get_text_by_id(int(text_id))
+        if not text:
+            raise HTTPException(status_code=404, detail="Text not found")
+        return text
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid text ID format")
 
 @router.get("/category/{category}", response_model=List[Citation])
 async def search_by_category(
     category: str,
     corpus_service: CorpusServiceDep
-) -> List[Dict]:
-    """Search for text lines by category using corpus-specific search."""
+) -> List[Citation]:
+    """Search for text lines by category."""
     try:
-        return await corpus_service.search_texts(
-            "",  # Empty query since we're searching by category
-            categories=[category],
-            use_corpus_search=True  # Ensure corpus-specific search is used
-        )
+        result = await corpus_service.search_by_category(category)
+        # Convert dictionary results to Citation models
+        return [Citation.from_dict(r) for r in result]
     except Exception as e:
         logger.error(f"Category search error: {str(e)}", exc_info=True)
         raise HTTPException(
@@ -161,7 +150,7 @@ async def search_by_category(
             detail=f"Error searching by category: {str(e)}"
         )
 
-@router.get("/all", response_model=List[SimpleTextResponse])
+@router.get("/all", response_model=List[TextResponse])
 async def get_all_texts(
     corpus_service: CorpusServiceDep,
     include_content: bool = Query(False, description="Include full text content")
@@ -176,4 +165,19 @@ async def get_all_texts(
         raise HTTPException(
             status_code=500, 
             detail=f"Error getting all texts: {str(e)}"
+        )
+
+@router.post("/cache/clear")
+async def clear_cache(
+    corpus_service: CorpusServiceDep
+) -> Dict[str, str]:
+    """Clear all corpus-related caches."""
+    try:
+        await corpus_service.invalidate_text_cache()
+        return {"status": "Cache cleared successfully"}
+    except Exception as e:
+        logger.error(f"Cache clear error: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error clearing cache: {str(e)}"
         )

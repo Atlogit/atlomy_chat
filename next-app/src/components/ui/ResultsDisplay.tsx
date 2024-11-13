@@ -28,10 +28,25 @@ function formatCitation(citation: Citation): string {
     'Unknown Source'
 
   const locationParts = [
+    citation.location.book && `book ${citation.location.book}`,
     citation.location.volume && `Volume ${citation.location.volume}`,
     citation.location.chapter && `Chapter ${citation.location.chapter}`,
     citation.location.section && `Section ${citation.location.section}`,
-    citation.context.line_numbers?.length > 0 && `Line${citation.context.line_numbers.length > 1 ? 's' : ''} ${citation.context.line_numbers.join(', ')}`
+    citation.location.page && `Page ${citation.location.page}`,
+    citation.location.fragment && `Fragment ${citation.location.fragment}`,
+    // Add "Line" prefix to location.line if it doesn't have it
+    citation.location.line && (
+      citation.location.line.includes('-')
+        ? `Lines ${citation.location.line}`
+        : `Line ${citation.location.line}`
+    ) || (
+      // Fallback to context.line_numbers if location.line is not available
+      citation.context?.line_numbers?.length > 0 && (
+        citation.context.line_numbers.length === 1
+          ? `Line ${citation.context.line_numbers[0]}`
+          : `Lines ${citation.context.line_numbers[0]}-${citation.context.line_numbers[citation.context.line_numbers.length - 1]}`
+      )
+    )
   ].filter(Boolean)
   
   const location = locationParts.length > 0 ? `(${locationParts.join(', ')})` : ''

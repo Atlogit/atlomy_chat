@@ -26,9 +26,9 @@ from toolkit.migration.citation_migrator import CitationMigrator
 from toolkit.migration.content_validator import DataVerifier
 from toolkit.migration.corpus_processor import CorpusProcessor
 from toolkit.nlp.pipeline import NLPPipeline
+from toolkit.migration.logging_config import setup_migration_logging
 
-# Set up logging
-logging.basicConfig(level=logging.INFO)
+# Get logger but don't configure it yet - let setup_migration_logging handle that
 logger = logging.getLogger(__name__)
 
 class PipelineReport:
@@ -39,6 +39,7 @@ class PipelineReport:
         self.sentence_issues: List[Dict] = []
         self.nlp_issues: List[Dict] = []
         self.validation_issues: List[Dict] = []
+        self.missing_structures: List[Dict] = []  # Track works with missing structures
         self.start_time = datetime.now()
         
     def add_citation_issue(self, text_title: str, error: str):
@@ -68,6 +69,14 @@ class PipelineReport:
             "error": str(error),
             "stage": "validation"
         })
+
+    def add_missing_structure(self, author_id: str, work_id: str, work_name: str):
+        """Track works that didn't find a structure."""
+        self.missing_structures.append({
+            "author_id": author_id,
+            "work_id": work_id,
+            "work_name": work_name
+        })
     
     def generate_report(self) -> str:
         """Generate a formatted report of all issues."""
@@ -80,7 +89,8 @@ class PipelineReport:
             f"- Citation migration issues: {len(self.citation_issues)}",
             f"- Sentence processing issues: {len(self.sentence_issues)}",
             f"- NLP processing issues: {len(self.nlp_issues)}",
-            f"- Validation issues: {len(self.validation_issues)}"
+            f"- Validation issues: {len(self.validation_issues)}",
+            f"- Works missing structures: {len(self.missing_structures)}"
         ]
             
         if self.citation_issues:
@@ -109,6 +119,13 @@ class PipelineReport:
                 "\nValidation Issues:",
                 *[f"- {issue['text']}: {issue['error']}" 
                   for issue in self.validation_issues]
+            ])
+
+        if self.missing_structures:
+            report.extend([
+                "\nWorks Missing Structures:",
+                *[f"- {work['author_id']}.{work['work_id']} {work['work_name']}"
+                  for work in self.missing_structures]
             ])
             
         return "\n".join(report)
@@ -167,23 +184,7 @@ async def run_pipeline(
 ):
     """
     Run the complete pipeline from loading to processing.
-    
-    Args:
-        corpus_dir: Directory containing corpus texts
-        model_path: Optional path to spaCy model
-        batch_size: Size of batches for NLP processing
-        max_workers: Maximum number of worker processes
-        validate: Whether to run validation after processing
-        use_gpu: Whether to use GPU for NLP processing (None for auto-detect)
-        debug: Whether to enable debug logging
-        skip_to_corpus: Whether to skip citation migration and start from corpus processing
     """
-    # Set debug logging if requested
-    if debug:
-        logging.getLogger().setLevel(logging.DEBUG)
-        logging.getLogger('citation_migrator').setLevel(logging.DEBUG)
-        logging.getLogger('citation_processor').setLevel(logging.DEBUG)
-    
     # Initialize report tracker
     report = PipelineReport()
     
@@ -226,11 +227,10 @@ async def run_pipeline(
                     await citation_migrator.migrate_directory(corpus_dir)
                     logger.info("Citation migration completed")
                 except Exception as e:
+                    # Log the error but continue with pipeline
                     report.add_citation_issue("corpus_directory", str(e))
                     logger.error(f"Error during citation migration: {e}")
-                    raise
-            else:
-                logger.info("Skipping citation migration phase...")
+                    logger.info("Continuing with pipeline despite citation migration issues...")
 
             # Phase 2: Process sentences and NLP
             logger.info("Phase 2: Processing sentences and NLP...")
@@ -238,7 +238,8 @@ async def run_pipeline(
                 processor = CorpusProcessor(
                     session,
                     model_path=model_path,
-                    use_gpu=use_gpu
+                    use_gpu=use_gpu,
+                    report=report  # Pass report to processor
                 )
                 await processor.process_corpus()
             except Exception as e:
@@ -347,6 +348,9 @@ def main():
     )
     
     args = parser.parse_args()
+    
+    # Set up logging first, before any code runs
+    setup_migration_logging(level="DEBUG" if args.debug else "INFO")
     
     # Determine GPU usage
     use_gpu = None  # Auto-detect by default

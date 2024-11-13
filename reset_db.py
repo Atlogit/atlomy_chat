@@ -35,7 +35,7 @@ async def reset_database():
         # Recreate the tables
         await conn.run_sync(Base.metadata.create_all)
 
-        # Reset sequences
+        # Reset sequences - these are automatically created by PostgreSQL
         print("\nResetting sequences...")
         sequences = [
             "authors_id_seq",
@@ -50,6 +50,20 @@ async def reset_database():
                 print(f"Dropped sequence: {seq}")
             except Exception as e:
                 print(f"Error resetting sequence {seq}: {e}")
+
+        # Create additional indexes for sentence-related tables
+        print("\nCreating additional indexes...")
+        indexes = [
+            "CREATE INDEX IF NOT EXISTS idx_sentences_content ON sentences USING gin (to_tsvector('greek', content))",
+            "CREATE INDEX IF NOT EXISTS idx_sentences_categories ON sentences USING gin (categories)"
+        ]
+        
+        for idx in indexes:
+            try:
+                await conn.execute(text(idx))
+                print(f"Created index: {idx}")
+            except Exception as e:
+                print(f"Error creating index: {e}")
 
         print("\nDatabase reset complete!")
 

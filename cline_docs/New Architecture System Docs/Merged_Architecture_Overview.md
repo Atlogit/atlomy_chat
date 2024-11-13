@@ -6,7 +6,83 @@ The Ancient Medical Texts Analysis App is built on a modular, service-oriented a
 
 ## Core Components
 
-### 1. Data Models
+### 1. Work Structure System
+
+The system uses TLG indexes to determine the correct structure for each work:
+
+#### Work Structure Lookup
+```python
+# TLG_WORKS_INDEX format
+{
+    "0627": {
+        "010": "De Articulis",
+        # ... other works
+    }
+}
+
+# TLG_MASTER_INDEX format
+{
+    "hippocrates": {
+        "tlg_id": "TLG0627",
+        "works": {
+            "De Articulis": ["Section", "Line"],
+            # ... other works
+        }
+    }
+}
+```
+
+#### Structure Usage
+```python
+def _get_work_structure(author_id: str, work_id: str):
+    # Get work name
+    work_name = TLG_WORKS_INDEX.get(author_id, {}).get(work_id)
+    if not work_name:
+        return None
+        
+    # Find author entry
+    author_entry = next(
+        (entry for entry in TLG_MASTER_INDEX.values() 
+         if entry.get("tlg_id") == f"TLG{author_id}"),
+        None
+    )
+    if not author_entry:
+        return None
+        
+    # Get work structure
+    return author_entry["works"].get(work_name)
+```
+
+### 2. Corpus Processing System
+
+The corpus processing system has been refactored into a modular, layered architecture for improved maintainability and separation of concerns. See [Corpus Processor Structure](corpus_processor_structure.md) for detailed documentation.
+
+#### Component Hierarchy
+```
+CorpusBase
+    └── CorpusCitation
+        └── CorpusText
+            └── CorpusNLP
+                └── CorpusDB
+                    └── CorpusProcessor
+```
+
+Each layer adds specific functionality:
+- **CorpusBase**: Core initialization and shared resources
+- **CorpusCitation**: Citation parsing and work structure handling
+- **CorpusText**: Text line and sentence processing with structure-aware line numbers
+- **CorpusNLP**: NLP processing and token management
+- **CorpusDB**: Database operations
+- **CorpusProcessor**: Main processing coordinator
+
+Key features:
+- Work structure-aware citation parsing
+- Structure-based line numbering
+- Improved citation accuracy
+- Enhanced error handling and logging
+- Progress tracking for long operations
+
+### Data Models
 
 #### Sentence Model
 ```python

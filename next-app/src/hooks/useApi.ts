@@ -4,7 +4,7 @@ import { fetchApi } from '../utils/api';
 interface ApiError {
   message: string;
   status?: number;
-  detail?: string;
+  detail?: string | { message: string; error_type?: string };
 }
 
 interface ApiHookResult<T> {
@@ -61,38 +61,52 @@ export function useApi<T>(): ApiHookResult<T> {
         clearTimeout(timeoutId);
         
         if (retries === MAX_RETRIES) {
-          // Format error object
+          // Enhanced error handling
           let apiError: ApiError;
-          if ((err as ApiError).message) {
+          
+          if (!err || (typeof err === 'object' && Object.keys(err).length === 0)) {
+            // Handle empty error case
+            apiError = {
+              message: 'API request failed',
+              status: 500,
+              detail: {
+                message: 'The server returned an empty response or no error details',
+                error_type: 'empty_response'
+              }
+            };
+          } else if ((err as ApiError).message) {
+            // Handle pre-formatted API errors
             apiError = err as ApiError;
           } else if (err instanceof Error) {
+            // Handle standard JS errors
             apiError = {
               message: err.message,
-              detail: err.stack
+              detail: {
+                message: err.stack || err.message,
+                error_type: 'js_error'
+              }
             };
-          } else if (typeof err === 'object' && err !== null) {
+          } else if (typeof err === 'object') {
             // Handle structured error responses
             const errorObj = err as Record<string, any>;
-            
-            // Handle empty error object case
-            if (Object.keys(errorObj).length === 0) {
-              apiError = {
-                message: 'An error occurred while processing your request',
-                detail: 'No additional error details available'
-              };
-            } else {
-              apiError = {
-                message: errorObj.message || 'An unknown error occurred',
-                status: errorObj.status,
-                detail: typeof errorObj.detail === 'object' 
-                  ? JSON.stringify(errorObj.detail, null, 2)
-                  : errorObj.detail || JSON.stringify(errorObj)
-              };
-            }
+            apiError = {
+              message: errorObj.message || 'An unknown error occurred',
+              status: errorObj.status,
+              detail: typeof errorObj.detail === 'object' 
+                ? errorObj.detail
+                : { 
+                    message: errorObj.detail || JSON.stringify(errorObj),
+                    error_type: 'structured_error'
+                  }
+            };
           } else {
+            // Handle any other type of error
             apiError = {
               message: 'An unknown error occurred',
-              detail: String(err)
+              detail: {
+                message: String(err),
+                error_type: 'unknown_error'
+              }
             };
           }
           
@@ -101,7 +115,7 @@ export function useApi<T>(): ApiHookResult<T> {
           return null;
         }
 
-        // Exponential backoff
+        // Exponential backoff for retries
         const backoff = INITIAL_BACKOFF * Math.pow(2, retries);
         await new Promise(resolve => setTimeout(resolve, backoff));
         
