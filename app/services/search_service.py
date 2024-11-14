@@ -2,12 +2,14 @@
 Service layer for text search operations.
 """
 
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text
 import logging
 
 from app.models.text_division import TextDivision
+from app.models.text_line import TextLine, TextLineDB
+from app.models.citations import Citation, SearchResponse
 from app.core.redis import redis_client
 from app.core.config import settings
 from app.core.citation_queries import (
@@ -37,7 +39,7 @@ class SearchService:
         search_lemma: bool = False,
         categories: Optional[List[str]] = None,
         use_corpus_search: bool = True  # Parameter kept for backward compatibility
-    ) -> List[Dict]:
+    ) -> SearchResponse:
         """Search texts by content, lemma, or categories (cached)."""
         try:
             logger.debug(f"Starting search with query: {query}, lemma: {search_lemma}, categories: {categories}")
@@ -52,7 +54,7 @@ class SearchService:
             cached_data = await self.redis.get(cache_key)
             if cached_data:
                 logger.debug("Returning cached search results")
-                return cached_data
+                return SearchResponse.model_validate(cached_data)
 
             # Choose appropriate query based on search type
             if categories:
@@ -77,22 +79,25 @@ class SearchService:
             if rows:
                 logger.debug(f"First row data: {dict(rows[0])}")
             
-            # Use citation service to format results
-            data = await self.citation_service.format_citations(rows)
-            logger.debug(f"Formatted {len(data)} citations")
+            # Format citations and store in Redis
+            results_id, citations = await self.citation_service.format_citations(rows)
+            logger.debug(f"Formatted {len(rows)} citations with ID {results_id}")
             
-            # Log first formatted citation for debugging
-            if data:
-                logger.debug(f"First formatted citation: {data[0]}")
+            # Create response with total results
+            response = SearchResponse(
+                results=citations,
+                results_id=results_id,
+                total_results=len(rows)
+            )
             
-            # Cache search results
+            # Cache the response
             await self.redis.set(
                 cache_key,
-                data,
+                response.model_dump(),
                 ttl=settings.redis.SEARCH_CACHE_TTL
             )
             
-            return data
+            return response
             
         except Exception as e:
             logger.error(f"Error in search_texts: {str(e)}", exc_info=True)

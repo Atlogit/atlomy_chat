@@ -9,8 +9,8 @@ from sqlalchemy.orm import joinedload, selectinload
 import logging
 
 from app.models.text import Text
-from app.models.text_division import TextDivision
-from app.models.text_line import TextLine
+from app.models.text_division import TextDivision, TextDivisionResponse, TextResponse
+from app.models.text_line import TextLine, TextLineDB
 from app.core.redis import redis_client
 from app.core.config import settings
 
@@ -27,14 +27,14 @@ class TextService:
         prefix = getattr(settings.redis, f"{key_type.upper()}_CACHE_PREFIX")
         return f"{prefix}{identifier}"
 
-    async def list_texts(self) -> List[Dict]:
+    async def list_texts(self) -> List[TextResponse]:
         """List all texts with metadata and preview (cached)."""
         cache_key = await self._cache_key("text", "list")
         
         # Try to get from cache
         cached_data = await self.redis.get(cache_key)
         if cached_data:
-            return cached_data
+            return [TextResponse.model_validate(text) for text in cached_data]
         
         # Get from database if not in cache
         query = (
@@ -48,7 +48,7 @@ class TextService:
         result = await self.session.execute(query)
         texts = result.unique().scalars().all()
         
-        data = []
+        responses = []
         for text in texts:
             # Get text preview using a subquery for first few lines
             preview_query = sql_text("""
@@ -74,49 +74,50 @@ class TextService:
             )
             preview_text = preview_result.scalar()
 
-            text_data = {
-                "id": str(text.id),
-                "title": text.title,
-                "author": text.author.name if text.author else None,
-                "work_name": text.title,
-                "reference_code": text.reference_code,
-                "metadata": text.text_metadata,
-                "text_content": preview_text,
-                "divisions": [
-                    {
-                        "id": str(div.id),
-                        "volume": div.volume,
-                        "chapter": div.chapter,
-                        "section": div.section,
-                        "is_title": div.is_title,
-                        "author_id_field": div.author_id_field,
-                        "work_number_field": div.work_number_field,
-                        "work_abbreviation_field": div.work_abbreviation_field,
-                        "author_abbreviation_field": div.author_abbreviation_field,
-                        "fragment": div.fragment
-                    }
-                    for div in text.divisions
-                ]
-            }
-            data.append(text_data)
+            divisions = [
+                TextDivisionResponse(
+                    id=str(div.id),
+                    author_name=div.author_name,
+                    work_name=div.work_name,
+                    volume=div.volume,
+                    chapter=div.chapter,
+                    section=div.section,
+                    is_title=div.is_title,
+                    title_number=div.title_number,
+                    title_text=div.title_text,
+                    metadata=div.division_metadata
+                )
+                for div in text.divisions
+            ]
+
+            response = TextResponse(
+                id=str(text.id),
+                title=text.title,
+                author=text.author.name if text.author else None,
+                work_name=text.title,
+                reference_code=text.reference_code,
+                metadata=text.text_metadata,
+                divisions=divisions
+            )
+            responses.append(response)
         
         # Cache the results
         await self.redis.set(
             cache_key,
-            data,
+            [response.model_dump() for response in responses],
             ttl=settings.redis.TEXT_CACHE_TTL
         )
         
-        return data
+        return responses
 
-    async def get_text_by_id(self, text_id: int) -> Optional[Dict]:
+    async def get_text_by_id(self, text_id: int) -> Optional[TextResponse]:
         """Get a specific text by ID with all divisions and lines (cached)."""
         cache_key = await self._cache_key("text", str(text_id))
         
         # Try to get from cache
         cached_data = await self.redis.get(cache_key)
         if cached_data:
-            return cached_data
+            return TextResponse.model_validate(cached_data)
             
         query = (
             select(Text)
@@ -133,60 +134,50 @@ class TextService:
         if not text:
             return None
             
-        # Collect all line content
-        text_content = []
-        for division in text.divisions:
-            if division.lines:
-                text_content.extend([line.content for line in division.lines if line.content])
-            
-        data = {
-            "id": str(text.id),
-            "title": text.title,
-            "author": text.author.name if text.author else None,
-            "work_name": text.title,
-            "reference_code": text.reference_code,
-            "metadata": text.text_metadata,
-            "text_content": "\n".join(text_content) if text_content else None,
-            "divisions": [
-                {
-                    "id": str(div.id),
-                    "citation": div.format_citation(),
-                    "volume": div.volume,
-                    "chapter": div.chapter,
-                    "section": div.section,
-                    "is_title": div.is_title,
-                    "title_number": div.title_number,
-                    "title_text": div.title_text,
-                    "metadata": div.division_metadata,
-                    "lines": [
-                        {
-                            "line_number": line.line_number,
-                            "content": line.content,
-                        }
-                        for line in sorted(div.lines, key=lambda x: x.line_number)
-                    ]
-                }
-                for div in text.divisions
-            ]
-        }
+        divisions = [
+            TextDivisionResponse(
+                id=str(div.id),
+                author_name=div.author_name,
+                work_name=div.work_name,
+                volume=div.volume,
+                chapter=div.chapter,
+                section=div.section,
+                is_title=div.is_title,
+                title_number=div.title_number,
+                title_text=div.title_text,
+                metadata=div.division_metadata,
+                lines=[line.to_api_model() for line in sorted(div.lines, key=lambda x: x.line_number)]
+            )
+            for div in text.divisions
+        ]
+
+        response = TextResponse(
+            id=str(text.id),
+            title=text.title,
+            author=text.author.name if text.author else None,
+            work_name=text.title,
+            reference_code=text.reference_code,
+            metadata=text.text_metadata,
+            divisions=divisions
+        )
         
         # Cache the text data
         await self.redis.set(
             cache_key,
-            data,
+            response.model_dump(),
             ttl=settings.redis.TEXT_CACHE_TTL
         )
         
-        return data
+        return response
 
-    async def get_all_texts(self) -> List[Dict]:
+    async def get_all_texts(self) -> List[TextResponse]:
         """Get all texts with full content (cached)."""
         cache_key = await self._cache_key("text", "all")
         
         # Try to get from cache
         cached_data = await self.redis.get(cache_key)
         if cached_data:
-            return cached_data
+            return [TextResponse.model_validate(text) for text in cached_data]
             
         query = (
             select(Text)
@@ -200,51 +191,41 @@ class TextService:
         result = await self.session.execute(query)
         texts = result.unique().scalars().all()
         
-        data = []
+        responses = []
         for text in texts:
-            text_content = []
-            if text.divisions:
-                for division in text.divisions:
-                    if division.lines:
-                        text_content.extend([line.content for line in division.lines if line.content])
-            
-            text_data = {
-                "id": str(text.id),
-                "title": text.title,
-                "author": text.author.name if text.author else None,
-                "work_name": text.title,
-                "reference_code": text.reference_code,
-                "metadata": text.text_metadata,
-                "text_content": "\n".join(text_content) if text_content else None,
-                "divisions": [
-                    {
-                        "id": str(div.id),
-                        "citation": div.format_citation(),
-                        "volume": div.volume,
-                        "chapter": div.chapter,
-                        "section": div.section,
-                        "is_title": div.is_title,
-                        "title_number": div.title_number,
-                        "title_text": div.title_text,
-                        "metadata": div.division_metadata,
-                        "lines": [
-                            {
-                                "line_number": line.line_number,
-                                "content": line.content,
-                            }
-                            for line in sorted(div.lines, key=lambda x: x.line_number)
-                        ]
-                    }
-                    for div in text.divisions
-                ]
-            }
-            data.append(text_data)
+            divisions = [
+                TextDivisionResponse(
+                    id=str(div.id),
+                    author_name=div.author_name,
+                    work_name=div.work_name,
+                    volume=div.volume,
+                    chapter=div.chapter,
+                    section=div.section,
+                    is_title=div.is_title,
+                    title_number=div.title_number,
+                    title_text=div.title_text,
+                    metadata=div.division_metadata,
+                    lines=[line.to_api_model() for line in sorted(div.lines, key=lambda x: x.line_number)]
+                )
+                for div in text.divisions
+            ]
+
+            response = TextResponse(
+                id=str(text.id),
+                title=text.title,
+                author=text.author.name if text.author else None,
+                work_name=text.title,
+                reference_code=text.reference_code,
+                metadata=text.text_metadata,
+                divisions=divisions
+            )
+            responses.append(response)
         
         # Cache the results
         await self.redis.set(
             cache_key,
-            data,
+            [response.model_dump() for response in responses],
             ttl=settings.redis.TEXT_CACHE_TTL
         )
         
-        return data
+        return responses

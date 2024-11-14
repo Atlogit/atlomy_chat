@@ -8,81 +8,18 @@ from pydantic import BaseModel
 import logging
 
 from app.dependencies import CorpusServiceDep
+from app.models.citations import Citation, SearchResponse
+from app.models.text_line import TextLine
+from app.models.text_division import TextDivision, TextResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# Request/Response Models
+# Request Models
 class TextSearch(BaseModel):
     query: str
     search_lemma: bool = False
     categories: Optional[List[str]] = None
-
-class TextLine(BaseModel):
-    line_number: int
-    content: str
-    categories: Optional[List[str]] = None
-
-class TextDivision(BaseModel):
-    id: str
-    author_name: Optional[str] = None
-    work_name: Optional[str] = None
-    volume: Optional[str] = None
-    chapter: Optional[str] = None
-    section: Optional[str] = None
-    is_title: bool
-    title_number: Optional[str] = None
-    title_text: Optional[str] = None
-    metadata: Optional[Dict] = None
-    lines: Optional[List[TextLine]] = None
-
-class TextResponse(BaseModel):
-    id: str
-    title: str
-    work_name: Optional[str] = None
-    author: Optional[str] = None
-    reference_code: Optional[str] = None
-    metadata: Optional[Dict] = None
-    divisions: Optional[List[TextDivision]] = None
-
-class SentenceContext(BaseModel):
-    id: str
-    text: str
-    prev_sentence: Optional[str]
-    next_sentence: Optional[str]
-    tokens: Optional[List[Dict]]
-
-class CitationContext(BaseModel):
-    line_id: str
-    line_text: str
-    line_numbers: List[int]
-
-class CitationLocation(BaseModel):
-    volume: Optional[str]
-    chapter: Optional[str]
-    section: Optional[str]
-
-class CitationSource(BaseModel):
-    author: str
-    work: str
-
-class Citation(BaseModel):
-    sentence: SentenceContext
-    citation: str
-    context: CitationContext
-    location: CitationLocation
-    source: CitationSource
-
-    @classmethod
-    def from_dict(cls, data: Dict) -> 'Citation':
-        """Create Citation model from dictionary."""
-        return cls(
-            sentence=SentenceContext(**data['sentence']),
-            citation=data['citation'],
-            context=CitationContext(**data['context']),
-            location=CitationLocation(**data['location']),
-            source=CitationSource(**data['source'])
-        )
 
 # Routes
 @router.get("/list", response_model=List[TextResponse])
@@ -92,11 +29,11 @@ async def list_texts(
     """List all texts in the corpus."""
     return await corpus_service.list_texts()
 
-@router.post("/search", response_model=List[Citation])
+@router.post("/search", response_model=SearchResponse)
 async def search_texts(
     data: TextSearch,
     corpus_service: CorpusServiceDep
-) -> List[Citation]:
+) -> SearchResponse:
     """Search texts in the corpus."""
     try:
         logger.debug(f"Search request: {data}")
@@ -105,11 +42,8 @@ async def search_texts(
             search_lemma=data.search_lemma,
             categories=data.categories
         )
-        logger.debug(f"Search result count: {len(result)}")
-        
-        # Convert dictionary results to Citation models
-        citations = [Citation.from_dict(r) for r in result]
-        return citations
+        logger.debug(f"Search result count: {len(result.results)}")
+        return result
         
     except Exception as e:
         logger.error(f"Search error: {str(e)}", exc_info=True)
@@ -133,16 +67,16 @@ async def get_text(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid text ID format")
 
-@router.get("/category/{category}", response_model=List[Citation])
+@router.get("/category/{category}", response_model=SearchResponse)
 async def search_by_category(
     category: str,
     corpus_service: CorpusServiceDep
-) -> List[Citation]:
+) -> SearchResponse:
     """Search for text lines by category."""
     try:
         result = await corpus_service.search_by_category(category)
-        # Convert dictionary results to Citation models
-        return [Citation.from_dict(r) for r in result]
+        # Result is already a SearchResponse model, return it directly
+        return result
     except Exception as e:
         logger.error(f"Category search error: {str(e)}", exc_info=True)
         raise HTTPException(

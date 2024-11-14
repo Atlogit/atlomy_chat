@@ -9,7 +9,10 @@ from sse_starlette.sse import EventSourceResponse
 
 from app.dependencies import LLMServiceDep
 from app.services.llm_service import LLMServiceError
-from app.api.corpus import Citation, SentenceContext, CitationContext, CitationLocation, CitationSource
+from app.models.citations import Citation, SearchResponse
+from app.models.text_line import TextLine
+from app.models.text_division import TextDivision, TextResponse
+from app.core.config import settings
 
 router = APIRouter()
 
@@ -23,6 +26,27 @@ class AnalysisRequest(BaseModel):
 class QueryGenerationRequest(BaseModel):
     question: str
     max_tokens: Optional[int] = None
+
+class PaginationParams(BaseModel):
+    results_id: str
+    page: int = 1
+    page_size: int = 100
+
+class QueryResponse(BaseModel):
+    sql: str
+    results: List[Citation]  # First page of results
+    results_id: str  # ID for fetching more results
+    total_results: int  # Total number of results available
+    usage: Dict[str, int]
+    model: str
+    raw_response: Optional[Dict[str, Any]]
+    error: Optional[str] = None
+
+class PaginatedResponse(BaseModel):
+    results: List[Citation]
+    page: int
+    page_size: int
+    total_results: int
 
 class PreciseQueryRequest(BaseModel):
     """Request model for precise SQL query generation."""
@@ -38,14 +62,6 @@ class AnalysisResponse(BaseModel):
     usage: Dict[str, int]
     model: str
     raw_response: Optional[Dict[str, Any]]
-
-class QueryResponse(BaseModel):
-    sql: str
-    results: List[Citation]  # Now using Citation directly
-    usage: Dict[str, int]
-    model: str
-    raw_response: Optional[Dict[str, Any]]
-    error: Optional[str] = None
 
 class TokenCountResponse(BaseModel):
     count: int
@@ -107,14 +123,16 @@ async def generate_query(
     """Generate and execute a SQL query from a natural language question."""
     try:
         # Generate and execute query
-        sql_query, citations = await llm_service.generate_and_execute_query(
+        sql_query, results_id, first_page = await llm_service.generate_and_execute_query(
             question=data.question,
             max_tokens=data.max_tokens
         )
         
         return {
             "sql": sql_query,
-            "results": citations,  # Now passing Citation objects directly
+            "results": first_page,
+            "results_id": results_id,
+            "total_results": len(first_page),
             "usage": {},
             "model": "",
             "raw_response": None,
@@ -125,6 +143,8 @@ async def generate_query(
         return {
             "sql": "",
             "results": [],
+            "results_id": "",
+            "total_results": 0,
             "usage": {},
             "model": "",
             "raw_response": None,
@@ -134,11 +154,51 @@ async def generate_query(
         return {
             "sql": "",
             "results": [],
+            "results_id": "",
+            "total_results": 0,
             "usage": {},
             "model": "",
             "raw_response": None,
             "error": str(e)
         }
+
+@router.post("/get-results-page", response_model=PaginatedResponse)
+async def get_results_page(
+    params: PaginationParams,
+    llm_service: LLMServiceDep
+) -> Dict:
+    """Get a specific page of results using the results_id."""
+    try:
+        # Get the requested page of results
+        results = await llm_service.citation_service.get_paginated_results(
+            results_id=params.results_id,
+            page=params.page,
+            page_size=params.page_size
+        )
+        
+        # Get total results count from metadata
+        meta = await llm_service.citation_service.redis.get(
+            f"{settings.redis.SEARCH_RESULTS_PREFIX}{params.results_id}:meta"
+        )
+        total_results = meta["total_results"] if meta else len(results)
+        
+        return {
+            "results": results,
+            "page": params.page,
+            "page_size": params.page_size,
+            "total_results": total_results
+        }
+    except Exception as e:
+        logger.error(f"Error getting paginated results: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "message": str(e),
+                "error_type": "pagination_error",
+                "results_id": params.results_id,
+                "page": params.page
+            }
+        )
 
 @router.post("/generate-precise-query", response_model=QueryResponse)
 async def generate_precise_query(
@@ -188,14 +248,16 @@ async def generate_precise_query(
             """
 
         # Generate and execute query
-        sql_query, citations = await llm_service.generate_and_execute_query(
+        sql_query, results_id, first_page = await llm_service.generate_and_execute_query(
             question=question,
             max_tokens=data.max_tokens
         )
         
         return {
             "sql": sql_query,
-            "results": citations,  # Now passing Citation objects directly
+            "results": first_page,
+            "results_id": results_id,
+            "total_results": len(first_page),
             "usage": {},
             "model": "",
             "raw_response": None,
@@ -206,6 +268,8 @@ async def generate_precise_query(
         return {
             "sql": "",
             "results": [],
+            "results_id": "",
+            "total_results": 0,
             "usage": {},
             "model": "",
             "raw_response": None,
@@ -215,6 +279,8 @@ async def generate_precise_query(
         return {
             "sql": "",
             "results": [],
+            "results_id": "",
+            "total_results": 0,
             "usage": {},
             "model": "",
             "raw_response": None,

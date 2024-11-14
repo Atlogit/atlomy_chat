@@ -12,6 +12,9 @@ from app.core.config import settings
 from app.services.text_service import TextService
 from app.services.search_service import SearchService
 from app.services.category_service import CategoryService
+from app.models.citations import SearchResponse
+from app.models.text_division import TextResponse
+from app.models.text_line import TextLine
 
 logger = logging.getLogger(__name__)
 
@@ -24,15 +27,15 @@ class CorpusService:
         self.search_service = SearchService(session)
         self.category_service = CategoryService(session)
 
-    async def list_texts(self) -> List[Dict]:
+    async def list_texts(self) -> List[TextResponse]:
         """List all texts in the corpus with their metadata."""
         return await self.text_service.list_texts()
 
-    async def get_text_by_id(self, text_id: int) -> Optional[Dict]:
+    async def get_text_by_id(self, text_id: int) -> Optional[TextResponse]:
         """Get a specific text by its ID."""
         return await self.text_service.get_text_by_id(text_id)
 
-    async def get_all_texts(self) -> List[Dict]:
+    async def get_all_texts(self) -> List[TextResponse]:
         """Get all texts with full content."""
         return await self.text_service.get_all_texts()
 
@@ -42,7 +45,7 @@ class CorpusService:
         search_lemma: bool = False,
         categories: Optional[List[str]] = None,
         use_corpus_search: bool = True  # Add the new parameter with default True
-    ) -> List[Dict]:
+    ) -> SearchResponse:
         """Search texts in the corpus."""
         return await self.search_service.search_texts(
             query,
@@ -51,7 +54,7 @@ class CorpusService:
             use_corpus_search=use_corpus_search  # Pass through the parameter
         )
 
-    async def search_by_category(self, category: str) -> List[Dict]:
+    async def search_by_category(self, category: str) -> SearchResponse:
         """Search for text lines by category."""
         return await self.search_texts(
             "",  # Empty query since we're searching by category

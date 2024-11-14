@@ -73,7 +73,7 @@ class Sentence(Base):
     
     # Many-to-many relationship with text lines
     text_lines = relationship(
-        "TextLine",
+        "TextLineDB",  # Updated to use TextLineDB
         secondary=sentence_text_lines,
         back_populates="sentences",
         cascade="all, delete"

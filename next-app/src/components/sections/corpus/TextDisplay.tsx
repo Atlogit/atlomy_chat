@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { Button } from '../../../components/ui/Button'
 import { ResultsDisplay } from '../../../components/ui/ResultsDisplay'
 import { useLoading } from '../../../hooks/useLoading'
-import { fetchApi, API, Text, TextDivision, TextLine, TokenInfo } from '../../../utils/api'
+import { fetchApi, API, Text, TextDivision, TextLine, TokenInfo, SpacyTokens } from '../../../utils/api'
 
 interface TextDisplayProps {
   textId: string
@@ -55,17 +55,28 @@ export function TextDisplay({ textId }: TextDisplayProps) {
   const renderSpacyTokens = (line: TextLine) => {
     if (!line.spacy_tokens) return null
 
+    // Handle both array and object formats
+    let tokens: TokenInfo[] = []
+    if (Array.isArray(line.spacy_tokens)) {
+      tokens = line.spacy_tokens
+    } else {
+      const spacyTokens = line.spacy_tokens as SpacyTokens
+      if (spacyTokens.tokens && Array.isArray(spacyTokens.tokens)) {
+        tokens = spacyTokens.tokens
+      }
+    }
+
     // Filter interesting tokens
-    const tokens = line.spacy_tokens.filter(token => 
+    const filteredTokens = tokens.filter(token => 
       !token.is_stop && 
       (token.pos === 'NOUN' || token.pos === 'VERB' || token.pos === 'ADJ')
     )
 
-    if (tokens.length === 0) return null
+    if (filteredTokens.length === 0) return null
 
     return (
       <div className="flex flex-wrap gap-1 mt-1">
-        {tokens.map((token, index) => (
+        {filteredTokens.map((token: TokenInfo, index: number) => (
           <span 
             key={`${token.text}-${index}`}
             className="text-xs px-1 py-0.5 rounded bg-base-300"

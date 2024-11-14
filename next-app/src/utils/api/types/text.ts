@@ -10,11 +10,15 @@ export interface TokenInfo {
   is_punct: boolean;
 }
 
+export interface SpacyTokens {
+  tokens: TokenInfo[];
+}
+
 export interface TextLine {
   line_number: number;
   content: string;
   categories?: string[];
-  spacy_tokens?: TokenInfo[];  // Now an array of token objects
+  spacy_tokens?: TokenInfo[] | SpacyTokens;  // Can be array or object with tokens array
 }
 
 export interface TextDivision {

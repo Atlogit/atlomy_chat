@@ -1,9 +1,41 @@
+"""
+Models for text divisions and responses.
+"""
+
 from typing import Optional, Dict, Any, List
 from sqlalchemy import String, Integer, ForeignKey, JSON, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from pydantic import BaseModel
 from . import Base
 from toolkit.parsers.citation import CitationParser
+from .text_line import TextLine, TextLineDB
 
+# Pydantic models for API responses
+class TextDivisionResponse(BaseModel):
+    """API response model for text divisions."""
+    id: str
+    author_name: Optional[str] = None
+    work_name: Optional[str] = None
+    volume: Optional[str] = None
+    chapter: Optional[str] = None
+    section: Optional[str] = None
+    is_title: bool
+    title_number: Optional[str] = None
+    title_text: Optional[str] = None
+    metadata: Optional[Dict] = None
+    lines: Optional[List[TextLine]] = None
+
+class TextResponse(BaseModel):
+    """API response model for complete texts."""
+    id: str
+    title: str
+    work_name: Optional[str] = None
+    author: Optional[str] = None
+    reference_code: Optional[str] = None
+    metadata: Optional[Dict] = None
+    divisions: Optional[List[TextDivisionResponse]] = None
+
+# SQLAlchemy model for database
 class TextDivision(Base):
     """Model for storing text divisions with both citation and structural components."""
     __tablename__ = "text_divisions"
@@ -50,7 +82,7 @@ class TextDivision(Base):
     
     # Relationships
     text = relationship("Text", back_populates="divisions")
-    lines = relationship("TextLine", back_populates="division", cascade="all, delete-orphan")
+    lines = relationship("TextLineDB", back_populates="division", cascade="all, delete-orphan")
 
     def _get_abbreviated_author_name(self) -> str:
         """Get abbreviated author name (e.g., 'Galenus Med.' -> 'Gal.')."""
@@ -100,10 +132,9 @@ class TextDivision(Base):
         abbrev = ""
         for word in words:
             # Skip common words like "de", "in", etc.
-            if word.lower() in ["de", "in", "et", "ad", "the", "a", "an"]:
-                continue
-            if word:
-                abbrev += word[0].upper()
+            if word.lower() not in ["de", "in", "et", "ad", "the", "a", "an"]:
+                if word:
+                    abbrev += word[0].upper()
                 
         # If no abbreviation was created, use first 3 letters of first word
         if not abbrev and words:

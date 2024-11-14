@@ -1,11 +1,35 @@
+"""
+Models for text lines, including both SQLAlchemy and Pydantic models.
+"""
+
 from typing import Optional, Dict, Any, List
 from sqlalchemy import String, Integer, ForeignKey, JSON, Boolean
 from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from pydantic import BaseModel
 from app.models import Base
 from app.models.sentence import sentence_text_lines
 
-class TextLine(Base):
+# Pydantic model for API responses
+class TextLine(BaseModel):
+    """
+    API response model for text lines.
+    
+    Attributes:
+        line_number: Sequential number of the line in the text
+        content: The actual text content
+        categories: Optional list of categories this line belongs to
+        is_title: Whether this line is a title
+        spacy_tokens: Optional spaCy NLP analysis data
+    """
+    line_number: int
+    content: str
+    categories: Optional[List[str]] = None
+    is_title: Optional[bool] = False
+    spacy_tokens: Optional[Dict[str, Any]] = None
+
+# SQLAlchemy model for database
+class TextLineDB(Base):
     """Model for storing individual lines of text with their NLP annotations.
     
     This model represents individual lines within text divisions, including
@@ -68,3 +92,13 @@ class TextLine(Base):
     
     def __repr__(self) -> str:
         return f"TextLine(id={self.id}, division_id={self.division_id}, line={self.line_number}, is_title={self.is_title}, categories={self.categories})"
+    
+    def to_api_model(self) -> TextLine:
+        """Convert to API response model."""
+        return TextLine(
+            line_number=self.line_number,
+            content=self.content,
+            categories=self.categories,
+            is_title=self.is_title,
+            spacy_tokens=self.spacy_tokens
+        )

@@ -10,6 +10,7 @@ from app.services.llm.base_service import LLMServiceError
 from app.services.llm.lexical_service import LexicalLLMService
 from app.services.llm.query_service import QueryLLMService
 from app.services.llm.analysis_service import AnalysisLLMService
+from app.services.citation_service import CitationService
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -19,6 +20,8 @@ class LLMService:
     
     def __init__(self, session: AsyncSession):
         """Initialize the LLM service components."""
+        self.session = session
+        self.citation_service = CitationService(session)
         self.lexical_service = LexicalLLMService(session)
         self.query_service = QueryLLMService(session)
         self.analysis_service = AnalysisLLMService(session)
@@ -43,7 +46,7 @@ class LLMService:
         self,
         question: str,
         max_tokens: Optional[int] = None
-    ) -> Tuple[str, List[Dict[str, Any]]]:
+    ) -> Tuple[str, str, List[Dict[str, Any]]]:  # Updated return type to include results_id
         """Generate and execute a SQL query using QueryLLMService."""
         return await self.query_service.generate_and_execute_query(
             question=question,
@@ -54,13 +57,15 @@ class LLMService:
         self,
         term: str,
         contexts: List[Dict[str, Any]],
-        max_tokens: Optional[int] = None
-    ) -> str:
+        max_tokens: Optional[int] = None,
+        stream: bool = False
+    ) -> Union[str, AsyncGenerator[str, None]]:
         """Analyze a term using AnalysisLLMService."""
         return await self.analysis_service.analyze_term(
             term=term,
             contexts=contexts,
-            max_tokens=max_tokens
+            max_tokens=max_tokens,
+            stream=stream
         )
 
     async def get_token_count(self, text: str) -> int:
