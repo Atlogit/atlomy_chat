@@ -9,7 +9,6 @@ import logging
 from app.core.config import settings
 from app.services.llm.base import BaseLLMClient, LLMResponse
 from app.services.llm.bedrock import BedrockClient, BedrockClientError
-from app.services.citation_service import CitationService
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -39,7 +38,6 @@ class BaseLLMService:
         """Initialize the base LLM service."""
         try:
             self.session = session
-            self.citation_service = CitationService(session)
             provider = settings.llm.PROVIDER
             if provider not in self.PROVIDERS:
                 raise LLMServiceError(
