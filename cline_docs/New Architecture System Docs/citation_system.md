@@ -151,10 +151,43 @@ These patterns support:
 ### 4. Caching System
 
 #### Redis Cache Implementation
-- TTL-based caching (1 hour default)
-- Caches both current and versioned lexical values
+- Page-based storage for efficient pagination
+- Direct page access without full dataset deserialization
+- TTL-based caching (configurable)
 - Automatic cache invalidation on updates
-- Cache keys format: `lexical_value:{lemma}:{version?}`
+
+#### Redis Storage Structure
+```
+{prefix}:{results_id}:meta         - Metadata (total results, total pages, page size)
+{prefix}:{results_id}:page:{n}     - Individual page data
+{prefix}:search:{query_hash}       - Search result cache
+```
+
+#### Page Management
+- Results split into pages (default 10 items per page)
+- Each page stored separately with same TTL
+- Metadata tracks total pages and page size
+- Direct access to specific pages without loading entire dataset
+
+#### Pagination Flow
+1. Client makes search request
+2. Server executes query and formats citations
+3. Citations stored in Redis by page
+4. Results ID returned with first page
+5. Client requests additional pages using results_id
+6. Server retrieves specific page directly
+
+#### Performance Optimization
+- Direct page access without loading full dataset
+- Reduced memory usage per request
+- Faster response times for pagination
+- Efficient cache utilization
+
+#### Cache Keys
+- Results ID: UUID for each search
+- Search Cache: Hash of search parameters
+- Page Keys: Sequential page numbers
+- Metadata: Stores total results and pagination info
 
 ### 5. JSON Storage
 

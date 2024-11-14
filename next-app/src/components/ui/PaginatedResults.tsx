@@ -8,6 +8,8 @@ interface PaginatedResultsProps {
   pageSize?: number
   className?: string
   isLoading?: boolean
+  onPageChange?: (page: number, pageSize: number) => Promise<SearchResult[]>
+  totalResults?: number
 }
 
 type LocationField = 'book' | 'fragment' | 'volume' | 'page' | 'chapter' | 'section' | 'line'
@@ -19,22 +21,58 @@ export function PaginatedResults({
   pageSize = 10,
   className = '',
   isLoading = false,
+  onPageChange,
+  totalResults,
 }: PaginatedResultsProps) {
   const [currentPage, setCurrentPage] = useState(1)
   const [paginatedResults, setPaginatedResults] = useState<SearchResult[]>([])
-  const totalPages = Math.ceil(results.length / pageSize)
+  const [isChangingPage, setIsChangingPage] = useState(false)
+  
+  // Calculate total pages based on totalResults if provided, otherwise use results.length
+  const totalPages = totalResults 
+    ? Math.ceil(totalResults / pageSize)
+    : Math.ceil(results.length / pageSize)
 
+  // Only update paginated results when initial results change or when not using server pagination
   useEffect(() => {
     if (!results.length) {
       setPaginatedResults([])
       return
     }
 
-    const start = (currentPage - 1) * pageSize
-    const end = start + pageSize
-    const pageResults = results.slice(start, end)
-    setPaginatedResults(pageResults)
-  }, [results, currentPage, pageSize])
+    // Only set initial results if we're not using server pagination
+    // or if we're on the first page
+    if (!onPageChange || currentPage === 1) {
+      setPaginatedResults(results)
+    }
+  }, [results]) // Only depend on results changes
+
+  const handlePageChange = async (newPage: number) => {
+    if (onPageChange) {
+      setIsChangingPage(true)
+      try {
+        console.log(`Fetching page ${newPage}`)
+        const newResults = await onPageChange(newPage, pageSize)
+        console.log(`Got ${newResults.length} results for page ${newPage}`)
+        if (newResults.length > 0) {
+          console.log(`First result ID: ${newResults[0].sentence?.id}`)
+        }
+        setPaginatedResults(newResults)
+        setCurrentPage(newPage)
+      } catch (error) {
+        console.error('Error changing page:', error)
+      } finally {
+        setIsChangingPage(false)
+      }
+    } else {
+      // Client-side pagination
+      setCurrentPage(newPage)
+      const start = (newPage - 1) * pageSize
+      const end = start + pageSize
+      const pageResults = results.slice(start, end)
+      setPaginatedResults(pageResults)
+    }
+  }
 
   const formatCitation = (result: SearchResult): string => {
     // More strict checking for source properties
@@ -81,13 +119,15 @@ export function PaginatedResults({
     return `${authorWork}${locationStr}`
   }
 
-  if (isLoading) {
+  if (isLoading || isChangingPage) {
     return (
       <div className={`space-y-4 ${className}`}>
         <div className="flex items-center justify-center p-8">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
         </div>
-        <p className="text-center text-base-content/70">Loading results...</p>
+        <p className="text-center text-base-content/70">
+          {isChangingPage ? 'Loading more results...' : 'Loading results...'}
+        </p>
       </div>
     )
   }
@@ -105,7 +145,7 @@ export function PaginatedResults({
       <div className="flex justify-between items-center">
         <h3 className="font-bold">{title}</h3>
         <div className="text-sm text-base-content/70">
-          Showing {((currentPage - 1) * pageSize) + 1} - {Math.min(currentPage * pageSize, results.length)} of {results.length} results
+          Showing {((currentPage - 1) * pageSize) + 1} - {Math.min(currentPage * pageSize, totalResults || results.length)} of {totalResults || results.length} results
         </div>
       </div>
 
@@ -152,8 +192,8 @@ export function PaginatedResults({
         <div className="flex justify-center gap-2 mt-4">
           <button
             className="btn btn-sm"
-            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-            disabled={currentPage === 1}
+            onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
+            disabled={currentPage === 1 || isChangingPage}
           >
             Previous
           </button>
@@ -164,8 +204,8 @@ export function PaginatedResults({
           
           <button
             className="btn btn-sm"
-            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-            disabled={currentPage === totalPages}
+            onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
+            disabled={currentPage === totalPages || isChangingPage}
           >
             Next
           </button>

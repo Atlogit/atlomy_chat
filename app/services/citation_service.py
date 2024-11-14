@@ -16,7 +16,7 @@ from app.models.citations import (
     Citation, SentenceContext, CitationContext, 
     CitationLocation, CitationSource
 )
-from app.models.text_line import TextLine, TextLineDB
+from app.models.text_line import TextLine, TextLineAPI
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -43,92 +43,132 @@ class CitationService:
                     # Continue with other citations
                     continue
             
+            if not citations:
+                logger.warning("No citations were formatted successfully")
+                return "", []
+            
             # Generate unique results ID
             results_id = str(uuid.uuid4())
             
-            # Store citations in chunks to avoid Redis memory issues
-            chunk_size = 1000
-            total_chunks = (len(citations) + chunk_size - 1) // chunk_size
+            # Store citations in chunks of 10 (page size)
+            page_size = 10
+            total_pages = (len(citations) + page_size - 1) // page_size
             
-            # Store metadata about the results
-            await self.redis.set(
-                f"{settings.redis.SEARCH_RESULTS_PREFIX}{results_id}:meta",
-                {
-                    "total_results": len(citations),
-                    "total_chunks": total_chunks,
-                    "chunk_size": chunk_size
-                },
+            # Store metadata
+            meta = {
+                "total_results": len(citations),
+                "total_pages": total_pages,
+                "page_size": page_size
+            }
+            
+            meta_key = f"{settings.redis.SEARCH_RESULTS_PREFIX}{results_id}:meta"
+            meta_success = await self.redis.set(
+                meta_key,
+                meta,
                 ttl=settings.redis.SEARCH_RESULTS_TTL
             )
             
-            # Store each chunk
-            for i in range(total_chunks):
-                start = i * chunk_size
-                end = start + chunk_size
-                chunk = citations[start:end]
+            if not meta_success:
+                logger.error("Failed to store metadata in Redis")
+                return "", []
+            
+            # Store each page
+            all_pages_stored = True
+            for page in range(total_pages):
+                start = page * page_size
+                end = min(start + page_size, len(citations))
+                page_citations = citations[start:end]
                 
                 # Convert Pydantic models to dicts for Redis storage
-                chunk_data = [c.model_dump() for c in chunk]
+                page_data = [c.model_dump() for c in page_citations]
                 
-                await self.redis.set(
-                    f"{settings.redis.SEARCH_RESULTS_PREFIX}{results_id}:chunk:{i}",
-                    chunk_data,
+                page_key = f"{settings.redis.SEARCH_RESULTS_PREFIX}{results_id}:page:{page + 1}"
+                page_success = await self.redis.set(
+                    page_key,
+                    page_data,
                     ttl=settings.redis.SEARCH_RESULTS_TTL
                 )
+                
+                if not page_success:
+                    logger.error(f"Failed to store page {page + 1} in Redis")
+                    all_pages_stored = False
+                    break
+                
+                # Log first citation of each page
+                if page_citations:
+                    logger.debug(
+                        f"Stored page {page + 1} ({len(page_citations)} citations): "
+                        f"first citation ID={page_citations[0].sentence.id}"
+                    )
             
-            logger.info(f"Formatted and stored {len(citations)} citations with ID {results_id}")
+            if not all_pages_stored:
+                # Clean up any stored data
+                await self.redis.delete(meta_key)
+                pattern = f"{settings.redis.SEARCH_RESULTS_PREFIX}{results_id}:page:*"
+                await self.redis.clear_cache(pattern)
+                return "", []
+            
+            logger.info(f"Formatted and stored {len(citations)} citations with ID {results_id} in {total_pages} pages")
             
             # Return results ID and first page of results
-            return results_id, citations[:100]  # Return first 100 results
+            return results_id, citations[:page_size]  # Return first page
             
         except Exception as e:
             logger.error(f"Error formatting citations: {str(e)}", exc_info=True)
             raise
 
-    async def get_paginated_results(self, results_id: str, page: int = 1, page_size: int = 100) -> List[Citation]:
+    async def get_paginated_results(self, results_id: str, page: int = 1, page_size: int = 10) -> List[Citation]:
         """Get a page of results from Redis."""
         try:
             # Get metadata
-            meta = await self.redis.get(f"{settings.redis.SEARCH_RESULTS_PREFIX}{results_id}:meta")
+            meta_key = f"{settings.redis.SEARCH_RESULTS_PREFIX}{results_id}:meta"
+            meta = await self.redis.get(meta_key)
+            
             if not meta:
-                logger.warning(f"No results found for ID {results_id}")
+                logger.warning(f"No metadata found for results ID {results_id}")
                 return []
             
-            total_results = meta["total_results"]
-            chunk_size = meta["chunk_size"]
+            total_results = meta.get("total_results")
+            total_pages = meta.get("total_pages")
+            stored_page_size = meta.get("page_size")
             
-            # Calculate which chunk(s) we need
-            start_index = (page - 1) * page_size
-            end_index = min(start_index + page_size, total_results)
-            
-            # Check if requested page is beyond available results
-            if start_index >= total_results:
-                logger.warning(f"Requested page {page} is beyond available results (total pages: {(total_results + page_size - 1) // page_size})")
+            if not all([total_results, total_pages, stored_page_size]):
+                logger.error(f"Invalid metadata for results ID {results_id}")
                 return []
             
-            start_chunk = start_index // chunk_size
-            end_chunk = (end_index - 1) // chunk_size
+            # Check if requested page is beyond available pages
+            if page > total_pages:
+                logger.warning(f"Requested page {page} is beyond available pages ({total_pages})")
+                return []
             
-            # Get required chunks
-            citations = []
-            for chunk_num in range(start_chunk, end_chunk + 1):
-                chunk = await self.redis.get(f"{settings.redis.SEARCH_RESULTS_PREFIX}{results_id}:chunk:{chunk_num}")
-                if chunk:
-                    # Convert stored dicts back to Pydantic models
-                    chunk_citations = [Citation.model_validate(c) for c in chunk]
-                    citations.extend(chunk_citations)
-                else:
-                    logger.warning(f"Missing chunk {chunk_num} for results ID {results_id}")
+            # Get the requested page directly
+            page_key = f"{settings.redis.SEARCH_RESULTS_PREFIX}{results_id}:page:{page}"
+            page_data = await self.redis.get(page_key)
             
-            # Calculate slice within combined chunks
-            chunk_start = start_index % chunk_size
-            chunk_end = chunk_start + min(page_size, len(citations) - chunk_start)
+            if page_data is None:
+                logger.warning(f"Missing page {page} for results ID {results_id}")
+                return []
             
-            return citations[chunk_start:chunk_end]
+            try:
+                # Convert stored dicts back to Pydantic models
+                citations = [Citation.model_validate(c) for c in page_data]
+                
+                # Log page details
+                if citations:
+                    logger.debug(
+                        f"Retrieved page {page} ({len(citations)} citations): "
+                        f"first citation ID={citations[0].sentence.id}"
+                    )
+                
+                return citations
+                
+            except Exception as e:
+                logger.error(f"Error converting citations: {str(e)}")
+                return []
             
         except Exception as e:
             logger.error(f"Error getting paginated results: {str(e)}", exc_info=True)
-            raise
+            return []
 
     def _format_citation(self, row: Dict) -> Citation:
         """Format a single citation directly from query result."""
@@ -294,7 +334,7 @@ class CitationService:
                     citation += f", {', '.join(components)}"
 
                 return citation
-
+            
         except Exception as e:
             logger.error(f"Error formatting citation text: {str(e)}", exc_info=True)
             raise

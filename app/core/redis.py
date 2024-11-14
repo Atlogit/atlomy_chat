@@ -24,7 +24,7 @@ class RedisClient:
                 db=settings.redis.REDIS_DB,
                 password=settings.redis.REDIS_PASSWORD,
                 encoding="utf-8",
-                decode_responses=True
+                decode_responses=False  # Changed to False to handle raw bytes
             )
 
     async def close(self):
@@ -40,7 +40,13 @@ class RedisClient:
         
         try:
             value = await self._redis.get(key)
-            return json.loads(value) if value else None
+            if value:
+                try:
+                    return json.loads(value.decode('utf-8'))
+                except (json.JSONDecodeError, UnicodeDecodeError) as e:
+                    print(f"Redis decode error: {e}")
+                    return None
+            return None
         except Exception as e:
             print(f"Redis get error: {e}")
             return None
@@ -56,7 +62,7 @@ class RedisClient:
             await self.init()
         
         try:
-            serialized = json.dumps(value)
+            serialized = json.dumps(value).encode('utf-8')
             if ttl:
                 await self._redis.setex(key, ttl, serialized)
             else:
@@ -109,4 +115,3 @@ class RedisClient:
 
 # Create singleton instance
 redis_client = RedisClient()
-
