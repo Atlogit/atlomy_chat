@@ -60,8 +60,8 @@ WITH sentence_matches AS (
     SELECT DISTINCT ON (s.id)
         s.id as sentence_id,
         s.content as sentence_text,
-        s.spacy_data as sentence_tokens,
-        MIN(tl.line_number) as min_line_number,
+        s.spacy_data->'tokens' as sentence_tokens,
+        array_agg(DISTINCT tl.line_number ORDER BY tl.line_number) as line_numbers,
         td.id as division_id,
         COALESCE(td.author_name, a.name) as author_name,
         COALESCE(td.work_name, t.title) as work_name,
@@ -76,7 +76,7 @@ WITH sentence_matches AS (
     JOIN text_divisions td ON tl.division_id = td.id
     JOIN texts t ON td.text_id = t.id
     LEFT JOIN authors a ON t.author_id = a.id,
-    LATERAL jsonb_array_elements(CAST(s.spacy_data->'tokens' AS jsonb)) AS token
+    LATERAL json_array_elements(s.spacy_data->'tokens') AS token
     WHERE token->>'lemma' = :pattern
     GROUP BY 
         s.id, s.content,
@@ -87,28 +87,6 @@ WITH sentence_matches AS (
 SELECT * FROM sentence_matches
 ORDER BY division_id, min_line_number
 ```
-
-#### Specialized Query Types
-
-1. **Lemma Citation Query**
-   - Searches for lemmas in spaCy token data
-   - Uses JSON field traversal for token analysis
-   - Condition: `EXISTS (SELECT 1 FROM jsonb_array_elements(CAST(s.spacy_data->'tokens' AS jsonb)) AS token WHERE token->>'lemma' = :pattern)`
-
-2. **Text Citation Query**
-   - Full-text search in sentence content
-   - Uses ILIKE for case-insensitive matching
-   - Condition: `s.content ILIKE :pattern`
-
-3. **Category Citation Query**
-   - Searches sentences by their categories
-   - Uses array containment operator
-   - Condition: `s.categories @> ARRAY[:category]::VARCHAR[]`
-
-4. **Citation Search Query**
-   - Looks up citations by author and work identifiers
-   - Direct match on division fields
-   - Condition: `td.author_id_field = :author_id AND td.work_number_field = :work_number`
 
 ### 3. Citation Pattern Matching
 
@@ -278,6 +256,21 @@ versions = await lexical_service.get_json_versions(lemma)
 # Get specific version
 value = await lexical_service.get_lexical_value(lemma, version="v1")
 ```
+
+### LLM Citation Formatting
+```python
+# Format citations for LLM analysis
+citations_text = "\n".join(
+    f"{citation.citation}: {citation.sentence.text}"  # Include both reference and text
+    for citation in citations
+)
+```
+
+This format provides:
+- Citation reference (author, work, location)
+- Actual text content
+- Single line per citation for clean processing
+- Complete context for LLM analysis
 
 ## Future Considerations
 

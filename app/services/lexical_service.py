@@ -3,7 +3,7 @@ Service layer for managing lexical values.
 Handles creation, retrieval, and management of lexical entries.
 """
 
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text
 import logging
@@ -21,8 +21,7 @@ from app.services.json_storage_service import JSONStorageService
 from app.core.redis import redis_client
 from app.core.citation_queries import (
     LEMMA_CITATION_QUERY,
-    TEXT_CITATION_QUERY,
-    DIRECT_SENTENCE_QUERY
+    TEXT_CITATION_QUERY
 )
 
 # Configure logging
@@ -38,13 +37,14 @@ class LexicalService:
         self.citation_service = CitationService(session)
         self.json_storage = JSONStorageService()
         self.cache_ttl = 3600  # 1 hour cache TTL
+        self.redis = redis_client
         logger.info("Initialized LexicalService")
 
     async def _get_cached_value(self, lemma: str, version: Optional[str] = None) -> Optional[Dict]:
         """Get lexical value from cache if available."""
         try:
             cache_key = f"lexical_value:{lemma}:{version}" if version else f"lexical_value:{lemma}"
-            cached = await redis_client.get(cache_key)
+            cached = await self.redis.get(cache_key)
             if cached:
                 logger.info(f"Cache hit for lexical value: {lemma} (version: {version})")
                 return json.loads(cached)
@@ -59,7 +59,7 @@ class LexicalService:
         """Cache lexical value data."""
         try:
             cache_key = f"lexical_value:{lemma}:{version}" if version else f"lexical_value:{lemma}"
-            await redis_client.set(
+            await self.redis.set(
                 cache_key,
                 json.dumps(data),
                 ttl=self.cache_ttl
@@ -75,24 +75,24 @@ class LexicalService:
             versions = await self.get_json_versions(lemma)
             
             # Delete cache for current version
-            await redis_client.delete(f"lexical_value:{lemma}")
+            await self.redis.delete(f"lexical_value:{lemma}")
             
             # Delete cache for all versions
             for version in versions:
-                await redis_client.delete(f"lexical_value:{lemma}:{version}")
+                await self.redis.delete(f"lexical_value:{lemma}:{version}")
                 
             logger.info(f"Invalidated cache for lexical value: {lemma} and all versions")
         except Exception as e:
             logger.error(f"Failed to invalidate cache for {lemma}: {str(e)}")
 
-    async def _get_citations(self, word: str, search_lemma: bool) -> List[Dict[str, Any]]:
-        """Get citations with full sentence context for a word/lemma from the database."""
+    async def _get_citations(self, word: str, search_lemma: bool) -> Tuple[str, List[Dict[str, Any]]]:
+        """Get citations with full sentence context for a word/lemma."""
         try:
             logger.info(f"Getting citations for word: {word} (search_lemma: {search_lemma})")
             
             if search_lemma:
-                # For lemma search, use the optimized direct sentence query
-                query = DIRECT_SENTENCE_QUERY
+                # For lemma search, use the lemma citation query
+                query = LEMMA_CITATION_QUERY
                 params = {"pattern": word}
             else:
                 # For text search, use the standard citation query with ILIKE pattern
@@ -103,14 +103,45 @@ class LexicalService:
             logger.debug(f"Executing citation query with params: {params}")
             
             try:
+                # Execute query
                 result = await self.session.execute(text(query), params)
                 raw_results = result.mappings().all()
                 
-                # Use CitationService to format citations
-                citations = await self.citation_service.format_citations(raw_results)
+                # Log raw results for debugging
+                logger.debug(f"Raw query results count: {len(raw_results)}")
+                if raw_results:
+                    logger.debug(f"First result sample: {dict(raw_results[0])}")
                 
-                logger.info(f"Found {len(citations)} citations for {word}")
-                return citations
+                if not raw_results:
+                    logger.warning(f"No citations found in database for word: {word}")
+                    return "", []
+                
+                # Format and store citations
+                results_id, first_page = await self.citation_service.format_citations(raw_results)
+                
+                if not first_page:
+                    logger.warning(f"No citations were formatted successfully for word: {word}")
+                    return "", []
+                
+                # Get metadata to determine total pages
+                meta_key = f"search_results:{results_id}:meta"
+                meta = await self.redis.get(meta_key)
+                
+                if not meta:
+                    logger.error(f"No metadata found for results ID {results_id}")
+                    return "", []
+                
+                total_pages = meta.get("total_pages", 1)
+                all_citations = []
+                
+                # Get all pages
+                for page in range(1, total_pages + 1):
+                    page_citations = await self.citation_service.get_paginated_results(results_id, page)
+                    if page_citations:
+                        all_citations.extend(page_citations)
+                
+                logger.info(f"Found and formatted {len(all_citations)} citations for {word}")
+                return results_id, all_citations
 
             except Exception as e:
                 logger.error(f"Database error executing citation query: {str(e)}", exc_info=True)
@@ -119,16 +150,6 @@ class LexicalService:
         except Exception as e:
             logger.error(f"Error getting citations for {word}: {str(e)}", exc_info=True)
             raise ValueError(f"Failed to get citations: {str(e)}")
-
-    def _validate_lexical_value(self, data: Dict[str, Any]):
-        """Validate lexical value data has all required fields."""
-        required_fields = ['lemma', 'translation', 'short_description', 
-                         'long_description', 'related_terms', 'citations_used']
-        missing_fields = [field for field in required_fields if field not in data]
-        
-        if missing_fields:
-            logger.error(f"Missing required fields in lexical value data: {missing_fields}")
-            raise ValueError(f"Missing required fields: {', '.join(missing_fields)}")
 
     async def create_lexical_entry(
         self,
@@ -153,7 +174,12 @@ class LexicalService:
                 }
 
             # Get citations with enhanced sentence context
-            citations = await self._get_citations(lemma, search_lemma=True)
+            results_id, citations = await self._get_citations(lemma, search_lemma=True)
+            
+            if not citations:
+                logger.error(f"No citations found for lemma: {lemma}")
+                raise ValueError(f"No citations found for lemma: {lemma}")
+            
             logger.info(f"Retrieved {len(citations)} citations for {lemma}")
             
             # Generate lexical value using LLM
@@ -169,23 +195,22 @@ class LexicalService:
             
             # Initialize sentence contexts
             sentence_contexts = {}
-            if citations:
-                for citation in citations:
-                    sentence_id = str(citation['sentence']['id'])
-                    sentence_contexts[sentence_id] = {
-                        'text': citation['sentence']['text'],
-                        'prev': citation['sentence']['prev_sentence'],
-                        'next': citation['sentence']['next_sentence'],
-                        'tokens': citation['sentence']['tokens']
-                    }
+            for citation in citations:
+                sentence_id = str(citation.sentence.id)
+                sentence_contexts[sentence_id] = {
+                    'text': citation.sentence.text,
+                    'prev': citation.sentence.prev_sentence,
+                    'next': citation.sentence.next_sentence,
+                    'tokens': citation.sentence.tokens
+                }
             
             # Set primary sentence ID and ensure all required fields are present
             if citations:
-                analysis['sentence_id'] = int(citations[0]['sentence']['id'])
+                analysis['sentence_id'] = int(citations[0].sentence.id)
             
             # Ensure all required fields are present with proper initialization
             analysis.update({
-                'references': {'citations': citations},  # Store formatted citations properly
+                'references': {'citations': [c.model_dump() for c in citations]},  # Store formatted citations properly
                 'sentence_contexts': sentence_contexts,  # Store sentence contexts
                 'citations_used': analysis.get('citations_used', [])  # Keep LLM's citation analysis
             })
@@ -218,6 +243,16 @@ class LexicalService:
         except Exception as e:
             logger.error(f"Error creating lexical value for {lemma}: {str(e)}", exc_info=True)
             raise
+
+    def _validate_lexical_value(self, data: Dict[str, Any]):
+        """Validate lexical value data has all required fields."""
+        required_fields = ['lemma', 'translation', 'short_description', 
+                         'long_description', 'related_terms', 'citations_used']
+        missing_fields = [field for field in required_fields if field not in data]
+        
+        if missing_fields:
+            logger.error(f"Missing required fields in lexical value data: {missing_fields}")
+            raise ValueError(f"Missing required fields: {', '.join(missing_fields)}")
 
     async def get_lexical_value(self, lemma: str, version: Optional[str] = None) -> Optional[LexicalValue]:
         """Get a lexical value by its lemma with linked citations."""
@@ -363,7 +398,7 @@ class LexicalService:
     async def get_linked_citations(self, lemma: str) -> List[Dict[str, Any]]:
         """Get all citations directly linked to a lexical value."""
         try:
-            citations = await self._get_citations(lemma, search_lemma=True)
+            results_id, citations = await self._get_citations(lemma, search_lemma=True)
             return citations
             
         except Exception as e:

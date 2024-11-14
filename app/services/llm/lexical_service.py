@@ -44,10 +44,11 @@ class LexicalLLMService(BaseLLMService):
         try:
             logger.info(f"Creating lexical value for word: {word}")
             logger.debug(f"Number of citations: {len(citations)}")
+            logger.debug(f"Raw citations: {citations}")
             
-            # Format citations using CitationService
+            # Format citations with both reference and text
             citations_text = "\n".join(
-                self.citation_service.format_citation_text(citation, abbreviated=False)
+                f"{citation.citation}: {citation.sentence.text}"  # Include both citation and its text
                 for citation in citations
             )
             
