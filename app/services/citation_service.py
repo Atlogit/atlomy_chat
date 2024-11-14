@@ -101,6 +101,11 @@ class CitationService:
             start_index = (page - 1) * page_size
             end_index = min(start_index + page_size, total_results)
             
+            # Check if requested page is beyond available results
+            if start_index >= total_results:
+                logger.warning(f"Requested page {page} is beyond available results (total pages: {(total_results + page_size - 1) // page_size})")
+                return []
+            
             start_chunk = start_index // chunk_size
             end_chunk = (end_index - 1) // chunk_size
             
@@ -112,10 +117,12 @@ class CitationService:
                     # Convert stored dicts back to Pydantic models
                     chunk_citations = [Citation.model_validate(c) for c in chunk]
                     citations.extend(chunk_citations)
+                else:
+                    logger.warning(f"Missing chunk {chunk_num} for results ID {results_id}")
             
             # Calculate slice within combined chunks
             chunk_start = start_index % chunk_size
-            chunk_end = chunk_start + page_size
+            chunk_end = chunk_start + min(page_size, len(citations) - chunk_start)
             
             return citations[chunk_start:chunk_end]
             
