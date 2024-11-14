@@ -29,8 +29,7 @@ from .citation_queries import (
     TEXT_CITATION_QUERY,
     CATEGORY_CITATION_QUERY,
     CITATION_SEARCH_QUERY,
-    DIRECT_SENTENCE_QUERY,
-)
+    )
 
 __all__ = [
     # Database components
@@ -56,5 +55,4 @@ __all__ = [
     "TEXT_CITATION_QUERY",
     "CATEGORY_CITATION_QUERY",
     "CITATION_SEARCH_QUERY",
-    "DIRECT_SENTENCE_QUERY",
 ]
