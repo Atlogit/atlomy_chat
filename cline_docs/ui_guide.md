@@ -38,7 +38,6 @@ This guide documents the HTML structure and CSS patterns used in the Ancient Med
 
 ## Components
 
-### Navigation Tabs
 ```html
 <div class="tabs tabs-boxed justify-center bg-base-100 p-2 rounded-lg shadow-md">
     <button class="tab tab-lg tab-active gap-2" data-mode="section-name">
@@ -79,6 +78,82 @@ This guide documents the HTML structure and CSS patterns used in the Ancient Med
 </div>
 ```
 
+### Citation Components
+
+#### Citation Display
+```html
+<div class="citation-container">
+    <div class="citation-header flex justify-between items-center">
+        <div class="citation-source">
+            <span class="font-semibold">{{author}}</span>
+            <span class="text-gray-600">{{work}}</span>
+        </div>
+        <div class="citation-location text-sm">
+            {{location}}
+        </div>
+    </div>
+    
+    <div class="citation-content mt-2">
+        <div class="prev-sentence text-gray-500 text-sm">{{prevSentence}}</div>
+        <div class="main-sentence my-2">{{sentence}}</div>
+        <div class="next-sentence text-gray-500 text-sm">{{nextSentence}}</div>
+    </div>
+    
+    <div class="citation-metadata mt-2 text-sm text-gray-600">
+        <div class="line-numbers">Lines: {{lineNumbers}}</div>
+        <div class="categories">{{categories}}</div>
+    </div>
+</div>
+```
+
+#### Paginated Results
+```html
+<div class="paginated-results">
+    <div class="results-header flex justify-between items-center mb-4">
+        <h3 class="font-bold">Results</h3>
+        <div class="results-count text-sm">
+            Showing {{start}}-{{end}} of {{total}}
+        </div>
+    </div>
+    
+    <div class="results-content space-y-4">
+        <!-- Citation components -->
+    </div>
+    
+    <div class="pagination-controls mt-4 flex justify-center gap-2">
+        <button class="btn btn-sm" disabled="{{isFirstPage}}">
+            Previous
+        </button>
+        
+        <div class="page-numbers flex gap-1">
+            <!-- Page number buttons -->
+        </div>
+        
+        <button class="btn btn-sm" disabled="{{isLastPage}}">
+            Next
+        </button>
+    </div>
+</div>
+```
+
+#### Search Results
+```html
+<div class="search-results">
+    <div class="search-info mb-4">
+        <div class="search-summary">
+            Found {{totalResults}} results for "{{query}}"
+        </div>
+        <div class="search-filters flex gap-2 text-sm">
+            <span class="filter-tag">
+                {{filterName}}: {{filterValue}}
+            </span>
+        </div>
+    </div>
+    
+    <!-- Paginated results component -->
+</div>
+```
+
 ### Results Display
 ```html
 <div class="results-section">
@@ -115,6 +190,20 @@ This guide documents the HTML structure and CSS patterns used in the Ancient Med
 - `p-2`: Padding
 - `gap-2`: Gap between items
 
+## New Utility Classes
+
+### Citation Classes
+- `citation-container`: Base container for citations
+- `citation-header`: Header with source and location
+- `citation-content`: Main content area
+- `citation-metadata`: Additional metadata display
+
+### Pagination Classes
+- `paginated-results`: Container for paginated content
+- `pagination-controls`: Navigation controls
+- `page-numbers`: Page number display
+- `results-count`: Results counter display
+
 ## Animations
 
 ### Fade In Animation
@@ -142,16 +231,19 @@ This guide documents the HTML structure and CSS patterns used in the Ancient Med
 - `md`: 768px
 - `lg`: 1024px
 - `xl`: 1280px
-
 ### Mobile Adjustments
 ```css
 @media (max-width: 640px) {
-    .action-buttons {
-        @apply grid grid-cols-2 gap-2;
+    .citation-header {
+        @apply flex-col items-start gap-1;
     }
     
-    .action-button {
-        @apply w-full;
+    .pagination-controls {
+        @apply flex-wrap justify-center;
+    }
+    
+    .page-numbers {
+        @apply order-3 w-full justify-center mt-2;
     }
 }
 ```
@@ -206,37 +298,70 @@ This guide documents the HTML structure and CSS patterns used in the Ancient Med
    - Use efficient selectors
    - Optimize animations
    - Leverage Tailwind's JIT
+   
+6. **Citation Display**
+   - Show context when available
+   - Clear source attribution
+   - Consistent formatting
+   - Accessible structure
+
+7. **Pagination**
+   - Clear navigation controls
+   - Current position indicator
+   - Responsive layout
+   - Loading states
 
 ## Example Usage
 
-### Complete Form Section
+### Complete Search Results Section
 ```html
-<section class="mode-section animate-fade-in">
+<section class="search-section animate-fade-in">
     <div class="card bg-base-100 card-container">
         <div class="card-body">
-            <h2 class="section-title">Form Title</h2>
+            <h2 class="section-title">Search Results</h2>
             
-            <div class="form-section">
-                <div class="input-group">
-                    <input type="text" 
-                           class="input input-bordered w-full focus:input-primary" 
-                           placeholder="Enter text">
-                           
-                    <label class="checkbox-group">
-                        <input type="checkbox" class="checkbox checkbox-primary">
-                        <span class="label-text">Option</span>
-                    </label>
+            <div class="search-results">
+                <div class="search-info mb-4">
+                    <div class="search-summary">
+                        Found 150 results for "example"
+                    </div>
+                    <div class="search-filters flex gap-2 text-sm">
+                        <span class="filter-tag">
+                            Category: Medical
+                        </span>
+                    </div>
                 </div>
                 
-                <button class="submit-button">
-                    <span class="loading loading-spinner" style="display: none;"></span>
-                    <span class="button-text">Submit</span>
-                </button>
-            </div>
-            
-            <div class="results-section">
-                <h3 class="font-bold mb-2">Results</h3>
-                <div class="results-content"></div>
+                <div class="paginated-results">
+                    <div class="results-content space-y-4">
+                        <div class="citation-container">
+                            <div class="citation-header">
+                                <div class="citation-source">
+                                    <span class="font-semibold">Hippocrates</span>
+                                    <span class="text-gray-600">De Medicina</span>
+                                </div>
+                                <div class="citation-location">
+                                    Book 1, Chapter 2
+                                </div>
+                            </div>
+                            
+                            <div class="citation-content">
+                                <div class="prev-sentence">Previous context...</div>
+                                <div class="main-sentence">Main citation text...</div>
+                                <div class="next-sentence">Following context...</div>
+                            </div>
+                        </div>
+                        <!-- More citations -->
+                    </div>
+                    
+                    <div class="pagination-controls">
+                        <button class="btn btn-sm">Previous</button>
+                        <div class="page-numbers">
+                            <!-- Page numbers -->
+                        </div>
+                        <button class="btn btn-sm">Next</button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

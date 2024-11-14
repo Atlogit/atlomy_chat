@@ -7,6 +7,7 @@ export const API = {
     tokenCount: '/api/v1/llm/token-count',
     generateQuery: '/api/v1/llm/generate-query',
     generatePreciseQuery: '/api/v1/llm/generate-precise-query',
+    getResultsPage: '/api/v1/llm/get-results-page',
   },
   lexical: {
     create: '/api/v1/lexical/create',

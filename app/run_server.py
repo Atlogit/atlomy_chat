@@ -10,9 +10,27 @@ from typing import Union
 # Ensure logs directory exists and configure logging before any other imports
 os.makedirs('logs', exist_ok=True)
 
-# Load and apply logging configuration first
+# Import settings first to get debug mode
+from app.core.config import settings
+
+# Load and apply logging configuration with debug consideration
 with open('logging_config.json', 'r') as f:
     logging_config = json.load(f)
+    
+# Adjust logging levels based on debug mode and LOG_LEVEL
+log_level = "DEBUG" if settings.DEBUG else settings.LOG_LEVEL.upper()
+
+# Update root logger
+logging_config["root"]["level"] = log_level
+
+# Update all handlers
+for handler in logging_config["handlers"].values():
+    handler["level"] = log_level
+
+# Update all loggers to use the specified log level
+for logger in logging_config["loggers"].values():
+    logger["level"] = log_level
+    
 logging.config.dictConfig(logging_config)
 
 # Now it's safe to import other modules
@@ -23,7 +41,6 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException
 
-from app.core.config import settings
 from app.api import api_router
 from app.services.llm_service import LLMServiceError
 
@@ -112,6 +129,7 @@ async def startup_event():
     logger.info("Application startup")
     logger.info(f"API Version: {settings.API_V1_STR}")
     logger.info(f"Debug Mode: {settings.DEBUG}")
+    logger.info(f"Log Level: {settings.LOG_LEVEL}")
     logger.info(f"LLM Provider: {settings.llm.PROVIDER}")
     logger.info(f"Database URL: {settings.DATABASE_URL.split('@')[1]}")  # Log only host part for security
 

@@ -5,7 +5,15 @@ import { Button } from '../../ui/Button'
 import { PaginatedResults } from '../../ui/PaginatedResults'
 import { ResultsDisplay } from '../../ui/ResultsDisplay'
 import { useApi } from '../../../hooks/useApi'
-import { API, SearchResult, TextSearchRequest, QueryGenerationRequest } from '../../../utils/api'
+import { 
+  API, 
+  SearchResult, 
+  TextSearchRequest, 
+  QueryGenerationRequest,
+  QueryResponse,
+  PaginatedResponse,
+  SearchResponse 
+} from '../../../utils/api'
 
 type QueryType = 'natural' | 'lemma_search' | 'category_search' | 'citation_search';
 
@@ -26,9 +34,38 @@ export function QueryForm() {
   const [workNumber, setWorkNumber] = useState('')
   const [generatedQuery, setGeneratedQuery] = useState('')
   const [queryResults, setQueryResults] = useState<SearchResult[]>([])
-  const { data: searchResults, error: searchError, isLoading: isSearching, execute: executeSearch } = useApi<SearchResult[]>()
-  const { data: queryData, error: queryError, isLoading: isGenerating, execute: executeGenerate } = useApi<any>()
+  const [resultsId, setResultsId] = useState<string>('')
+  const [totalResults, setTotalResults] = useState<number>(0)
+  const { data: searchResults, error: searchError, isLoading: isSearching, execute: executeSearch } = useApi<SearchResponse>()
+  const { data: queryData, error: queryError, isLoading: isGenerating, execute: executeGenerate } = useApi<QueryResponse>()
+  const { data: pageData, error: pageError, isLoading: isLoadingPage, execute: executePage } = useApi<PaginatedResponse>()
   
+  /**
+   * Handles fetching additional pages of results
+   */
+  const fetchResultsPage = useCallback(async (page: number, pageSize: number) => {
+    if (!resultsId || isLoadingPage) return [];
+
+    try {
+      const response = await executePage(API.llm.getResultsPage, {
+        method: 'POST',
+        body: JSON.stringify({
+          results_id: resultsId,
+          page,
+          page_size: pageSize
+        })
+      });
+
+      if (response?.results) {
+        return response.results;
+      }
+      return [];
+    } catch (err) {
+      console.error('Error fetching results page:', err);
+      return [];
+    }
+  }, [resultsId, isLoadingPage, executePage]);
+
   /**
    * Handles the form submission to search the corpus.
    * For natural language queries, first generates a search query using LLM.
@@ -59,6 +96,8 @@ export function QueryForm() {
             setGeneratedQuery(queryResult.sql)
             if (queryResult.results) {
               setQueryResults(queryResult.results)
+              setResultsId(queryResult.results_id)
+              setTotalResults(queryResult.total_results)
             }
           }
           break
@@ -71,15 +110,26 @@ export function QueryForm() {
             search_lemma: true
           }
           
-          await executeSearch(API.corpus.search, {
+          const lemmaResult = await executeSearch(API.corpus.search, {
             method: 'POST',
             body: JSON.stringify(lemmaRequest)
           })
+
+          if (lemmaResult) {
+            setQueryResults(lemmaResult.results)
+            setResultsId(lemmaResult.results_id)
+            setTotalResults(lemmaResult.total_results)
+          }
           break
 
         case 'category_search':
           if (!category.trim()) return
-          await executeSearch(API.corpus.category(category.trim()))
+          const categoryResult = await executeSearch(API.corpus.category(category.trim()))
+          if (categoryResult) {
+            setQueryResults(categoryResult.results)
+            setResultsId(categoryResult.results_id)
+            setTotalResults(categoryResult.total_results)
+          }
           break
 
         case 'citation_search':
@@ -89,10 +139,16 @@ export function QueryForm() {
             search_lemma: false
           }
           
-          await executeSearch(API.corpus.search, {
+          const citationResult = await executeSearch(API.corpus.search, {
             method: 'POST',
             body: JSON.stringify(citationRequest)
           })
+
+          if (citationResult) {
+            setQueryResults(citationResult.results)
+            setResultsId(citationResult.results_id)
+            setTotalResults(citationResult.total_results)
+          }
           break
       }
     } catch (err) {
@@ -245,13 +301,14 @@ export function QueryForm() {
         Search
       </Button>
 
-      {(queryError || searchError) && renderError(queryError || searchError)}
+      {(queryError || searchError || pageError) && renderError(queryError || searchError || pageError)}
 
-      {(isSearching || isGenerating) && (
+      {(isSearching || isGenerating || isLoadingPage) && (
         <div className="flex items-center justify-center p-8">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
           <p className="ml-4">
-            {isGenerating ? 'Analyzing your question...' : 'Searching corpus...'}
+            {isGenerating ? 'Analyzing your question...' : 
+             isLoadingPage ? 'Loading more results...' : 'Searching corpus...'}
           </p>
         </div>
       )}
@@ -266,21 +323,25 @@ export function QueryForm() {
 
       {queryType === 'natural' && queryResults.length > 0 && (
         <PaginatedResults
-          title="Search Results"
+          title={`Search Results (${totalResults} total)`}
           results={queryResults}
           pageSize={10}
           className="mt-4"
-          isLoading={isGenerating}
+          isLoading={isGenerating || isLoadingPage}
+          onPageChange={fetchResultsPage}
+          totalResults={totalResults}
         />
       )}
 
-      {queryType !== 'natural' && searchResults && searchResults.length > 0 && (
+      {queryType !== 'natural' && searchResults?.results && searchResults.results.length > 0 && (
         <PaginatedResults
-          title="Search Results"
-          results={searchResults}
+          title={`Search Results (${totalResults} total)`}
+          results={searchResults.results}
           pageSize={10}
           className="mt-4"
           isLoading={isSearching}
+          onPageChange={fetchResultsPage}
+          totalResults={totalResults}
         />
       )}
     </div>

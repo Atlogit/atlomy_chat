@@ -10,7 +10,7 @@ import logging
 
 from app.models.text import Text
 from app.models.text_division import TextDivision, TextDivisionResponse, TextResponse
-from app.models.text_line import TextLine, TextLineDB
+from app.models.text_line import TextLine, TextLineAPI
 from app.core.redis import redis_client
 from app.core.config import settings
 

@@ -8,7 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from pydantic import BaseModel
 from . import Base
 from toolkit.parsers.citation import CitationParser
-from .text_line import TextLine, TextLineDB
+from .text_line import TextLine, TextLineAPI
 
 # Pydantic models for API responses
 class TextDivisionResponse(BaseModel):
@@ -23,7 +23,7 @@ class TextDivisionResponse(BaseModel):
     title_number: Optional[str] = None
     title_text: Optional[str] = None
     metadata: Optional[Dict] = None
-    lines: Optional[List[TextLine]] = None
+    lines: Optional[List[TextLineAPI]] = None
 
 class TextResponse(BaseModel):
     """API response model for complete texts."""
@@ -82,7 +82,7 @@ class TextDivision(Base):
     
     # Relationships
     text = relationship("Text", back_populates="divisions")
-    lines = relationship("TextLineDB", back_populates="division", cascade="all, delete-orphan")
+    lines = relationship("TextLine", back_populates="division", cascade="all, delete-orphan")
 
     def _get_abbreviated_author_name(self) -> str:
         """Get abbreviated author name (e.g., 'Galenus Med.' -> 'Gal.')."""
@@ -332,4 +332,5 @@ class TextDivision(Base):
             if citation.page:
                 self.page = citation.page
             if citation.line:
+                self.line = citation.line
                 self.line = citation.line

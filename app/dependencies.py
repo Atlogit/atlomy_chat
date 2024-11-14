@@ -12,6 +12,9 @@ from app.services.corpus_service import CorpusService
 from app.services.lexical_service import LexicalService
 from app.services.llm_service import LLMService
 
+# Singleton instances
+_llm_service = None
+
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """Get database session."""
     async with async_session_maker() as session:
@@ -43,8 +46,11 @@ async def get_lexical_service(
 async def get_llm_service(
     session: AsyncSession = Depends(get_db)
 ) -> LLMService:
-    """Get LLMService instance."""
-    return LLMService(session)
+    """Get LLMService singleton instance."""
+    global _llm_service
+    if _llm_service is None:
+        _llm_service = LLMService(session)
+    return _llm_service
 
 # Type annotations for dependency injection
 CorpusServiceDep = Annotated[CorpusService, Depends(get_corpus_service)]

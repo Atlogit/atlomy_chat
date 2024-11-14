@@ -12,6 +12,7 @@ LOG_DIR="${SCRIPT_DIR}/logs"
 FASTAPI_LOG="${LOG_DIR}/fastapi_debug.log"
 NEXTJS_LOG="${LOG_DIR}/nextjs_debug.log"
 DB_LOG="${LOG_DIR}/database_debug.log"
+REDIS_LOG="${LOG_DIR}/redis_debug.log"
 
 # Ensure logs directory exists with proper permissions
 rm -rf "${LOG_DIR}"  # Remove existing logs directory
@@ -19,7 +20,7 @@ mkdir -p "${LOG_DIR}"
 chmod 777 "${LOG_DIR}"
 
 # Initialize log files with proper permissions
-for log_file in "${FASTAPI_LOG}" "${NEXTJS_LOG}" "${DB_LOG}"; do
+for log_file in "${FASTAPI_LOG}" "${NEXTJS_LOG}" "${DB_LOG}" "${REDIS_LOG}"; do
     touch "${log_file}"
     chmod 666 "${log_file}"
 done
@@ -60,6 +61,16 @@ check_database() {
     log "INFO" "Database connection successful."
 }
 
+# Function to check Redis connection
+check_redis() {
+    log "INFO" "Checking Redis connection..."
+    if ! /root/anaconda3/envs/amta/bin/redis-cli ping >> "${REDIS_LOG}" 2>&1; then
+        log "ERROR" "Redis is not ready. Check ${REDIS_LOG} for details."
+        return 1
+    fi
+    log "INFO" "Redis connection successful."
+}
+
 # Function to cleanup processes
 cleanup() {
     log "INFO" "Cleaning up processes..."
@@ -95,6 +106,7 @@ trap cleanup EXIT INT TERM
 > "${FASTAPI_LOG}"
 > "${NEXTJS_LOG}"
 > "${DB_LOG}"
+> "${REDIS_LOG}"
 
 log "INFO" "Starting debug environment setup..."
 
@@ -145,6 +157,16 @@ log "INFO" "Using settings from .env:"
 log "INFO" "  - AWS Region: $AWS_REGION"
 log "INFO" "  - Bedrock Model: $BEDROCK_MODEL_ID"
 log "INFO" "  - Database URL: $DATABASE_URL"
+
+# Start Redis server
+log "INFO" "Starting Redis server..."
+/root/anaconda3/envs/amta/bin/redis-server --daemonize yes >> "${REDIS_LOG}" 2>&1
+
+# Check Redis connection
+if ! check_redis; then
+    log "ERROR" "Redis check failed. Exiting."
+    exit 1
+fi
 
 # Check database connection
 if ! check_database; then
@@ -241,6 +263,7 @@ log "INFO" "Log files:"
 log "INFO" "  - FastAPI: ${FASTAPI_LOG}"
 log "INFO" "  - Next.js: ${NEXTJS_LOG}"
 log "INFO" "  - Database: ${DB_LOG}"
+log "INFO" "  - Redis: ${REDIS_LOG}"
 
 # Monitor processes and logs
 log "INFO" "Monitoring services (Ctrl+C to stop)..."
@@ -261,6 +284,8 @@ while true; do
     tail -n 5 "${NEXTJS_LOG}"
     echo "=== Recent Database Logs ==="
     tail -n 5 "${DB_LOG}"
+    echo "=== Recent Redis Logs ==="
+    tail -n 5 "${REDIS_LOG}"
     
     sleep 5
     clear

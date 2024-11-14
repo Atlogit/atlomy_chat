@@ -10,6 +10,13 @@ interface SearchFormProps {
   onResultSelect: (textId: string) => void
 }
 
+interface SpacyToken {
+  text: string;
+  lemma: string;
+  pos: string;
+  is_stop: boolean;
+}
+
 export function SearchForm({ onResultSelect }: SearchFormProps) {
   const [query, setQuery] = useState('')
   const [searchLemma, setSearchLemma] = useState(false)
@@ -78,7 +85,7 @@ export function SearchForm({ onResultSelect }: SearchFormProps) {
     if (!result.sentence.tokens) return null
 
     // Filter interesting tokens
-    const tokens = result.sentence.tokens.filter(token => 
+    const tokens = result.sentence.tokens.filter((token: SpacyToken) => 
       !token.is_stop && 
       (token.pos === 'NOUN' || token.pos === 'VERB' || token.pos === 'ADJ')
     )
@@ -87,7 +94,7 @@ export function SearchForm({ onResultSelect }: SearchFormProps) {
 
     return (
       <div className="flex flex-wrap gap-1 mt-2">
-        {tokens.map((token, index) => (
+        {tokens.map((token: SpacyToken, index: number) => (
           <span 
             key={`${token.text}-${index}`}
             className="text-xs px-1 py-0.5 rounded bg-base-100"

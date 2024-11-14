@@ -42,15 +42,17 @@ class RedisConfig(BaseSettings):
     REDIS_DB: int = int(os.getenv("REDIS_DB", "0"))
     REDIS_PASSWORD: Optional[str] = os.getenv("REDIS_PASSWORD")
     
-    # Cache settings
-    CACHE_TTL: int = int(os.getenv("CACHE_TTL", "3600"))  # Default 1 hour
-    TEXT_CACHE_TTL: int = int(os.getenv("TEXT_CACHE_TTL", "86400"))  # Default 24 hours
-    SEARCH_CACHE_TTL: int = int(os.getenv("SEARCH_CACHE_TTL", "1800"))  # Default 30 minutes
+    # Cache settings - reduced TTLs
+    CACHE_TTL: int = int(os.getenv("CACHE_TTL", "300"))  # 5 minutes
+    TEXT_CACHE_TTL: int = int(os.getenv("TEXT_CACHE_TTL", "600"))  # 10 minutes
+    SEARCH_CACHE_TTL: int = int(os.getenv("SEARCH_CACHE_TTL", "300"))  # 5 minutes
+    SEARCH_RESULTS_TTL: int = int(os.getenv("SEARCH_RESULTS_TTL", "300"))  # 5 minutes
     
     # Cache prefixes for different types of data
     TEXT_CACHE_PREFIX: str = "text:"
     SEARCH_CACHE_PREFIX: str = "search:"
     CATEGORY_CACHE_PREFIX: str = "category:"
+    SEARCH_RESULTS_PREFIX: str = "search_results:"
 
 class Settings(BaseSettings):
     # Database settings

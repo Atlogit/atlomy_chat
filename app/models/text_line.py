@@ -11,7 +11,7 @@ from app.models import Base
 from app.models.sentence import sentence_text_lines
 
 # Pydantic model for API responses
-class TextLine(BaseModel):
+class TextLineAPI(BaseModel):
     """
     API response model for text lines.
     
@@ -29,7 +29,7 @@ class TextLine(BaseModel):
     spacy_tokens: Optional[Dict[str, Any]] = None
 
 # SQLAlchemy model for database
-class TextLineDB(Base):
+class TextLine(Base):
     """Model for storing individual lines of text with their NLP annotations.
     
     This model represents individual lines within text divisions, including
@@ -91,11 +91,11 @@ class TextLineDB(Base):
     )
     
     def __repr__(self) -> str:
-        return f"TextLine(id={self.id}, division_id={self.division_id}, line={self.line_number}, is_title={self.is_title}, categories={self.categories})"
+        return f"TextLineAPI(id={self.id}, division_id={self.division_id}, line={self.line_number}, is_title={self.is_title}, categories={self.categories})"
     
-    def to_api_model(self) -> TextLine:
+    def to_api_model(self) -> TextLineAPI:
         """Convert to API response model."""
-        return TextLine(
+        return TextLineAPI(
             line_number=self.line_number,
             content=self.content,
             categories=self.categories,
