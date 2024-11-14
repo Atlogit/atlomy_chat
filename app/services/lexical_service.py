@@ -15,7 +15,7 @@ from app.models.lexical_value import LexicalValue
 from app.models.text_division import TextDivision
 from app.models.text_line import TextLine
 from app.models.sentence import Sentence, sentence_text_lines
-from app.services.llm_service import LLMService
+from app.services.llm.lexical_service import LexicalLLMService
 from app.services.citation_service import CitationService
 from app.services.json_storage_service import JSONStorageService
 from app.core.redis import redis_client
@@ -33,7 +33,7 @@ class LexicalService:
     def __init__(self, session: AsyncSession):
         """Initialize the lexical service."""
         self.session = session
-        self.llm_service = LLMService(session)
+        self.lexical_llm = LexicalLLMService(session)
         self.citation_service = CitationService(session)
         self.json_storage = JSONStorageService()
         self.cache_ttl = 3600  # 1 hour cache TTL
@@ -184,7 +184,7 @@ class LexicalService:
             
             # Generate lexical value using LLM
             logger.info(f"Generating lexical value using LLM for {lemma}")
-            analysis = await self.llm_service.create_lexical_value(
+            analysis = await self.lexical_llm.create_lexical_value(
                 word=lemma,
                 citations=citations
             )
