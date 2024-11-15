@@ -1,62 +1,139 @@
-name: AMTA Production Deployment
+name: Production Deployment
 
 on:
-  push:
-    branches:
-      - production
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: 'Release version to deploy'
+        required: true
+      force_deploy:
+        description: 'Force deployment (bypass some checks)'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  deployments: write
+  pull-requests: read
 
 jobs:
-  deploy:
+  validate-release:
     runs-on: ubuntu-latest
-    environment: production
-    
     steps:
-    - uses: actions/checkout@v3
-    
-    - name: Set up Python 3.11
-      uses: actions/setup-python@v3
-      with:
-        python-version: '3.11'
-    
-    - name: Configure AWS Credentials
-      uses: aws-actions/configure-aws-credentials@v1
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: us-east-1
-    
-    - name: Login to Amazon ECR
-      id: login-ecr
-      uses: aws-actions/amazon-ecr-login@v1
-    
-    - name: Build, tag, and push image to Amazon ECR
-      env:
-        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        ECR_REPOSITORY: amta
-        IMAGE_TAG: ${{ github.sha }}
-      run: |
-        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-    
-    - name: Deploy to ECS
-      run: |
-        aws ecs update-service --cluster amta-cluster --service amta-service --force-new-deployment
-    
-    - name: Publish to PyPI
-      env:
-        TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
-        TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
-      run: |
-        pip install setuptools wheel twine
-        python setup.py sdist bdist_wheel
-        twine upload dist/*
-    
-    - name: Create Release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: v${{ github.ref }}
-        release_name: Release ${{ github.ref }}
-        draft: false
-        prerelease: false
+      - name: Validate Release Version
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |
+            const version = '${{ github.event.inputs.release_version }}'
+            const semverRegex = /^v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/
+            if (!semverRegex.test(version)) {
+              core.setFailed('Invalid semantic version format')
+            }
+
+  security-scan:
+    needs: validate-release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          ignore-unfixed: true
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+
+  build-and-test:
+    needs: [validate-release, security-scan]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v3
+        with:
+          python-version: '3.10'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: Run Comprehensive Tests
+        run: |
+          pytest tests/ --cov=app --cov-report=xml
+      
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          fail_ci_if_error: true
+
+  deploy-approval:
+    needs: [build-and-test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Manual Deployment Approval
+        uses: trstringer/manual-approval@v1
+        with:
+          secret: ${{ github.token }}
+          approvers: maintainers
+          minimum-approvals: 2
+          issue-title: "Approve Production Deployment for ${{ github.event.inputs.release_version }}"
+          issue-body: |
+            ## Production Deployment Request
+            - Version: ${{ github.event.inputs.release_version }}
+            - Requester: ${{ github.actor }}
+            
+            ### Deployment Checklist
+            - [ ] Review test results
+            - [ ] Verify security scan
+            - [ ] Confirm release notes
+            - [ ] Validate deployment configurations
+
+  production-deployment:
+    needs: [deploy-approval]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+      
+      - name: Deploy to Production
+        run: |
+          ./deploy.sh
+        env:
+          RELEASE_VERSION: ${{ github.event.inputs.release_version }}
+      
+      - name: Create GitHub Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.event.inputs.release_version }}
+          release_name: Release ${{ github.event.inputs.release_version }}
+          draft: false
+          prerelease: false
+          body: |
+            ## Release Notes
+            
+            ### Changes
+            - Comprehensive system validation
+            - Security scanning completed
+            - Deployment workflows verified
+            
+            ### Deployment Details
+            - Version: ${{ github.event.inputs.release_version }}
+            - Deployed by: ${{ github.actor }}
+            
+            ### Next Steps
+            - Monitor system performance
+            - Collect initial user feedback
