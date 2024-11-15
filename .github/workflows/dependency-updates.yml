@@ -1,0 +1,78 @@
+name: Dependency Updates
+
+on:
+  schedule:
+    - cron: '0 2 * * 1'  # Every Monday at 2 AM
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  update-dependencies:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v3
+      with:
+        python-version: '3.11'
+    
+    - name: Install update tools
+      run: |
+        pip install pip-tools safety
+    
+    - name: Check for outdated dependencies
+      id: check-updates
+      run: |
+        pip list --outdated > outdated_packages.txt
+        if [ -s outdated_packages.txt ]; then
+          echo "::set-output name=updates_available::true"
+          cat outdated_packages.txt
+        else
+          echo "::set-output name=updates_available::false"
+        fi
+    
+    - name: Compile requirements
+      if: steps.check-updates.outputs.updates_available == 'true'
+      run: |
+        pip-compile requirements.txt
+    
+    - name: Run security checks
+      run: |
+        safety check
+    
+    - name: Create Pull Request
+      if: steps.check-updates.outputs.updates_available == 'true'
+      uses: peter-evans/create-pull-request@v4
+      with:
+        commit-message: Update project dependencies
+        title: Dependency Updates
+        body: |
+          Automated dependency updates:
+          
+          📦 Outdated Packages:
+          ```
+          $(cat outdated_packages.txt)
+          ```
+          
+          🔍 Ran safety checks
+          🛠 Updated requirements.txt
+        branch: dependency-updates
+        delete-branch: true
+        labels: dependencies, maintenance
+
+  vulnerability-scan:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Run Snyk to check for vulnerabilities
+      uses: snyk/actions/python@master
+      env:
+        SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      with:
+        command: test
+    
+    - name: Upload result to GitHub Code Scanning
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: snyk.sarif

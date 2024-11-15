@@ -1,0 +1,109 @@
+name: AMTA Continuous Integration
+
+on:
+  push:
+    branches: [ main, production ]
+  pull_request:
+    branches: [ main, production ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.11']
+
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_DB: test_amta
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:6
+        ports:
+          - 6379:6379
+
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v3
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install .
+        pip install pytest pytest-asyncio
+    
+    - name: Run configuration validator
+      run: python config_validator.py
+      env:
+        DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost/test_amta
+        REDIS_HOST: localhost
+        AWS_BEDROCK_REGION: us-east-1
+        AWS_BEDROCK_MODEL_ID: test-model
+    
+    - name: Run tests
+      run: pytest tests/
+      env:
+        DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost/test_amta
+        REDIS_HOST: localhost
+        AWS_BEDROCK_REGION: us-east-1
+        AWS_BEDROCK_MODEL_ID: test-model
+
+  code-quality:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v3
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8 black mypy
+    
+    - name: Lint with flake8
+      run: flake8 app/ tests/
+    
+    - name: Check formatting with black
+      run: black --check app/ tests/
+    
+    - name: Type check with mypy
+      run: mypy app/
+
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v3
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install bandit safety
+    
+    - name: Run Bandit security scan
+      run: bandit -r app/
+    
+    - name: Check dependencies for known vulnerabilities
+      run: safety check
