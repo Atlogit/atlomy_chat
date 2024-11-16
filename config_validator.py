@@ -51,7 +51,12 @@ class ConfigValidator:
         :return: Boolean indicating initialization success
         """
         try:
-            session = boto3.Session()
+            # Prioritize environment variables for region
+            aws_region = os.getenv('AWS_REGION', self.env_vars.get('AWS_REGION', 'us-east-1'))
+            
+            self.logger.info(f"Initializing Secrets Manager with region: {aws_region}")
+            
+            session = boto3.Session(region_name=aws_region)
             self.secrets_manager = session.client('secretsmanager')
             self.logger.info("AWS Secrets Manager client initialized successfully")
             return True
