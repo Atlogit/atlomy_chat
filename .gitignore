@@ -74,6 +74,11 @@ venv.bak/
 # Project-specific
 lexical_values/
 assets/
+cline_docs/
+data_query_assistant_poc.old/
+src.old/
+texts/
+toolkit/
 
 # Python cache
 __pycache__/
