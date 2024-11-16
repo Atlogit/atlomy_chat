@@ -5,7 +5,7 @@ on:
     workflows: ["Docker Build and Registry Push"]
     types:
       - completed
-    branches: 
+    branches:
       - production
   workflow_dispatch:
     inputs:
