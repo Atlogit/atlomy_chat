@@ -31,18 +31,24 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: List project contents
+      - name: Debug repository contents
         run: |
           pwd
           ls -la
+          find . -name docker-compose.yml
 
       - name: Verify docker-compose file
         run: |
+          if [ ! -f docker-compose.yml ]; then
+            echo "Copying docker-compose.yml from repository"
+            cp $GITHUB_WORKSPACE/docker-compose.yml ./docker-compose.yml
+          fi
+
           if [ -f docker-compose.yml ]; then
             echo "docker-compose.yml found"
             cat docker-compose.yml
           else
-            echo "docker-compose.yml not found"
+            echo "docker-compose.yml still not found"
             exit 1
           fi
 
@@ -77,6 +83,21 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Verify docker-compose file
+        run: |
+          if [ ! -f docker-compose.yml ]; then
+            echo "Copying docker-compose.yml from repository"
+            cp $GITHUB_WORKSPACE/docker-compose.yml ./docker-compose.yml
+          fi
+
+          if [ -f docker-compose.yml ]; then
+            echo "docker-compose.yml found"
+            cat docker-compose.yml
+          else
+            echo "docker-compose.yml still not found"
+            exit 1
+          fi
 
       - name: Set up Docker Compose
         run: |
