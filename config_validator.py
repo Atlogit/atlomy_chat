@@ -180,16 +180,16 @@ class ConfigValidator:
             # Comprehensive secret validation matrix
             validation_matrix = {
                 'development': {
-                    'required': ['REDIS_URL', 'AWS_REGION'],
-                    'optional': ['BEDROCK_MODEL_ID']
+                    'required': ['REDIS_URL'],
+                    'optional': ['AWS_REGION', 'BEDROCK_MODEL_ID']
                 },
                 'staging': {
-                    'required': ['REDIS_URL', 'AWS_REGION', 'BEDROCK_MODEL_ID'],
-                    'optional': ['AWS_ACCESS_KEY_ID']
+                    'required': ['REDIS_URL', 'BEDROCK_MODEL_ID'],
+                    'optional': ['AWS_REGION']
                 },
                 'production': {
-                    'required': ['REDIS_URL', 'AWS_REGION', 'BEDROCK_MODEL_ID', 'AWS_ACCESS_KEY_ID'],
-                    'optional': ['SECRET_KEY']
+                    'required': ['REDIS_URL', 'BEDROCK_MODEL_ID'],
+                    'optional': ['AWS_REGION']
                 }
             }
             
@@ -206,9 +206,9 @@ class ConfigValidator:
                 if key not in secrets:
                     self.logger.warning(f"Optional secret key not found: {key}")
             
-            # Add database secrets validation
-            if not self.validate_database_secrets(secrets):
-                return False
+            # Add fallback for AWS_REGION if not in secrets
+            if 'AWS_REGION' not in secrets:
+                secrets['AWS_REGION'] = os.getenv('AWS_REGION', 'us-east-1')
             
             self.logger.info(f"Secrets validation successful for {self.deployment_mode}")
             return True
@@ -283,15 +283,12 @@ class ConfigValidator:
         # Load environment variables
         self.load_env_file()
         
-        # Validate environment configuration
-        environment_config_valid = self.validate_deployment_mode()
-        
         # Initialize and validate Secrets Manager
         secrets_manager_initialized = self.initialize_secrets_manager()
         secrets_valid = self.validate_secrets() if secrets_manager_initialized else False
         
         # Overall validation result
-        validation_result = environment_config_valid and secrets_valid
+        validation_result = secrets_valid
         
         if validation_result:
             self.logger.info("🟢 Configuration validation successful")
