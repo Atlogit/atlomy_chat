@@ -26,11 +26,15 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
           aws-region: us-east-1
+          audience: sts.amazonaws.com
 
       - name: Verify AWS credentials
         run: |
           aws sts get-caller-identity
-          aws secretsmanager list-secrets
+
+      - name: List Secrets
+        run: |
+          aws secretsmanager list-secrets --query 'SecretList[?starts_with(Name, `amta-`)].Name' --output text
 
       - name: Set up Python
         uses: actions/setup-python@v4
