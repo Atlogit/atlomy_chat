@@ -34,6 +34,12 @@ jobs:
           cp .env.example .env
         fi
     
+    - name: Update .env file with GitHub Secrets
+      run: |
+        echo "REDIS_URL=${{ secrets.REDIS_URL }}" >> .env
+        echo "AWS_REGION=${{ secrets.AWS_REGION }}" >> .env
+        echo "BEDROCK_MODEL_ID=${{ secrets.BEDROCK_MODEL_ID }}" >> .env
+    
     - name: Run final configuration validation
       run: python config_validator.py
       env:
