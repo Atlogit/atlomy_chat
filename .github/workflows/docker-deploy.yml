@@ -11,7 +11,22 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  debug-branch-context:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Detailed Branch Context Debug
+        env:
+          GITHUB_CONTEXT: ${{ toJson(github) }}
+        run: |
+          echo "Branch Debug Information:"
+          echo "GitHub Ref: ${{ github.ref }}"
+          echo "GitHub Head Ref: ${{ github.head_ref }}"
+          echo "Triggering Branch: ${{ github.ref_name }}"
+          echo "Full GitHub Context:"
+          echo "$GITHUB_CONTEXT"
+
   build-and-push:
+    needs: debug-branch-context
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -19,22 +34,27 @@ jobs:
       packages: write
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch full history to ensure branch context
+
+      - name: Verbose Branch Verification
+        run: |
+          echo "Current Branch: $(git branch --show-current)"
+          git branch -a
+          git log -1
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
           aws-region: us-east-1
-          audience: sts.amazonaws.com
 
       - name: Verify AWS credentials
         run: |
           aws sts get-caller-identity
-
-      - name: List Secrets
-        run: |
-          aws secretsmanager list-secrets --query 'SecretList[?starts_with(Name, `amta-`)].Name' --output text
+          aws secretsmanager list-secrets
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -105,3 +125,12 @@ jobs:
 
       - name: Stop services
         run: docker-compose down
+
+      - name: Notify Workflow Status
+        if: always()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          text: Docker Build and Registry Push ${{ job.status == 'success' && '✅ Successful' || '❌ Failed' }}
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
