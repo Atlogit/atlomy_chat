@@ -39,6 +39,10 @@ jobs:
           echo "REDIS_URL=${{ secrets.REDIS_URL }}" > .env
           echo "AWS_REGION=${{ secrets.AWS_REGION }}" >> .env
           echo "BEDROCK_MODEL_ID=${{ secrets.BEDROCK_MODEL_ID }}" >> .env
+          echo "DEPLOYMENT_MODE=production" >> .env
+
+      - name: Run configuration validator
+        run: python config_validator.py
 
       - name: Deploy to EC2 via SSH
         env:
