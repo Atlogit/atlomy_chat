@@ -11,3 +11,6 @@ export { fetchApi } from './fetch';
 
 // Re-export API endpoints
 export { API } from './endpoints';
+
+// Explicitly re-export to resolve naming conflicts
+export type { QueryResponse } from './types/search';
