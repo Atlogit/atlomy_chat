@@ -49,14 +49,23 @@ def validate_docker_configuration():
     
     docker_files = [
         "Dockerfile",
-        "docker-compose.yml",
-        "docker_deploy.sh"
+        "docker-compose.yml"
+    ]
+    
+    deployment_scripts = [
+        "docker_deploy.sh",
+        "deploy.sh",
+        "ec2_deploy.sh"
     ]
     
     errors = []
     for file in docker_files:
         if not os.path.exists(file):
             errors.append(f"Missing Docker configuration file: {file}")
+    
+    # Check for at least one deployment script
+    if not any(os.path.exists(script) for script in deployment_scripts):
+        errors.append(f"No deployment script found. Looked for: {', '.join(deployment_scripts)}")
     
     return errors
 
