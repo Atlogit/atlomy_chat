@@ -9,38 +9,49 @@ on:
       - production
 
 jobs:
+  debug-workflow-context:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Debug Workflow Context
+        env:
+          GITHUB_CONTEXT: ${{ toJson(github) }}
+        run: |
+          echo "Workflow Run Event Details:"
+          echo "Workflow Name: ${{ github.event.workflow.name }}"
+          echo "Workflow Conclusion: ${{ github.event.workflow_run.conclusion }}"
+          echo "Triggering Branch: ${{ github.event.workflow_run.head_branch }}"
+          echo "Full GitHub Context:"
+          echo "$GITHUB_CONTEXT"
+
   deploy-to-ec2:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    needs: debug-workflow-context
+    if: >
+      github.event.workflow_run.conclusion == 'success' && 
+      github.event.workflow_run.head_branch == 'production'
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: read
-      id-token: write  # Enhanced permissions for OIDC and secret management
+      id-token: write
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: production
 
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
 
-      - name: Debug Python and pip information
-        run: |
-          python --version
-          pip --version
-          which python
-          which pip
-
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install --user boto3 botocore awscli
-          python -c "import boto3; print(boto3.__version__)"
+          pip install boto3 botocore awscli
 
       - name: Configure AWS Credentials with OIDC
-        uses: aws-actions/configure-aws-credentials@v2
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
           aws-region: us-east-1
@@ -48,18 +59,14 @@ jobs:
       - name: Retrieve Production Secrets from AWS Secrets Manager
         id: get-secrets
         run: |
-          # Retrieve secrets using AWS CLI
           secrets=$(aws secretsmanager get-secret-value --secret-id amta-production-secrets --query SecretString --output text)
           
-          # Extract specific secrets
           redis_url=$(echo $secrets | jq -r '.REDIS_URL')
           bedrock_model_id=$(echo $secrets | jq -r '.BEDROCK_MODEL_ID')
           
-          # Mask sensitive values
           echo "::add-mask::$redis_url"
           echo "::add-mask::$bedrock_model_id"
           
-          # Set outputs for subsequent steps
           echo "REDIS_URL=$redis_url" >> $GITHUB_OUTPUT
           echo "BEDROCK_MODEL_ID=$bedrock_model_id" >> $GITHUB_OUTPUT
 
@@ -80,14 +87,11 @@ jobs:
           chmod 600 ./deploy_config/deployment.env
 
       - name: Run configuration validator
+        run: |
+          python config_validator.py .env.production
         env:
           DEPLOYMENT_MODE: production
-          PYTHONPATH: ${{ github.workspace }}
-        run: |
-          python -m pip install --user boto3 botocore
-          python -c "import sys; print(sys.path)"
-          python -c "import boto3; print(boto3.__file__)"
-          PYTHONPATH=${{ github.workspace }} python config_validator.py .env.production
+          AWS_DEFAULT_REGION: us-east-1
 
       - name: Deploy to EC2 via SSH
         env:
