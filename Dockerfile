@@ -5,13 +5,12 @@ FROM python:3.11-slim
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
 
-# Set unique working directory
+# Set working directory
 WORKDIR /opt/amta
 
 # Create a virtual environment
-ENV VIRTUAL_ENV=/opt/amta/venv
-RUN python3 -m venv $VIRTUAL_ENV
-ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+RUN python3 -m venv /opt/amta/venv
+ENV PATH="/opt/amta/venv/bin:$PATH"
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -19,11 +18,13 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy only necessary files for dependency installation
-COPY requirements.txt setup.py pyproject.toml ./
+COPY requirements.txt setup.py README.md ./
 
 # Install dependencies in the virtual environment
 RUN pip install --no-cache-dir -r requirements.txt
-RUN pip install .
+
+# Install the package in editable mode
+RUN pip install --no-cache-dir -e .
 
 # Copy project files
 COPY app/ ./app/
@@ -37,5 +38,5 @@ EXPOSE 8081
 ENV NAME amta
 ENV PORT=8081
 
-# Run the application using uvicorn on a different port
+# Use the virtual environment's Python to run the application
 CMD ["uvicorn", "app.run_server:app", "--host", "0.0.0.0", "--port", "8081"]
