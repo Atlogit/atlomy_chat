@@ -7,3 +7,6 @@ export * from './api/types/citation';
 export * from './api/types/lexical';
 export { fetchApi } from './api/fetch';
 export { API } from './api/endpoints';
+
+// Explicitly re-export to resolve naming conflicts
+export type { QueryResponse } from './api/types/search';
