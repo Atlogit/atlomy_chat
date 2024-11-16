@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import async_session_maker
 from app.core.redis import redis_client
+from app.core.secrets_manager import SecretsManager
 from app.services.corpus_service import CorpusService
 from app.services.lexical_service import LexicalService
 from app.services.llm_service import LLMService
@@ -30,6 +31,23 @@ async def get_redis():
         yield redis_client
     finally:
         pass  # Don't close Redis connection here as it's a singleton
+
+def get_aws_secret(secret_key: str):
+    """
+    Retrieve a specific AWS secret
+    
+    :param secret_key: Key of the secret to retrieve
+    :return: Secret value
+    """
+    return SecretsManager.get_secret(secret_key)
+
+def get_bedrock_model_id():
+    """
+    Retrieve Bedrock Model ID from AWS Secrets Manager
+    
+    :return: Bedrock Model ID
+    """
+    return get_aws_secret('BEDROCK_MODEL_ID')
 
 async def get_corpus_service(
     session: AsyncSession = Depends(get_db)

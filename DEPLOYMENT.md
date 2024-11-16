@@ -1,113 +1,187 @@
-# AMTA Deployment Guide
+# Deployment Guide for AMTA
+
+## Overview
+
+This document provides comprehensive instructions for deploying the AMTA application across different environments, with a focus on secure, flexible secrets management.
+
+## Deployment Architecture
+
+### Core Components
+- **Backend**: Python FastAPI
+- **Frontend**: Next.js React
+- **Database**: PostgreSQL
+- **Caching**: Redis
+- **Cloud Infrastructure**: AWS EC2
+- **Secrets Management**: AWS Secrets Manager
+- **CI/CD**: GitHub Actions
+
+## Deployment Environments
+
+### Environment Types
+1. **Development**: Local development setup
+   - Minimal secret requirements
+   - Local environment variables
+   - Reduced security constraints
+
+2. **Staging**: Pre-production testing
+   - Enhanced security configurations
+   - Partial AWS Secrets Manager integration
+   - Preparation for production deployment
+
+3. **Production**: Live production deployment
+   - Full security implementation
+   - Comprehensive AWS Secrets Manager integration
+   - Strict configuration validation
+
+## Prerequisites
+
+### Infrastructure Requirements
+- AWS Account
+- EC2 Instance
+- IAM Roles with Secrets Manager access
+- GitHub Repository
+- Docker
+- Docker Compose
+- AWS CLI configured
+
+## Secrets Management
+
+### AWS Secrets Manager Configuration
+
+#### Secret Structure
+```json
+{
+    "development": {
+        "REDIS_URL": "redis://localhost:6379",
+        "AWS_REGION": "us-east-1"
+    },
+    "staging": {
+        "REDIS_URL": "redis://staging-redis.internal",
+        "AWS_REGION": "us-east-1",
+        "BEDROCK_MODEL_ID": "anthropic.claude-3-sonnet-v1:0"
+    },
+    "production": {
+        "REDIS_URL": "redis://production-redis.internal",
+        "AWS_REGION": "us-east-1",
+        "BEDROCK_MODEL_ID": "anthropic.claude-3-sonnet-v1:0",
+        "DATABASE_CONNECTION_STRING": "secure-connection-string"
+    }
+}
+```
+
+#### Recommended IAM Policy
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "secretsmanager:GetSecretValue",
+                "secretsmanager:DescribeSecret"
+            ],
+            "Resource": "arn:aws:secretsmanager:region:account-id:secret:amta-*"
+        }
+    ]
+}
+```
 
 ## Deployment Workflow
 
-### 1. Prerequisites
-- Python 3.10 or 3.11
-- PostgreSQL database
-- Redis server
-- AWS Bedrock access
-- AWS credentials
-
-### 2. Environment Setup
-
-#### Clone Repository
+### Configuration Validation
 ```bash
-git clone https://github.com/Atlogit/atlomy_chat.git
-cd atlomy_chat
-git checkout production
-```
-
-#### Create Virtual Environment
-```bash
-python3 -m venv venv
-source venv/bin/activate
-pip install --upgrade pip
-```
-
-#### Configure Environment
-1. Copy `.env.example` to `.env`
-2. Edit `.env` with your specific configurations
-```bash
-cp .env.example .env
-nano .env  # or use your preferred text editor
-```
-
-#### Validate Configuration
-```bash
+# Validate configuration before deployment
 python config_validator.py
+
+# Validate specific environment configuration
+python config_validator.py .env.staging
 ```
 
-### 3. Dependency Installation
+### Deployment Modes
+
+#### 1. Local Development
 ```bash
-pip install -r requirements.txt
-pip install .
+# Set deployment mode
+export DEPLOYMENT_MODE=development
+
+# Start services
+docker-compose up -d
 ```
 
-### 4. Database Preparation
+#### 2. Staging Deployment
 ```bash
-# Run database migrations
-alembic upgrade head
+# Set deployment mode
+export DEPLOYMENT_MODE=staging
+
+# Deploy to staging environment
+docker-compose -f docker-compose.staging.yml up -d
 ```
 
-### 5. Deployment Options
-
-#### A. Local Development Server
+#### 3. Production Deployment
 ```bash
-uvicorn app.run_server:app --host 0.0.0.0 --port 8000
+# Set deployment mode
+export DEPLOYMENT_MODE=production
+
+# Deploy to production
+docker-compose -f docker-compose.prod.yml up -d
 ```
 
-#### B. Production WSGI Server
-```bash
-gunicorn -w 4 -k uvicorn.workers.UvicornWorker app.run_server:app
+## Security Best Practices
+
+### Secret Management
+- Rotate secrets every 90 days
+- Use AWS-managed rotation
+- Implement least-privilege IAM roles
+- Never commit secrets to version control
+- Use `config_validator.py` for comprehensive checks
+
+### Monitoring
+- Enable AWS CloudTrail
+- Set up CloudWatch alarms
+- Log secret access attempts
+- Monitor unusual access patterns
+
+## Troubleshooting
+
+### Common Deployment Issues
+1. AWS Credentials
+   - Verify IAM role permissions
+   - Check AWS CLI configuration
+   - Ensure correct region settings
+
+2. Secrets Management
+   - Validate Secrets Manager access
+   - Check secret structure
+   - Verify IAM role permissions
+   - Use `config_validator.py` for diagnostics
+
+### Debugging Tools
+- `config_validator.py`
+- AWS CloudTrail
+- GitHub Actions logs
+- Docker logs
+- Comprehensive logging in `app/core/secrets_manager.py`
+
+## Advanced Configuration
+
+### Dynamic Secret Retrieval
+```python
+def load_configuration():
+    """
+    Dynamic configuration loader with AWS Secrets Manager
+    """
+    deployment_mode = os.getenv('DEPLOYMENT_MODE', 'production')
+    
+    return {
+        'redis_url': SecretsManager.get_secret('REDIS_URL', deployment_mode),
+        'aws_region': SecretsManager.get_secret('AWS_REGION', deployment_mode)
+    }
 ```
 
-#### C. Docker Deployment
-```bash
-# Build Docker image
-docker build -t amta .
+## Additional Resources
+- [Secrets Management Guide](cline_docs/aws_secrets_manager_integration.md)
+- [Configuration Validation](CONFIG_VALIDATOR.md)
 
-# Run Docker container
-docker run -p 8000:8000 --env-file .env amta
-```
+---
 
-### 6. Monitoring and Logging
-- Check logs in specified `LOG_FILE_PATH`
-- Monitor application performance
-- Set up external monitoring tools
-
-### 7. Scaling Considerations
-- Adjust `WORKERS` in `.env`
-- Configure database connection pooling
-- Implement caching strategies
-
-### 8. Security Recommendations
-- Use strong, unique credentials
-- Rotate AWS and database credentials
-- Enable HTTPS in production
-- Implement network-level security
-
-### 9. Troubleshooting
-- Verify all environment variables
-- Check network connectivity
-- Ensure AWS Bedrock model accessibility
-- Review application logs
-
-### 10. Continuous Deployment
-- Use GitHub Actions workflow
-- Automate testing and deployment
-- Implement rollback strategies
-
-## Maintenance
-
-### Updating
-```bash
-git pull origin production
-pip install -r requirements.txt
-alembic upgrade head
-```
-
-### Backup
-- Regularly backup PostgreSQL database
-- Snapshot Redis cache
-- Maintain configuration version control
+**AMTA Deployment: Secure, Flexible, Scalable** 🚀🔐

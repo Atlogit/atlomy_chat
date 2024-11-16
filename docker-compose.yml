@@ -16,6 +16,12 @@ services:
       - .env
     environment:
       - PYTHONUNBUFFERED=1
+      - DEPLOYMENT_MODE=${DEPLOYMENT_MODE:-development}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - BEDROCK_MODEL_ID=${BEDROCK_MODEL_ID:-default-model}
+    secrets:
+      - aws_credentials
     restart: unless-stopped
     depends_on:
       - db
@@ -36,11 +42,12 @@ services:
     container_name: amta-postgres
     environment:
       POSTGRES_DB: amta_greek
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - amta_network
+    restart: unless-stopped
 
   redis:
     image: redis:6.2-alpine
@@ -49,6 +56,7 @@ services:
       - redis_data:/data
     networks:
       - amta_network
+    restart: unless-stopped
 
 networks:
   amta_network:
@@ -57,3 +65,7 @@ networks:
 volumes:
   postgres_data:
   redis_data:
+
+secrets:
+  aws_credentials:
+    file: ./.aws_credentials

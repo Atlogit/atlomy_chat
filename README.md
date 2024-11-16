@@ -8,6 +8,69 @@ A comprehensive application for analyzing ancient medical texts using modern NLP
 - **LLM-Powered Analysis**: Analyze terms using AWS Bedrock (Claude-3) with contextual understanding
 - **Redis Caching**: Efficient caching system for improved performance
 - **Modern Frontend**: React-based UI with Tailwind CSS and DaisyUI
+- **Secure Configuration Management**: AWS Secrets Manager integration
+- **Automated Deployment**: Docker and GitHub Actions CI/CD
+
+## Secrets and Configuration Management
+
+### Secrets Management
+We use AWS Secrets Manager for comprehensive, secure secret management:
+- Encrypted secret storage for all sensitive credentials
+- Dynamic secret retrieval across multiple environments
+- Environment-specific configurations
+- Automatic secret rotation support
+- Centralized management of:
+  * Database credentials
+  * Redis connection details
+  * AWS Bedrock configuration
+  * Other sensitive configuration parameters
+
+#### Advanced Credential Handling
+- PostgreSQL database credentials securely managed
+- Separate secrets for development, staging, and production
+- Granular access control for different deployment modes
+
+### Configuration Validation
+- Comprehensive automated checks for deployment configurations
+- Validation of secret structures across environments
+- Advanced security checks:
+  * Password complexity verification
+  * Secure host configuration validation
+  * Environment-specific credential requirements
+- Detailed error logging and reporting
+- Prevents deployment with incomplete or insecure configurations
+
+### Deployment Modes
+- `development`: Local development environment with minimal security constraints
+- `staging`: Pre-production testing with enhanced security checks
+- `production`: Strict security validation and comprehensive credential protection
+
+#### Validation Checks
+- Secret structure integrity
+- Deployment mode-specific configuration
+- Database credential validation
+- AWS Secrets Manager connectivity
+- Password complexity enforcement
+- Secure host configuration
+
+## Deployment Architecture
+
+### CI/CD Workflow
+1. Code Commit to GitHub
+2. Automated Testing
+3. Docker Image Build
+4. Image Push to GitHub Container Registry
+5. Comprehensive Configuration Validation
+6. Secrets Retrieval from AWS Secrets Manager
+7. Secure Deployment to EC2 Instance
+
+### Security Practices
+- No hardcoded credentials
+- Secrets encrypted at rest
+- Least-privilege IAM roles
+- Regular secret rotation
+- Comprehensive access logging
+- Environment-specific security constraints
 
 ## Prerequisites
 
@@ -100,6 +163,23 @@ sudo systemctl start redis
 brew services start redis
 ```
 
+## Configuration Validation
+
+### Running Configuration Validator
+```bash
+# Validate configuration
+python config_validator.py
+
+# Validate with specific environment file
+python config_validator.py .env.development
+```
+
+### Validation Checks
+- Secret structure integrity
+- Deployment mode validation
+- Environment-specific configuration
+- AWS Secrets Manager connectivity
+
 ## Running the Application
 
 1. Start the FastAPI backend:
@@ -138,6 +218,20 @@ npm run dev
    - Stream response (real-time updates)
    - Token count monitoring
 5. View and save analysis results
+
+## Monitoring and Logging
+
+### Deployment Monitoring
+- AWS CloudWatch logs
+- GitHub Actions status checks
+- Slack deployment notifications
+- Prometheus metrics integration
+
+### Performance Tracking
+- Application performance metrics
+- Deployment time tracking
+- Error rate monitoring
+- Resource utilization insights
 
 ## Testing
 
@@ -187,11 +281,40 @@ Cache invalidation occurs automatically when:
    - Verify migrations
    - Monitor connection pool
 
+4. Secrets and Configuration
+   - Verify IAM role permissions
+   - Check AWS Secrets Manager access
+   - Validate configuration validator results
+
 ### Logs
 
 - Backend logs: `logs/app.log`
 - Redis logs: System default location
 - Frontend logs: Browser console
+- Deployment logs: GitHub Actions and AWS CloudWatch
+
+## Troubleshooting Configuration and Secrets
+
+### Common Issues
+1. AWS Secrets Manager Access
+   - Verify IAM role permissions
+   - Check network connectivity
+   - Validate AWS credentials
+
+2. Configuration Validation Failures
+   - Review secret structure
+   - Check deployment mode
+   - Verify environment variables
+
+3. Deployment Workflow Problems
+   - Inspect GitHub Actions logs
+   - Check Docker image build logs
+   - Validate EC2 instance configuration
+
+### Debugging Tools
+- `config_validator.py`: Comprehensive configuration checks
+- AWS CloudTrail: Secret access logging
+- GitHub Actions logs: Deployment workflow insights
 
 ## Contributing
 
@@ -199,6 +322,17 @@ Cache invalidation occurs automatically when:
 2. Create a feature branch
 3. Make your changes
 4. Submit a pull request
+
+### Contributing to Configuration Management
+1. Follow security best practices
+2. Update documentation with configuration changes
+3. Implement comprehensive test coverage
+4. Review IAM and secret management approaches
+
+## Additional Documentation
+- [Secrets Management Guide](cline_docs/aws_secrets_manager_integration.md)
+- [Configuration Validation](CONFIG_VALIDATOR.md)
+- [Deployment Workflow](cline_docs/docker_github_actions_workflow.md)
 
 ## License
 

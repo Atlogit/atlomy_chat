@@ -1,82 +1,147 @@
-# AMTA Configuration Validator
+# Configuration and Secrets Management
 
 ## Overview
-The `config_validator.py` script provides a comprehensive validation mechanism for the AMTA project's deployment configuration. It ensures that all critical environment settings are correctly configured before deployment.
+This document provides a comprehensive guide to configuration validation, secrets management, and deployment configuration for the Atlomy Chat application.
 
-## Purpose
-- Validate environment configuration
-- Check database connection
-- Verify Redis connection
-- Validate AWS and LLM settings
-- Provide detailed error reporting
+## Configuration Validation
 
-## Prerequisites
-- Python 3.10+
-- All dependencies installed from `requirements.txt`
-- `.env` file or environment variables configured
+### Purpose
+The `config_validator.py` script ensures the integrity and security of application configurations across different deployment environments.
+
+### Key Validation Features
+- Environment-specific configuration checks
+- AWS Secrets Manager integration
+- Deployment mode validation
+- Comprehensive error logging
+
+### Validation Process
+1. Load environment configuration
+2. Validate deployment mode
+3. Initialize AWS Secrets Manager
+4. Validate secret structure and content
+5. Provide detailed validation results
+
+## Secrets Management
+
+### Approach
+We use AWS Secrets Manager for secure, centralized secret management with the following principles:
+
+- **Encryption**: All secrets are encrypted at rest
+- **Access Control**: Managed through IAM roles
+- **Rotation**: Supports automatic secret rotation
+- **Auditing**: Provides access logging and tracking
+
+### Supported Secret Types
+- Database credentials
+- API keys
+- Region-specific configurations
+- Deployment-specific parameters
+
+## Deployment Modes
+
+### Supported Modes
+- `development`: Local development environment
+- `staging`: Pre-production testing environment
+- `production`: Live production deployment
+
+### Mode Validation
+The configuration validator ensures that:
+- Only predefined modes are allowed
+- Appropriate configurations are loaded for each mode
+- Secrets are environment-specific
+
+## Configuration File Structure
+
+### Environment File (Optional)
+```
+DEPLOYMENT_MODE=production
+# Other non-sensitive configurations
+```
+
+### AWS Secrets Manager Secret Structure
+```json
+{
+    "REDIS_URL": "redis://...",
+    "AWS_REGION": "us-east-1",
+    "BEDROCK_MODEL_ID": "anthropic/claude-v2",
+    "DATABASE_CONNECTION_STRING": "postgresql://...",
+    "API_KEYS": {
+        "EXTERNAL_SERVICE_1": "...",
+        "EXTERNAL_SERVICE_2": "..."
+    }
+}
+```
+
+## Security Best Practices
+
+### Secret Management
+- Never commit secrets to version control
+- Use environment-specific secret configurations
+- Implement least-privilege access
+- Regularly rotate secrets
+
+### Validation Recommendations
+- Run config validation in CI/CD pipelines
+- Log validation attempts (without exposing secrets)
+- Implement fallback mechanisms
+- Monitor and alert on validation failures
+
+## Error Handling
+
+### Validation Failure Scenarios
+- Missing required secrets
+- Invalid deployment mode
+- AWS Secrets Manager access issues
+- Malformed secret configurations
+
+### Recommended Actions
+1. Check IAM role permissions
+2. Verify AWS Secrets Manager configuration
+3. Validate secret structure
+4. Ensure network connectivity
+
+## Integration with Deployment Workflow
+
+### GitHub Actions
+- Integrated into deployment workflows
+- Runs before application startup
+- Prevents deployment with invalid configurations
+
+### Local Development
+- Can be run manually for configuration testing
+- Supports both environment file and Secrets Manager modes
+
+## Troubleshooting
+
+### Common Issues
+- IAM role misconfiguration
+- Network connectivity problems
+- Secrets Manager access restrictions
+
+### Debugging
+- Use verbose logging mode
+- Check AWS CloudTrail logs
+- Verify IAM role permissions
+- Validate network security groups
+
+## Future Improvements
+- Enhanced secret caching
+- Multi-region secret support
+- Advanced validation rules
+- Automated secret rotation workflows
 
 ## Usage
 
-### Running the Validator
+### Command Line
 ```bash
+# Validate with environment file
+python config_validator.py .env
+
+# Validate using AWS Secrets Manager
 python config_validator.py
 ```
 
-### Exit Codes
-- `0`: All validations passed
-- `1`: Configuration or connection validation failed
-
-## Configuration Checks
-
-### Database Configuration
-- Validates PostgreSQL connection URL
-- Checks connection using SQLAlchemy
-- Verifies pool settings
-
-### Redis Configuration
-- Validates Redis connection parameters
-- Checks connectivity
-- Supports optional password authentication
-
-### AWS Bedrock Configuration
-- Validates AWS region
-- Checks model ID format
-- Verifies credentials (optional)
-
-### LLM Settings
-- Validates temperature range (0-1)
-- Checks maximum token settings
-
-## Environment Variables
-
-### Required Variables
-- `DATABASE_URL`: PostgreSQL connection string
-- `AWS_BEDROCK_REGION`: AWS region
-- `AWS_BEDROCK_MODEL_ID`: Bedrock model identifier
-
-### Optional Variables
-- `DB_POOL_SIZE`: Database connection pool size
-- `DB_MAX_OVERFLOW`: Maximum connection overflow
-- `REDIS_HOST`: Redis server host
-- `REDIS_PORT`: Redis server port
-- `LLM_TEMPERATURE`: Language model temperature
-
-## Troubleshooting
-- Ensure all required environment variables are set
-- Check network connectivity
-- Verify AWS credentials
-- Confirm database and Redis server accessibility
-
-## Example `.env` Configuration
-```
-DATABASE_URL=postgresql+asyncpg://user:pass@localhost/amta_greek
-AWS_BEDROCK_REGION=us-east-1
-AWS_BEDROCK_MODEL_ID=anthropic.claude-3-sonnet-20240229-v1:0
-AWS_ACCESS_KEY_ID=your_access_key
-AWS_SECRET_ACCESS_KEY=your_secret_key
-```
-
-## Security Considerations
-- Do not commit sensitive credentials to version control
-- Use environment-specific `.env` files
-- Rotate credentials regularly
+## Contributing
+- Follow security best practices
+- Update documentation with configuration changes
+- Implement comprehensive test coverage
