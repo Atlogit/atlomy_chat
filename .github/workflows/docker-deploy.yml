@@ -5,6 +5,12 @@ on:
     branches:
       - production
 
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+  actions: write
+
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
@@ -23,6 +29,8 @@ jobs:
           echo "Triggering Branch: ${{ github.ref_name }}"
           echo "Repository: ${{ github.repository }}"
           echo "Event Name: ${{ github.event_name }}"
+          echo "Workflow Name: ${{ github.workflow }}"
+          echo "Run ID: ${{ github.run_id }}"
           echo "Full GitHub Context:"
           echo "$GITHUB_CONTEXT"
 
@@ -30,33 +38,22 @@ jobs:
     needs: debug-branch-context
     runs-on: ubuntu-latest
     permissions:
-      id-token: write
       contents: read
       packages: write
+      id-token: write
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Fetch full history to ensure branch context
-          ref: production  # Explicitly checkout production branch
-
-      - name: Verbose Branch Verification
-        run: |
-          echo "Current Branch: $(git branch --show-current)"
-          git branch -a
-          git log -1
+          fetch-depth: 0
+          ref: production
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
           aws-region: us-east-1
-
-      - name: Verify AWS credentials
-        run: |
-          aws sts get-caller-identity
-          aws secretsmanager list-secrets
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -91,11 +88,10 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=production,enable={{is_default_branch}}
-            type=sha,prefix={{branch}}-
-            type=ref,event=branch
+            type=raw,value=production
+            type=sha,prefix=production-
 
-      - name: Build Docker image
+      - name: Build and test Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -118,7 +114,7 @@ jobs:
           DEPLOYMENT_MODE: production
           AWS_DEFAULT_REGION: us-east-1
 
-      - name: Push Docker image to GitHub Container Registry
+      - name: Push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -129,8 +125,15 @@ jobs:
       - name: Stop services
         run: docker-compose down
 
-      - name: Signal Workflow Completion
-        run: |
-          echo "Docker Build and Registry Push workflow completed successfully"
-          echo "Branch: ${{ github.ref_name }}"
-          echo "Commit: ${{ github.sha }}"
+      - name: Create workflow_dispatch event
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            console.log('Creating workflow_dispatch event for production deployment');
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'production-deploy.yml',
+              ref: 'production'
+            });
