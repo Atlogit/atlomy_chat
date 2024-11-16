@@ -16,10 +16,21 @@ jobs:
     permissions:
       contents: read
       packages: write
+      id-token: write  # Needed for AWS OIDC authentication
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Verify AWS Credentials
+        run: |
+          aws sts get-caller-identity
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -73,12 +84,17 @@ jobs:
       - name: Start services
         run: docker-compose up -d
 
-      - name: Run configuration validator
+      - name: Verify AWS Secrets and Credentials
         run: |
           python -c "import boto3; print(boto3.__version__)"
-          python config_validator.py
+          python -c "import boto3; session = boto3.Session(); print(session.get_credentials())"
+
+      - name: Run configuration validator
+        run: |
+          python config_validator.py .env.production
         env:
           DEPLOYMENT_MODE: production
+          AWS_DEFAULT_REGION: us-east-1
 
       - name: Push Docker image to GitHub Container Registry
         uses: docker/build-push-action@v5
