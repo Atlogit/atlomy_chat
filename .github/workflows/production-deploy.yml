@@ -64,6 +64,17 @@ jobs:
           git branch -a
           git log -1
 
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull latest Docker image from GitHub Registry
+        run: |
+          docker pull ghcr.io/$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]'):production
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
@@ -93,11 +104,6 @@ jobs:
           
           echo "REDIS_URL=$redis_url" >> $GITHUB_OUTPUT
           echo "BEDROCK_MODEL_ID=$bedrock_model_id" >> $GITHUB_OUTPUT
-
-      - name: Pull latest Docker image from GitHub Registry
-        run: |
-          echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-          docker pull ghcr.io/${{ github.repository }}:production
 
       - name: Prepare deployment configuration
         env:
@@ -156,7 +162,7 @@ jobs:
             docker login ghcr.io -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }} >> deployment.log 2>&1
             
             # Pull and deploy
-            docker pull ghcr.io/${{ github.repository }}:production >> deployment.log 2>&1
+            docker pull ghcr.io/$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]'):production >> deployment.log 2>&1
             docker-compose down >> deployment.log 2>&1
             docker-compose up -d >> deployment.log 2>&1
             
