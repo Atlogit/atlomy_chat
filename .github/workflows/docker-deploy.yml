@@ -17,6 +17,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Create .env file
+        run: |
+          if [ ! -f .env ]; then
+            cp .env.example .env
+            echo "Created .env file from .env.example"
+          fi
+
       - name: Verify docker-compose file
         run: |
           if [ ! -f docker-compose.yml ]; then
