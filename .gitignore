@@ -79,6 +79,7 @@ data_query_assistant_poc.old/
 src.old/
 texts/
 toolkit/
+tests/
 
 # Python cache
 __pycache__/
