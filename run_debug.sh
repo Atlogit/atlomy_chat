@@ -7,6 +7,12 @@ IFS=$'\n\t'
 # Get absolute path for script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Run service preparation script
+if ! ./setup_services.sh; then
+    echo "Service preparation failed. Cannot start debug environment."
+    exit 1
+fi
+
 # Directory for logs (using absolute path)
 LOG_DIR="${SCRIPT_DIR}/logs"
 FASTAPI_LOG="${LOG_DIR}/fastapi_debug.log"
@@ -44,6 +50,16 @@ check_port() {
     fi
 }
 
+# Function to check Redis connection
+check_redis() {
+    log "INFO" "Checking Redis connection..."
+    if ! /root/anaconda3/envs/amta/bin/redis-cli ping >> "${REDIS_LOG}" 2>&1; then
+        log "ERROR" "Redis is not ready. Check ${REDIS_LOG} for details."
+        return 1
+    fi
+    log "INFO" "Redis connection successful."
+}
+
 # Function to check database connection
 check_database() {
     log "INFO" "Checking database connection..."
@@ -59,16 +75,6 @@ check_database() {
     fi
     
     log "INFO" "Database connection successful."
-}
-
-# Function to check Redis connection
-check_redis() {
-    log "INFO" "Checking Redis connection..."
-    if ! /root/anaconda3/envs/amta/bin/redis-cli ping >> "${REDIS_LOG}" 2>&1; then
-        log "ERROR" "Redis is not ready. Check ${REDIS_LOG} for details."
-        return 1
-    fi
-    log "INFO" "Redis connection successful."
 }
 
 # Function to cleanup processes
@@ -162,6 +168,10 @@ log "INFO" "  - Database URL: $DATABASE_URL"
 log "INFO" "Starting Redis server..."
 /root/anaconda3/envs/amta/bin/redis-server --daemonize yes >> "${REDIS_LOG}" 2>&1
 
+# Start Redis server
+log "INFO" "Starting postgresql DB service..."
+sudo service postgresql start
+
 # Check Redis connection
 if ! check_redis; then
     log "ERROR" "Redis check failed. Exiting."
@@ -221,6 +231,19 @@ if [ ! -d "next-app" ]; then
 fi
 
 cd next-app
+
+# NVM Version Check for Next.js
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
+REQUIRED_NODE_VERSION="20.18.0"
+if ! nvm use "$REQUIRED_NODE_VERSION"; then
+    log "ERROR" "Node.js $REQUIRED_NODE_VERSION is not installed for Next.js frontend."
+    log "ERROR" "Please install Node.js $REQUIRED_NODE_VERSION using nvm:"
+    log "ERROR" "  nvm install $REQUIRED_NODE_VERSION"
+    log "ERROR" "  nvm use $REQUIRED_NODE_VERSION"
+    exit 1
+fi
 
 # Start Next.js development server
 log "INFO" "Starting Next.js development server..."
