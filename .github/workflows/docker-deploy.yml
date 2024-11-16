@@ -35,15 +35,31 @@ jobs:
         run: |
           pwd
           ls -la
+          echo "GITHUB_WORKSPACE: $GITHUB_WORKSPACE"
           find . -name docker-compose.yml
 
       - name: Verify docker-compose file
         run: |
+          # Explicitly use the checked-out repository path
+          REPO_ROOT="${GITHUB_WORKSPACE}"
+          
+          # Check if docker-compose.yml exists
           if [ ! -f docker-compose.yml ]; then
-            echo "Copying docker-compose.yml from repository"
-            cp $GITHUB_WORKSPACE/docker-compose.yml ./docker-compose.yml
+            echo "Attempting to locate docker-compose.yml"
+            
+            # Try to find the file in the repository
+            COMPOSE_FILE=$(find "$REPO_ROOT" -name docker-compose.yml | head -n 1)
+            
+            if [ -n "$COMPOSE_FILE" ]; then
+              echo "Found docker-compose.yml at $COMPOSE_FILE"
+              cp "$COMPOSE_FILE" ./docker-compose.yml
+            else
+              echo "docker-compose.yml not found in repository"
+              exit 1
+            fi
           fi
 
+          # Verify the file exists
           if [ -f docker-compose.yml ]; then
             echo "docker-compose.yml found"
             cat docker-compose.yml
@@ -86,11 +102,26 @@ jobs:
 
       - name: Verify docker-compose file
         run: |
+          # Explicitly use the checked-out repository path
+          REPO_ROOT="${GITHUB_WORKSPACE}"
+          
+          # Check if docker-compose.yml exists
           if [ ! -f docker-compose.yml ]; then
-            echo "Copying docker-compose.yml from repository"
-            cp $GITHUB_WORKSPACE/docker-compose.yml ./docker-compose.yml
+            echo "Attempting to locate docker-compose.yml"
+            
+            # Try to find the file in the repository
+            COMPOSE_FILE=$(find "$REPO_ROOT" -name docker-compose.yml | head -n 1)
+            
+            if [ -n "$COMPOSE_FILE" ]; then
+              echo "Found docker-compose.yml at $COMPOSE_FILE"
+              cp "$COMPOSE_FILE" ./docker-compose.yml
+            else
+              echo "docker-compose.yml not found in repository"
+              exit 1
+            fi
           fi
 
+          # Verify the file exists
           if [ -f docker-compose.yml ]; then
             echo "docker-compose.yml found"
             cat docker-compose.yml
