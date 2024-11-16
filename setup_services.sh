@@ -106,6 +106,40 @@ check_and_start_services() {
             return 1
         fi
     done
+
+    # Optional S3 database restoration
+    if [[ "$RESTORE_DB_FROM_S3" == "true" ]]; then
+        echo -e "${YELLOW}Checking database restoration status...${NC}"
+        
+        # Use Python to check and potentially restore database
+        python3 -c "
+from app.services.s3_database_backup import S3DatabaseBackupService
+import os
+
+deployment_mode = os.getenv('DEPLOYMENT_MODE', 'development')
+backup_service = S3DatabaseBackupService(deployment_mode=deployment_mode)
+
+if not backup_service.is_database_restored():
+    print('Database not restored. Attempting restoration...')
+    success = backup_service.restore_database_backup()
+    
+    if success:
+        print('Database successfully restored from S3 backup')
+        exit(0)
+    else:
+        print('Failed to restore database from S3 backup')
+        exit(1)
+else:
+    print('Database already restored. Skipping restoration.')
+    exit(0)
+"
+        
+        # Check the exit status of the Python script
+        if [[ $? -ne 0 ]]; then
+            echo -e "${RED}Database restoration failed${NC}"
+            return 1
+        fi
+    fi
     
     # All services are running
     echo -e "${GREEN}All services are running and configured successfully!${NC}"

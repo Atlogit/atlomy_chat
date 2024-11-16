@@ -1,6 +1,25 @@
-# AMTA Changelog
+# Changelog
 
 ## [Unreleased]
+
+### Added
+- S3 Database Backup and Restoration Mechanism
+  - Implemented S3DatabaseBackupService in `app/services/s3_database_backup.py`
+  - Added one-time database restoration during service setup
+  - Support for environment-specific database restoration
+  - Comprehensive logging and error handling
+  - Credential management through AWS Secrets Manager
+
+### Changed
+- Updated `setup_services.sh` to support S3 database restoration
+- Removed database restoration logic from `app/run_server.py`
+
+### Improvements
+- Enhanced database backup and restoration workflow
+- Improved service initialization process
+- Added documentation for S3 database backup feature
+
+## [Previous Versions]
 ### Added
 - Production packaging configuration
 - Comprehensive deployment scripts
