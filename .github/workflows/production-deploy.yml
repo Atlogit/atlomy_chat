@@ -6,6 +6,13 @@ on:
     types:
       - completed
     branches: [production]
+  workflow_dispatch:  # Add manual trigger
+    inputs:
+      force_deploy:
+        description: 'Force deployment without Docker Build workflow'
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   debug-workflow-trigger:
@@ -32,10 +39,11 @@ jobs:
   deploy-to-ec2:
     needs: debug-workflow-trigger
     if: |
-      github.event.workflow_run.conclusion == 'success' && 
-      github.event.workflow_run.name == 'Docker Build and Registry Push' &&
-      (github.event.workflow_run.head_branch == 'production' || 
-       contains(github.event.workflow_run.head_branch, 'production'))
+      (github.event_name == 'workflow_dispatch') ||
+      (github.event.workflow_run.conclusion == 'success' && 
+       github.event.workflow_run.name == 'Docker Build and Registry Push' &&
+       (github.event.workflow_run.head_branch == 'production' || 
+        contains(github.event.workflow_run.head_branch, 'production')))
     runs-on: ubuntu-latest
     permissions:
       contents: read
