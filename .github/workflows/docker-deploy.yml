@@ -4,6 +4,14 @@ on:
   push:
     branches:
       - production
+  # Commented out workflow_dispatch due to scoping error
+  # workflow_dispatch:
+  #   inputs:
+  #     force_deploy:
+  #       description: 'Force Docker build and push'
+  #       required: false
+  #       type: boolean
+  #       default: false
 
 permissions:
   contents: read
@@ -124,16 +132,3 @@ jobs:
 
       - name: Stop services
         run: docker-compose down
-
-      - name: Create workflow_dispatch event
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            console.log('Creating workflow_dispatch event for production deployment');
-            await github.rest.actions.createWorkflowDispatch({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: 'production-deploy.yml',
-              ref: 'production'
-            });
