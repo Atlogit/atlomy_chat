@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Button } from '../../../components/ui/Button'
 import { ResultsDisplay } from '../../../components/ui/ResultsDisplay'
 import { useApi } from '../../../hooks/useApi'
@@ -153,6 +153,13 @@ export function LLMSection() {
     checkTokenCount()
   }
 
+  // Compute submission button disabled state
+  const isSubmitDisabled = useMemo(() => {
+    return !term.trim() || 
+           contexts.length === 0 || 
+           (tokenCount ? !tokenCount.within_limits : false)
+  }, [term, contexts, tokenCount])
+
   return (
     <div className="card bg-base-100 shadow-xl">
       <div className="card-body">
@@ -262,7 +269,7 @@ export function LLMSection() {
           <Button
             onClick={handleSubmit}
             isLoading={isLoading}
-            disabled={!term.trim() || contexts.length === 0 || (tokenCount && !tokenCount.within_limits)}
+            disabled={isSubmitDisabled}
             className="flex-1"
           >
             Analyze Term
