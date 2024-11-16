@@ -17,19 +17,17 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy only necessary files for dependency installation
-COPY requirements.txt setup.py README.md ./
+# Copy the entire project directory
+COPY . .
+
+# Upgrade pip to the latest version
+RUN pip install --upgrade pip
 
 # Install dependencies in the virtual environment
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Install the package in editable mode
 RUN pip install --no-cache-dir -e .
-
-# Copy project files
-COPY app/ ./app/
-COPY .env.example ./.env
-COPY config_validator.py ./
 
 # Make port 8081 available
 EXPOSE 8081
