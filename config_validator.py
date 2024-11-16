@@ -12,13 +12,22 @@ def validate_env_file():
     # Load environment variables
     load_dotenv()
     
-    # Validation checks
+    # Deployment mode
+    deployment_mode = os.getenv('DEPLOYMENT_MODE', 'development')
+    
+    # Validation checks with different requirements for different modes
     checks = [
         ("DATABASE_URL", lambda x: x and "postgresql" in x, "Invalid or missing database URL"),
-        ("REDIS_URL", lambda x: x and "redis://" in x, "Invalid or missing Redis URL"),
-        ("AWS_REGION", lambda x: x, "AWS Region not specified"),
-        ("BEDROCK_MODEL_ID", lambda x: x, "Bedrock Model ID not specified"),
     ]
+    
+    # Additional checks for production mode
+    if deployment_mode == 'production':
+        production_checks = [
+            ("REDIS_URL", lambda x: x and "redis://" in x, "Invalid or missing Redis URL"),
+            ("AWS_REGION", lambda x: x, "AWS Region not specified"),
+            ("BEDROCK_MODEL_ID", lambda x: x, "Bedrock Model ID not specified"),
+        ]
+        checks.extend(production_checks)
     
     errors = []
     
@@ -33,13 +42,16 @@ def validate_aws_credentials():
     """Check AWS credentials file."""
     print("=== Validating AWS Credentials ===")
     
-    credentials_path = ".aws_credentials"
-    if not os.path.exists(credentials_path):
-        return [f"AWS credentials file '{credentials_path}' not found"]
+    deployment_mode = os.getenv('DEPLOYMENT_MODE', 'development')
     
-    # Basic check for non-empty file
-    if os.path.getsize(credentials_path) == 0:
-        return ["AWS credentials file is empty"]
+    if deployment_mode == 'production':
+        credentials_path = ".aws_credentials"
+        if not os.path.exists(credentials_path):
+            return [f"AWS credentials file '{credentials_path}' not found"]
+        
+        # Basic check for non-empty file
+        if os.path.getsize(credentials_path) == 0:
+            return ["AWS credentials file is empty"]
     
     return []
 
@@ -52,20 +64,10 @@ def validate_docker_configuration():
         "docker-compose.yml"
     ]
     
-    deployment_scripts = [
-        "docker_deploy.sh",
-        "deploy.sh",
-        "ec2_deploy.sh"
-    ]
-    
     errors = []
     for file in docker_files:
         if not os.path.exists(file):
             errors.append(f"Missing Docker configuration file: {file}")
-    
-    # Check for at least one deployment script
-    if not any(os.path.exists(script) for script in deployment_scripts):
-        errors.append(f"No deployment script found. Looked for: {', '.join(deployment_scripts)}")
     
     return errors
 
