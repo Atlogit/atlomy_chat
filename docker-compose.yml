@@ -11,31 +11,20 @@ services:
     volumes:
       - ./logs:/var/log/amta
       - ./.env:/opt/amta/.env
-      - ./.aws_credentials:/root/.aws/credentials
     env_file:
       - .env
     environment:
       - PYTHONUNBUFFERED=1
-      - DEPLOYMENT_MODE=${DEPLOYMENT_MODE:-development}
-      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+      - DEPLOYMENT_MODE=${DEPLOYMENT_MODE:-production}
+      - REDIS_URL=${REDIS_URL}
       - AWS_REGION=${AWS_REGION:-us-east-1}
-      - BEDROCK_MODEL_ID=${BEDROCK_MODEL_ID:-default-model}
-    secrets:
-      - aws_credentials
+      - BEDROCK_MODEL_ID=${BEDROCK_MODEL_ID}
     restart: unless-stopped
     depends_on:
       - db
       - redis
     networks:
       - amta_network
-    deploy:
-      resources:
-        limits:
-          cpus: '1'
-          memory: 2G
-        reservations:
-          cpus: '0.5'
-          memory: 1G
 
   db:
     image: postgres:14
@@ -65,7 +54,3 @@ networks:
 volumes:
   postgres_data:
   redis_data:
-
-secrets:
-  aws_credentials:
-    file: ./.aws_credentials
