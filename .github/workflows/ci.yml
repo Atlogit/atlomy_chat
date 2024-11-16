@@ -1,10 +1,12 @@
 name: AMTA Continuous Integration
 
 on:
-  push:
-    branches: [ main, production ]
-  pull_request:
-    branches: [ main, production ]
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Reason for manual CI run'
+        required: false
+        default: 'Manual CI trigger'
 
 jobs:
   test:
@@ -33,10 +35,10 @@ jobs:
           - 6379:6379
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v3
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
     
@@ -66,10 +68,10 @@ jobs:
   code-quality:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Set up Python
-      uses: actions/setup-python@v3
+      uses: actions/setup-python@v5
       with:
         python-version: '3.11'
     
@@ -90,10 +92,10 @@ jobs:
   security-scan:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Set up Python
-      uses: actions/setup-python@v3
+      uses: actions/setup-python@v5
       with:
         python-version: '3.11'
     

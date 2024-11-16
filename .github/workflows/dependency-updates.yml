@@ -1,18 +1,21 @@
 name: Dependency Updates
 
 on:
-  schedule:
-    - cron: '0 2 * * 1'  # Every Monday at 2 AM
-  workflow_dispatch:  # Allow manual triggering
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Reason for manual dependency check'
+        required: false
+        default: 'Manual dependency update check'
 
 jobs:
   update-dependencies:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Set up Python 3.11
-      uses: actions/setup-python@v3
+      uses: actions/setup-python@v5
       with:
         python-version: '3.11'
     
@@ -25,10 +28,10 @@ jobs:
       run: |
         pip list --outdated > outdated_packages.txt
         if [ -s outdated_packages.txt ]; then
-          echo "::set-output name=updates_available::true"
+          echo "updates_available=true" >> $GITHUB_OUTPUT
           cat outdated_packages.txt
         else
-          echo "::set-output name=updates_available::false"
+          echo "updates_available=false" >> $GITHUB_OUTPUT
         fi
     
     - name: Compile requirements
@@ -63,7 +66,7 @@ jobs:
   vulnerability-scan:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Run Snyk to check for vulnerabilities
       uses: snyk/actions/python@master
