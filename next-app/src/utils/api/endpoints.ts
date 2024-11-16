@@ -11,11 +11,9 @@ export const API = {
   },
   lexical: {
     create: '/api/v1/lexical/create',
-    batchCreate: '/api/v1/lexical/batch-create',
     get: (lemma: string) => `/api/v1/lexical/get/${encodeURIComponent(lemma)}`,
     list: '/api/v1/lexical/list',
     update: '/api/v1/lexical/update',
-    batchUpdate: '/api/v1/lexical/batch-update',
     delete: (lemma: string) => `/api/v1/lexical/delete/${encodeURIComponent(lemma)}`,
     deleteTrigger: (lemma: string) => `/api/v1/lexical/delete/${encodeURIComponent(lemma)}/trigger`,
     status: (taskId: UUID) => `/api/v1/lexical/status/${encodeURIComponent(taskId)}`,

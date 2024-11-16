@@ -38,19 +38,6 @@ export interface LemmaCreate {
   analyze?: boolean;
 }
 
-export interface LemmaBatchCreate {
-  lemmas: LemmaCreate[];
-}
-
-export interface BatchCreateResponse {
-  successful: LexicalValue[];
-  failed: Array<{
-    lemma: string;
-    error: string;
-  }>;
-  total: number;
-}
-
 export interface CreateResponse {
   task_id: UUID;
   message: string;

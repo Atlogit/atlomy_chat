@@ -2,24 +2,22 @@
 
 import { useState } from 'react'
 import { CreateForm } from './CreateForm'
-import { BatchCreateForm } from './BatchCreateForm'
 import { GetForm } from './GetForm'
 import { UpdateForm } from './UpdateForm'
-import { BatchUpdateForm } from './BatchUpdateForm'
 import { DeleteForm } from './DeleteForm'
 
 /**
  * Represents the possible active forms in the Lexical Section.
  * This type is used to manage which form is currently displayed.
  */
-type ActiveForm = 'create' | 'batchCreate' | 'get' | 'update' | 'batchUpdate' | 'delete'
+type ActiveForm = 'create' | 'get' | 'update' | 'delete'
 
 /**
  * LexicalSection Component
  * 
  * This component represents the Lexical Values section of the application.
  * It provides an interface for users to perform various operations on lexical values,
- * including creation, batch creation, retrieval, updating, batch updating, and deletion.
+ * including creation, retrieval, updating, and deletion.
  * 
  * @component
  */
@@ -40,12 +38,6 @@ export function LexicalSection() {
             Create
           </a>
           <a 
-            className={`tab ${activeForm === 'batchCreate' ? 'tab-active' : ''}`}
-            onClick={() => setActiveForm('batchCreate')}
-          >
-            Batch Create
-          </a>
-          <a 
             className={`tab ${activeForm === 'get' ? 'tab-active' : ''}`}
             onClick={() => setActiveForm('get')}
           >
@@ -58,12 +50,6 @@ export function LexicalSection() {
             Update
           </a>
           <a 
-            className={`tab ${activeForm === 'batchUpdate' ? 'tab-active' : ''}`}
-            onClick={() => setActiveForm('batchUpdate')}
-          >
-            Batch Update
-          </a>
-          <a 
             className={`tab ${activeForm === 'delete' ? 'tab-active' : ''}`}
             onClick={() => setActiveForm('delete')}
           >
@@ -74,10 +60,8 @@ export function LexicalSection() {
         {/* Container for the active form */}
         <div className="form-container">
           {activeForm === 'create' && <CreateForm />}
-          {activeForm === 'batchCreate' && <BatchCreateForm />}
           {activeForm === 'get' && <GetForm />}
           {activeForm === 'update' && <UpdateForm />}
-          {activeForm === 'batchUpdate' && <BatchUpdateForm />}
           {activeForm === 'delete' && <DeleteForm />}
         </div>
       </div>
