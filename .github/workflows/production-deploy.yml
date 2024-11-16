@@ -185,7 +185,7 @@ jobs:
             docker-compose ps
             
             # Health check with enhanced timeout and logging
-            timeout 60s curl -f http://localhost:8001/health || {
+            timeout 60s curl -f http://localhost:8081/health || {
               echo "Critical: Health check failed"
               docker-compose logs --tail=50 >> health_check_failure.log
               exit 1
