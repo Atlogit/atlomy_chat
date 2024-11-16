@@ -1,3 +1,7 @@
+# GitHub Actions Continuous Integration Workflow
+# Comprehensive testing and code quality checks
+# Last updated: 2024-01-16
+# Ensures code quality and functionality across different Python versions
 name: AMTA Continuous Integration
 
 on:
@@ -7,6 +11,10 @@ on:
         description: 'Reason for manual CI run'
         required: false
         default: 'Manual CI trigger'
+  push:
+    branches: [ main, develop, production ]
+  pull_request:
+    branches: [ main, develop, production ]
 
 jobs:
   test:

@@ -1,15 +1,23 @@
-name: AMTA Feature Branch Testing
+# GitHub Actions Feature Testing Workflow
+# Validates new features and changes before merging
+# Last updated: 2024-01-16
+# Runs comprehensive tests on feature branches
+name: Feature Branch Testing
 
 on:
-  workflow_dispatch:
-    inputs:
-      reason:
-        description: 'Reason for manual feature testing'
-        required: false
-        default: 'Manual feature test'
+  push:
+    branches-ignore:
+      - main
+      - develop
+      - production
+  pull_request:
+    branches-ignore:
+      - main
+      - develop
+      - production
 
 jobs:
-  test:
+  feature-tests:
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -19,7 +27,7 @@ jobs:
       postgres:
         image: postgres:13
         env:
-          POSTGRES_DB: test_amta
+          POSTGRES_DB: feature_test_amta
           POSTGRES_PASSWORD: postgres
         ports:
           - 5432:5432
@@ -47,34 +55,25 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install .
-        pip install pytest pytest-asyncio flake8 black mypy
+        pip install pytest pytest-asyncio
     
     - name: Run configuration validator
       run: python config_validator.py
       env:
-        DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost/test_amta
+        DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost/feature_test_amta
         REDIS_HOST: localhost
         AWS_BEDROCK_REGION: us-east-1
-        AWS_BEDROCK_MODEL_ID: test-model
+        AWS_BEDROCK_MODEL_ID: feature-test-model
     
-    - name: Lint with flake8
-      run: flake8 app/ tests/
-    
-    - name: Check formatting with black
-      run: black --check app/ tests/
-    
-    - name: Type check with mypy
-      run: mypy app/
-    
-    - name: Run tests
-      run: pytest tests/
+    - name: Run feature-specific tests
+      run: pytest tests/ -v
       env:
-        DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost/test_amta
+        DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost/feature_test_amta
         REDIS_HOST: localhost
         AWS_BEDROCK_REGION: us-east-1
-        AWS_BEDROCK_MODEL_ID: test-model
+        AWS_BEDROCK_MODEL_ID: feature-test-model
 
-  security-scan:
+  feature-code-quality:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -84,7 +83,31 @@ jobs:
       with:
         python-version: '3.11'
     
-    - name: Install dependencies
+    - name: Install code quality tools
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8 black mypy
+    
+    - name: Lint with flake8
+      run: flake8 app/ tests/
+    
+    - name: Check formatting with black
+      run: black --check app/ tests/
+    
+    - name: Type check with mypy
+      run: mypy app/
+
+  feature-security-scan:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: Install security scanning tools
       run: |
         python -m pip install --upgrade pip
         pip install bandit safety
@@ -92,5 +115,5 @@ jobs:
     - name: Run Bandit security scan
       run: bandit -r app/
     
-    - name: Check dependencies for known vulnerabilities
+    - name: Check dependencies for vulnerabilities
       run: safety check
