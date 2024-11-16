@@ -42,4 +42,5 @@ export interface Text {
   reference_code?: string;
   metadata?: Record<string, any>;
   divisions?: TextDivision[];
+  text_content?: string;  // Added optional text_content property
 }

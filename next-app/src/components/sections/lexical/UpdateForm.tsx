@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '../../../components/ui/Button'
 import { ResultsDisplay } from '../../../components/ui/ResultsDisplay'
 import { useApi } from '../../../hooks/useApi'
@@ -31,11 +31,14 @@ export function UpdateForm() {
     if (!lemma.trim()) return
 
     await executeSearch(API.lexical.get(lemma.trim()))
+  }
 
-    if (searchData) {
+  // Update translation when search data changes
+  useEffect(() => {
+    if (searchData && searchData.translation) {
       setTranslation(searchData.translation)
     }
-  }
+  }, [searchData])
 
   /**
    * Handles the update operation to modify the lexical value.

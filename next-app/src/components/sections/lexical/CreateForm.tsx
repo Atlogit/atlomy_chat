@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Button } from '../../../components/ui/Button'
 import { ResultsDisplay } from '../../../components/ui/ResultsDisplay'
 import { useApi } from '../../../hooks/useApi'
-import { API, LexicalValue, CreateResponse, TaskStatus, BatchCreateResponse, LemmaCreate } from '../../../utils/api'
+import { API, LexicalValue, CreateResponse, TaskStatus, LemmaCreate } from '../../../utils/api'
 
 interface Citation {
   sentence: {
@@ -35,7 +35,6 @@ interface Citation {
  * CreateForm Component
  * 
  * This component provides a form for creating new lexical values.
- * It supports both single and batch creation of lemmas.
  *
  * @component
  */
@@ -46,14 +45,10 @@ export function CreateForm() {
   const [taskId, setTaskId] = useState<string | null>(null)
   const [taskStatus, setTaskStatus] = useState<TaskStatus | null>(null)
   const [retryCount, setRetryCount] = useState(0)
-  const [batchMode, setBatchMode] = useState(false)
-  const [batchFile, setBatchFile] = useState<File | null>(null)
-  const [batchProgress, setBatchProgress] = useState<BatchCreateResponse | null>(null)
   const [selectedCitation, setSelectedCitation] = useState<Citation | string | null>(null)
   const [showCitationModal, setShowCitationModal] = useState(false)
   
   const createApi = useApi<CreateResponse>()
-  const batchCreateApi = useApi<BatchCreateResponse>()
   const statusApi = useApi<TaskStatus>()
 
   // Task status polling
@@ -139,39 +134,6 @@ export function CreateForm() {
       setTaskStatus({ 
         status: 'error', 
         message: err instanceof Error ? err.message : 'An unknown error occurred',
-      })
-    }
-  }
-
-  /**
-   * Handles batch file upload and processing.
-   */
-  const handleBatchUpload = async (file: File) => {
-    try {
-      const text = await file.text()
-      const lemmas: LemmaCreate[] = text.split('\n')
-        .map(line => line.trim())
-        .filter(line => line.length > 0)
-        .map(lemma => ({
-          lemma,
-          searchLemma: true
-        }))
-
-      const result = await batchCreateApi.execute(API.lexical.batchCreate, {
-        method: 'POST',
-        body: JSON.stringify({ lemmas })
-      })
-
-      setBatchProgress(result)
-    } catch (err) {
-      console.error('Error in batch upload:', err)
-      setBatchProgress({
-        successful: [],
-        failed: [{
-          lemma: 'Batch Upload',
-          error: err instanceof Error ? err.message : 'Unknown error'
-        }],
-        total: 0
       })
     }
   }
@@ -288,193 +250,110 @@ export function CreateForm() {
 
   return (
     <div className="form-control gap-4">
-      {/* Mode Toggle */}
-      <div className="flex justify-end mb-4">
-        <button
-          className={`btn btn-sm ${batchMode ? 'btn-primary' : 'btn-outline'}`}
-          onClick={() => setBatchMode(!batchMode)}
-        >
-          {batchMode ? 'Switch to Single Mode' : 'Switch to Batch Mode'}
-        </button>
+      <div>
+        <label className="label">
+          <span className="label-text">Lemma</span>
+        </label>
+        <input
+          type="text"
+          className="input input-bordered w-full"
+          placeholder="Enter lemma..."
+          value={lemma}
+          onChange={(e) => setLemma(e.target.value)}
+          spellCheck={false}
+          autoComplete="off"
+        />
       </div>
 
-      {batchMode ? (
-        /* Batch Upload Form */
-        <div className="form-control gap-4">
-          <div className="flex flex-col gap-2">
-            <label className="label">
-              <span className="label-text">Upload Lemmas File</span>
-            </label>
-            <input
-              type="file"
-              className="file-input file-input-bordered w-full"
-              accept=".txt"
-              onChange={(e) => {
-                const file = e.target.files?.[0]
-                if (file) {
-                  setBatchFile(file)
-                  handleBatchUpload(file)
-                }
-              }}
-            />
-            <p className="text-sm text-gray-500">
-              Upload a text file with one lemma per line
-            </p>
+      <Button
+        onClick={handleSubmit}
+        isLoading={createApi.isLoading || statusApi.isLoading || (taskStatus?.status === 'in_progress')}
+        disabled={!lemma.trim() || (taskStatus?.status === 'in_progress')}
+      >
+        Create Lexical Value
+      </Button>
+
+      {showUpdateConfirmation && (
+        <div className="alert alert-warning">
+          <p>This lemma already exists. Do you want to update it?</p>
+          <div className="flex gap-2 mt-2">
+            <Button onClick={() => handleUpdateConfirmation(true)} className="btn-sm">
+              Yes, Update
+            </Button>
+            <Button onClick={() => handleUpdateConfirmation(false)} className="btn-sm btn-outline">
+              No, Cancel
+            </Button>
           </div>
-
-          {batchProgress && (
-            <div className="mt-4">
-              <h3 className="text-lg font-semibold mb-2">Batch Processing Results</h3>
-              <div className="stats shadow">
-                <div className="stat">
-                  <div className="stat-title">Total</div>
-                  <div className="stat-value">{batchProgress.total}</div>
-                </div>
-                <div className="stat">
-                  <div className="stat-title">Successful</div>
-                  <div className="stat-value text-success">{batchProgress.successful.length}</div>
-                </div>
-                <div className="stat">
-                  <div className="stat-title">Failed</div>
-                  <div className="stat-value text-error">{batchProgress.failed.length}</div>
-                </div>
-              </div>
-
-              {batchProgress.failed.length > 0 && (
-                <div className="mt-4">
-                  <h4 className="font-semibold mb-2">Failed Entries</h4>
-                  <div className="overflow-x-auto">
-                    <table className="table table-compact w-full">
-                      <thead>
-                        <tr>
-                          <th>Lemma</th>
-                          <th>Error</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {batchProgress.failed.map((failure, index) => (
-                          <tr key={index}>
-                            <td>{failure.lemma}</td>
-                            <td className="text-error">{failure.error}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
         </div>
-      ) : (
-        /* Single Entry Form */
-        <>
-          <div>
-            <label className="label">
-              <span className="label-text">Lemma</span>
-            </label>
-            <input
-              type="text"
-              className="input input-bordered w-full"
-              placeholder="Enter lemma..."
-              value={lemma}
-              onChange={(e) => setLemma(e.target.value)}
-              spellCheck={false}
-              autoComplete="off"
-            />
+      )}
+
+      {/* Error Display */}
+      {(createApi.error || statusApi.error) && (
+        <div className="mt-4">
+          {createApi.error && renderError(createApi.error)}
+          {statusApi.error && renderError(statusApi.error)}
+        </div>
+      )}
+
+      {/* Results Display with Enhanced Citations */}
+      {taskStatus?.entry && (
+        <div className="card bg-base-100 shadow-lg">
+          <div className="card-body">
+            <h2 className="card-title">{taskStatus.entry.lemma}</h2>
+            <p className="text-lg">{taskStatus.entry.translation}</p>
+            
+            <div className="divider">Short Description</div>
+            <p>{taskStatus.entry.short_description}</p>
+            
+            <div className="divider">Long Description</div>
+            <p>{taskStatus.entry.long_description}</p>
+            
+            <div className="divider">Related Terms</div>
+            <div className="flex flex-wrap gap-2">
+              {taskStatus.entry.related_terms?.map((term: string, index: number) => (
+                <div key={`${term}-${index}`} className="badge badge-primary">{term}</div>
+              ))}
+            </div>
+            
+            <div className="divider">Citations Used</div>
+            <div className="space-y-4">
+              {taskStatus.entry.citations_used?.map((citation: Citation | string, index: number) => (
+                <div key={index}>
+                  {renderCitation(citation)}
+                </div>
+              ))}
+            </div>
+
+            <div className="divider">References</div>
+            <div className="space-y-4">
+              {taskStatus.entry.references?.citations?.map((citation: Citation, index: number) => (
+                <div key={index}>
+                  {renderCitation(citation)}
+                </div>
+              ))}
+            </div>
+            
+            <div className="divider">Version Info</div>
+            <div className="text-sm">
+              <p>Created: {new Date(taskStatus.entry.created_at).toLocaleString()}</p>
+              <p>Updated: {new Date(taskStatus.entry.updated_at).toLocaleString()}</p>
+              <p>Version: {taskStatus.entry.version}</p>
+            </div>
           </div>
+        </div>
+      )}
 
-          <Button
-            onClick={handleSubmit}
-            isLoading={createApi.isLoading || statusApi.isLoading || (taskStatus?.status === 'in_progress')}
-            disabled={!lemma.trim() || (taskStatus?.status === 'in_progress')}
-          >
-            Create Lexical Value
-          </Button>
+      {taskStatus?.status === 'error' && (
+        <div className="alert alert-error">
+          <p>{taskStatus.message}</p>
+        </div>
+      )}
 
-          {showUpdateConfirmation && (
-            <div className="alert alert-warning">
-              <p>This lemma already exists. Do you want to update it?</p>
-              <div className="flex gap-2 mt-2">
-                <Button onClick={() => handleUpdateConfirmation(true)} className="btn-sm">
-                  Yes, Update
-                </Button>
-                <Button onClick={() => handleUpdateConfirmation(false)} className="btn-sm btn-outline">
-                  No, Cancel
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {/* Error Display */}
-          {(createApi.error || statusApi.error) && (
-            <div className="mt-4">
-              {createApi.error && renderError(createApi.error)}
-              {statusApi.error && renderError(statusApi.error)}
-            </div>
-          )}
-
-          {/* Results Display with Enhanced Citations */}
-          {taskStatus?.entry && (
-            <div className="card bg-base-100 shadow-lg">
-              <div className="card-body">
-                <h2 className="card-title">{taskStatus.entry.lemma}</h2>
-                <p className="text-lg">{taskStatus.entry.translation}</p>
-                
-                <div className="divider">Short Description</div>
-                <p>{taskStatus.entry.short_description}</p>
-                
-                <div className="divider">Long Description</div>
-                <p>{taskStatus.entry.long_description}</p>
-                
-                <div className="divider">Related Terms</div>
-                <div className="flex flex-wrap gap-2">
-                  {taskStatus.entry.related_terms?.map((term: string, index: number) => (
-                    <div key={`${term}-${index}`} className="badge badge-primary">{term}</div>
-                  ))}
-                </div>
-                
-                <div className="divider">Citations Used</div>
-                <div className="space-y-4">
-                  {taskStatus.entry.citations_used?.map((citation: Citation | string, index: number) => (
-                    <div key={index}>
-                      {renderCitation(citation)}
-                    </div>
-                  ))}
-                </div>
-
-                <div className="divider">References</div>
-                <div className="space-y-4">
-                  {taskStatus.entry.references?.citations?.map((citation: Citation, index: number) => (
-                    <div key={index}>
-                      {renderCitation(citation)}
-                    </div>
-                  ))}
-                </div>
-                
-                <div className="divider">Version Info</div>
-                <div className="text-sm">
-                  <p>Created: {new Date(taskStatus.entry.created_at).toLocaleString()}</p>
-                  <p>Updated: {new Date(taskStatus.entry.updated_at).toLocaleString()}</p>
-                  <p>Version: {taskStatus.entry.version}</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {taskStatus?.status === 'error' && (
-            <div className="alert alert-error">
-              <p>{taskStatus.message}</p>
-            </div>
-          )}
-
-          {taskStatus?.status === 'in_progress' && (
-            <div className="alert alert-info">
-              <p>{taskStatus.message}</p>
-              {retryCount > 0 && <p>Retrying... (Attempt {retryCount})</p>}
-            </div>
-          )}
-        </>
+      {taskStatus?.status === 'in_progress' && (
+        <div className="alert alert-info">
+          <p>{taskStatus.message}</p>
+          {retryCount > 0 && <p>Retrying... (Attempt {retryCount})</p>}
+        </div>
       )}
 
       {/* Citation Context Modal */}
