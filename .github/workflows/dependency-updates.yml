@@ -43,25 +43,11 @@ jobs:
       run: |
         safety check
     
-    - name: Create Pull Request
+    - name: Log Dependency Updates
       if: steps.check-updates.outputs.updates_available == 'true'
-      uses: peter-evans/create-pull-request@v4
-      with:
-        commit-message: Update project dependencies
-        title: Dependency Updates
-        body: |
-          Automated dependency updates:
-          
-          📦 Outdated Packages:
-          ```
-          $(cat outdated_packages.txt)
-          ```
-          
-          🔍 Ran safety checks
-          🛠 Updated requirements.txt
-        branch: dependency-updates
-        delete-branch: true
-        labels: dependencies, maintenance
+      run: |
+        echo "Dependency updates are available. Please review manually."
+        cat outdated_packages.txt
 
   vulnerability-scan:
     runs-on: ubuntu-latest

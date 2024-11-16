@@ -1,10 +1,12 @@
 name: AMTA Feature Branch Testing
 
 on:
-  pull_request:
-    branches:
-      - main
-      - production
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Reason for manual feature testing'
+        required: false
+        default: 'Manual feature test'
 
 jobs:
   test:
