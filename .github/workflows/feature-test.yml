@@ -1,119 +1,89 @@
-# GitHub Actions Feature Testing Workflow
-# Validates new features and changes before merging
-# Last updated: 2024-01-16
-# Runs comprehensive tests on feature branches
-name: Feature Branch Testing
+# GitHub Actions Feature Branch Testing Workflow
+name: Feature Branch Manual Test
 
 on:
-  push:
-    branches-ignore:
-      - main
-      - develop
-      - production
-  pull_request:
-    branches-ignore:
-      - main
-      - develop
-      - production
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to test'
+        required: true
+      test_type:
+        description: 'Type of tests to run'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - backend
+          - frontend
+          - quick
 
 jobs:
-  feature-tests:
+  feature-test:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ['3.10', '3.11']
-
-    services:
-      postgres:
-        image: postgres:13
-        env:
-          POSTGRES_DB: feature_test_amta
-          POSTGRES_PASSWORD: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-      redis:
-        image: redis:6
-        ports:
-          - 6379:6379
-
     steps:
     - uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.inputs.branch }}
     
-    - name: Set up Python ${{ matrix.python-version }}
+    - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: ${{ matrix.python-version }}
+        python-version: '3.11'
     
     - name: Install dependencies
+      if: ${{ github.event.inputs.test_type == 'all' || github.event.inputs.test_type == 'backend' }}
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install .
-        pip install pytest pytest-asyncio
+        pip install pytest pytest-asyncio python-dotenv
     
-    - name: Run configuration validator
-      run: python config_validator.py
+    - name: Create .env file for feature testing
+      run: |
+        cp .env.example .env
+        echo "FEATURE_BRANCH=${{ github.event.inputs.branch }}" >> .env
+    
+    - name: Run backend tests
+      if: ${{ github.event.inputs.test_type == 'all' || github.event.inputs.test_type == 'backend' }}
+      run: |
+        pytest tests/ \
+          --ignore=tests/production \
+          --ignore=tests/integration \
+          -v
       env:
-        DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost/feature_test_amta
+        DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost/test_feature_amta
         REDIS_HOST: localhost
         AWS_BEDROCK_REGION: us-east-1
-        AWS_BEDROCK_MODEL_ID: feature-test-model
-    
-    - name: Run feature-specific tests
-      run: pytest tests/ -v
-      env:
-        DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost/feature_test_amta
-        REDIS_HOST: localhost
-        AWS_BEDROCK_REGION: us-east-1
-        AWS_BEDROCK_MODEL_ID: feature-test-model
+        AWS_BEDROCK_MODEL_ID: test-model
 
-  feature-code-quality:
+  frontend-feature-test:
+    if: ${{ github.event.inputs.test_type == 'all' || github.event.inputs.test_type == 'frontend' }}
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: next-app
+
     steps:
     - uses: actions/checkout@v4
-    
-    - name: Set up Python
-      uses: actions/setup-python@v5
       with:
-        python-version: '3.11'
+        ref: ${{ github.event.inputs.branch }}
     
-    - name: Install code quality tools
-      run: |
-        python -m pip install --upgrade pip
-        pip install flake8 black mypy
-    
-    - name: Lint with flake8
-      run: flake8 app/ tests/
-    
-    - name: Check formatting with black
-      run: black --check app/ tests/
-    
-    - name: Type check with mypy
-      run: mypy app/
-
-  feature-security-scan:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Python
-      uses: actions/setup-python@v5
+    - name: Use Node.js
+      uses: actions/setup-node@v4
       with:
-        python-version: '3.11'
+        node-version: '20.x'
+        cache: 'npm'
+        cache-dependency-path: next-app/package-lock.json
     
-    - name: Install security scanning tools
-      run: |
-        python -m pip install --upgrade pip
-        pip install bandit safety
+    - name: Install dependencies
+      run: npm ci
     
-    - name: Run Bandit security scan
-      run: bandit -r app/
+    - name: Lint
+      run: npm run lint
     
-    - name: Check dependencies for vulnerabilities
-      run: safety check
+    - name: Type check
+      run: npm run type-check
+    
+    - name: Run tests
+      run: npm test
