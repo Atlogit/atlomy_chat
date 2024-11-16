@@ -30,45 +30,18 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          # Fetch all history for all branches and tags
-          fetch-depth: 0
-
-      - name: List untracked files
-        run: |
-          git status
-          git ls-files --others --exclude-standard
 
       - name: Verify docker-compose file
         run: |
           # Check if docker-compose.yml exists
           if [ ! -f docker-compose.yml ]; then
-            echo "Attempting to locate docker-compose.yml"
-            
-            # List all untracked files to debug
-            echo "Untracked files:"
-            git ls-files --others --exclude-standard
-            
-            # Try to find the file in the repository
-            COMPOSE_FILE=$(find . -name docker-compose.yml | head -n 1)
-            
-            if [ -n "$COMPOSE_FILE" ]; then
-              echo "Found docker-compose.yml at $COMPOSE_FILE"
-              cp "$COMPOSE_FILE" ./docker-compose.yml
-            else
-              echo "docker-compose.yml not found in repository"
-              exit 1
-            fi
+            echo "docker-compose.yml not found"
+            exit 1
           fi
 
           # Verify the file exists
-          if [ -f docker-compose.yml ]; then
-            echo "docker-compose.yml found"
-            cat docker-compose.yml
-          else
-            echo "docker-compose.yml still not found"
-            exit 1
-          fi
+          echo "docker-compose.yml found"
+          cat docker-compose.yml
 
       - name: Set up Docker Compose
         run: |
@@ -101,36 +74,20 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          # Fetch all history for all branches and tags
-          fetch-depth: 0
-
-      - name: List untracked files
-        run: |
-          git status
-          git ls-files --others --exclude-standard
 
       - name: Verify docker-compose file
         run: |
           # Check if docker-compose.yml exists
           if [ ! -f docker-compose.yml ]; then
-            echo "Attempting to locate docker-compose.yml"
-            
-            # List all untracked files to debug
-            echo "Untracked files:"
-            git ls-files --others --exclude-standard
-            
-            # Try to find the file in the repository
-            COMPOSE_FILE=$(find . -name docker-compose.yml | head -n 1)
-            
-            if [ -n "$COMPOSE_FILE" ]; then
-              echo "Found docker-compose.yml at $COMPOSE_FILE"
-              cp "$COMPOSE_FILE" ./docker-compose.yml
-            else
-              echo "docker-compose.yml not found in repository"
-              exit 1
-            fi
+            echo "docker-compose.yml not found"
+            exit 1
           fi
+
+          # Verify the file exists
+          echo "docker-compose.yml found"
+          cat docker-compose.yml
+
+      - name: Set up Docker Compose
         run: |
           sudo apt-get update
           sudo apt-get install -y docker-compose
