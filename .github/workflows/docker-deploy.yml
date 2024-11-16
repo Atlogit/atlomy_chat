@@ -1,27 +1,13 @@
-# GitHub Actions Workflow for Docker Build and Deploy
-# Ensures containerization, testing, and deployment processes
-# Visible workflow for AMTA project CI/CD pipeline
-# Last updated: 2024-01-16
-name: Docker Build and Deploy
+# GitHub Actions Workflow for Docker Build and Test
+name: Docker Build and Test
 
 on:
   push:
-    branches: 
-      - main
-      - develop
-      - production
-  pull_request:
     branches:
-      - main
-      - develop
       - production
-
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  build-and-push-image:
+  docker-build:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -33,14 +19,10 @@ jobs:
 
       - name: Verify docker-compose file
         run: |
-          # Check if docker-compose.yml exists
           if [ ! -f docker-compose.yml ]; then
             echo "docker-compose.yml not found"
             exit 1
           fi
-
-          # Verify the file exists
-          echo "docker-compose.yml found"
           cat docker-compose.yml
 
       - name: Set up Docker Compose
@@ -66,56 +48,3 @@ jobs:
 
       - name: Stop services
         run: docker-compose down
-
-  test-docker-image:
-    needs: build-and-push-image
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Verify docker-compose file
-        run: |
-          # Check if docker-compose.yml exists
-          if [ ! -f docker-compose.yml ]; then
-            echo "docker-compose.yml not found"
-            exit 1
-          fi
-
-          # Verify the file exists
-          echo "docker-compose.yml found"
-          cat docker-compose.yml
-
-      - name: Set up Docker Compose
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y docker-compose
-
-      - name: Pull Docker image
-        run: docker-compose pull
-
-      - name: Run Docker Compose
-        run: docker-compose up -d
-
-      - name: Check running containers
-        run: docker ps
-
-      - name: Run tests inside container
-        run: |
-          docker-compose exec -T app pytest tests/
-
-      - name: Stop Docker Compose
-        run: docker-compose down
-
-  deploy:
-    needs: test-docker-image
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/production'
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Deploy to Production or Main
-        run: |
-          echo "Deployment to production or main server"
-          # Add your deployment script or SSH commands here
-          # Example: ssh user@server 'cd /path && docker-compose pull && docker-compose up -d'
