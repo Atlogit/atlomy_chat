@@ -57,7 +57,6 @@ jobs:
       id-token: write
 
     steps:
-      # Repository checkout with explicit production branch reference
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
@@ -181,6 +180,19 @@ jobs:
 
             # Pull latest Docker image
             docker pull ghcr.io/$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]'):production
+          DEPLOY_COMMANDS
+
+          # Copy docker-compose.yml to EC2
+          scp -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key \
+              docker-compose.yml \
+              $EC2_USER@$EC2_HOST:/home/ec2-user/atlomy_chat/docker-compose.yml
+
+          # Continue deployment
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << FINAL_DEPLOY
+            cd /home/ec2-user/atlomy_chat
+
+            # Verify docker-compose.yml exists
+            ls -l docker-compose.yml
 
             # Stop existing containers
             docker-compose down || true
@@ -191,7 +203,7 @@ jobs:
             # Log deployment details
             docker-compose ps
             docker-compose logs --tail=50
-          DEPLOY_COMMANDS
+          FINAL_DEPLOY
 
       # Health Verification
       - name: Verify Deployment Health
