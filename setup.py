@@ -38,6 +38,7 @@ setup(
         "SQLAlchemy==2.0.36",
         "alembic==1.13.3",
         "asyncpg==0.30.0",
+        "redis==5.0.3",  # Added Redis package
         "boto3==1.35.49",
         "typing-extensions==4.12.2",
         "pydantic==2.9.2",
