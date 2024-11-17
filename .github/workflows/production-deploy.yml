@@ -165,38 +165,38 @@ jobs:
           echo "Attempting to deploy to $EC2_HOST as $EC2_USER"
           
           # Prepare SSH Key
-          mkdir -p ~/.ssh
-          echo "$EC2_SSH_KEY" > ~/.ssh/ec2_key
-          chmod 600 ~/.ssh/ec2_key
+          mkdir -p /home/ec2-user/.ssh
+          echo "$EC2_SSH_KEY" > /home/ec2-user/.ssh/ec2_key
+          chmod 600 /home/ec2-user/.ssh/ec2_key
           
           # Add Host Key Scanning
-          ssh-keyscan -H $EC2_HOST >> ~/.ssh/known_hosts 2>/dev/null
+          ssh-keyscan -H $EC2_HOST >> /home/ec2-user/.ssh/known_hosts 2>/dev/null
           
           # Verbose SSH Connection Test
-          ssh -vv -T -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << SSH_TEST
+          ssh -vv -T -o StrictHostKeyChecking=no -i /home/ec2-user/.ssh/ec2_key $EC2_USER@$EC2_HOST << SSH_TEST
             echo "SSH Connection Successful"
             pwd
             whoami
           SSH_TEST
           
           # Deployment Commands
-          ssh -T -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << DEPLOY_COMMANDS
+          ssh -T -o StrictHostKeyChecking=no -i /home/ec2-user/.ssh/ec2_key $EC2_USER@$EC2_HOST << DEPLOY_COMMANDS
             # Create Project Directory
             mkdir -p /home/ec2-user/atlomy_chat
             chmod 750 /home/ec2-user/atlomy_chat
           SETUP_EOF
 
           # Securely copy deployment files
-          scp -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key \
+          scp -o StrictHostKeyChecking=no -i /home/ec2-user/.ssh/ec2_key \
               ./deploy_config/deployment.env \
               $EC2_USER@$EC2_HOST:/home/ec2-user/atlomy_chat/.env
 
-          scp -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key \
+          scp -o StrictHostKeyChecking=no -i /home/ec2-user/.ssh/ec2_key \
               docker-compose.yml \
               $EC2_USER@$EC2_HOST:/home/ec2-user/atlomy_chat/docker-compose.yml
 
           # Enhanced deployment script
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << DEPLOY_EOF
+          ssh -o StrictHostKeyChecking=no -i /home/ec2-user/.ssh/ec2_key $EC2_USER@$EC2_HOST << DEPLOY_EOF
             cd /home/ec2-user/atlomy_chat
             
             # Deployment Logging
@@ -229,7 +229,7 @@ jobs:
           EC2_USER: ${{ secrets.EC2_USER }}
         run: |
           # Health Check via SSH
-          ssh -T -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << HEALTH_CHECK
+          ssh -T -o StrictHostKeyChecking=no -i /home/ec2-user/.ssh/ec2_key $EC2_USER@$EC2_HOST << HEALTH_CHECK
             cd /home/ec2-user/atlomy_chat
             
             # Retry Mechanism for Health Check
