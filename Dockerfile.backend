@@ -1,0 +1,56 @@
+# Use an official Python runtime as a parent image
+FROM python:3.11-slim-bullseye
+
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE 1
+ENV PYTHONUNBUFFERED 1
+ENV VIRTUAL_ENV=/atlomy_chat/venv
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+ENV PYTHONPATH="/atlomy_chat:$PYTHONPATH"
+
+# Set working directory to the project root
+WORKDIR /atlomy_chat
+
+# Install system dependencies and venv creation tools
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libpq-dev \
+    python3-venv \
+    git \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create virtual environment in the project directory
+RUN python3 -m venv $VIRTUAL_ENV
+
+# Explicitly set PATH to use venv
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+
+# Upgrade pip in the virtual environment
+RUN pip install --upgrade pip setuptools wheel
+
+# Copy project files
+COPY . .
+
+# Create logs directory
+RUN mkdir -p /atlomy_chat/logs && chmod 777 /atlomy_chat/logs
+
+# Install dependencies in the virtual environment
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Install package in editable mode
+RUN pip install --no-cache-dir -e .
+
+# Make docker_entrypoint.sh executable
+RUN chmod +x docker_entrypoint.sh
+
+# Make port 8081 available
+EXPOSE 8081
+
+# Set environment variables for the application
+ENV DEPLOYMENT_MODE=production
+ENV SERVER_HOST=0.0.0.0
+ENV SERVER_PORT=8081
+
+# Use the custom entrypoint script
+ENTRYPOINT ["./docker_entrypoint.sh"]

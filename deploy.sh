@@ -86,7 +86,7 @@ start_application() {
     log_info "Starting ${PROJECT_NAME} application..."
     uvicorn app.run_server:app \
         --host "${SERVER_HOST:-0.0.0.0}" \
-        --port "${SERVER_PORT:-8000}" \
+        --port "${SERVER_PORT:-8081}" \
         --workers "${WORKERS:-4}"
 }
 

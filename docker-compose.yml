@@ -1,11 +1,11 @@
 version: '3.8'
 
 services:
-  app:
+  backend:
     build: 
       context: .
-      dockerfile: Dockerfile
-    container_name: amta-app
+      dockerfile: Dockerfile.backend
+    container_name: amta-backend
     ports:
       - "8081:8081"
     volumes:
@@ -19,26 +19,44 @@ services:
       - REDIS_URL=${REDIS_URL}
       - AWS_REGION=${AWS_REGION:-us-east-1}
       - BEDROCK_MODEL_ID=${BEDROCK_MODEL_ID}
+      - DATABASE_URL=${DATABASE_URL}
       - SERVER_HOST=0.0.0.0
       - SERVER_PORT=8081
     restart: unless-stopped
     depends_on:
-      - db
       - redis
     networks:
       - amta_network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
-  db:
-    image: postgres:14
-    container_name: amta-postgres
+  frontend:
+    build:
+      context: ./next-app
+      dockerfile: Dockerfile
+    container_name: amta-frontend
+    ports:
+      - "3000:3000"
     environment:
-      POSTGRES_DB: amta_greek
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - NODE_ENV=production
+      - BACKEND_URL=http://backend:8081
+    restart: unless-stopped
+    depends_on:
+      - backend
     networks:
       - amta_network
-    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   redis:
     image: redis:6.2-alpine
@@ -48,11 +66,15 @@ services:
     networks:
       - amta_network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 networks:
   amta_network:
     driver: bridge
 
 volumes:
-  postgres_data:
   redis_data:

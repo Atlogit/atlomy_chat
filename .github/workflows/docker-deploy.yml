@@ -39,7 +39,6 @@ on:
         type: boolean
         default: false
 
-# Comprehensive permissions for GitHub Actions workflow
 permissions:
   contents: read
   packages: write
@@ -48,59 +47,18 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  BACKEND_IMAGE_NAME: ${{ github.repository }}-backend
+  FRONTEND_IMAGE_NAME: ${{ github.repository }}-frontend
 
 jobs:
-  debug-branch-context:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Detailed Branch Context Debug
-        env:
-          GITHUB_CONTEXT: ${{ toJson(github) }}
-        run: |
-          echo "Branch Debug Information:"
-          echo "GitHub Ref: ${{ github.ref }}"
-          echo "GitHub Head Ref: ${{ github.head_ref }}"
-          echo "Triggering Branch: ${{ github.ref_name }}"
-          echo "Repository: ${{ github.repository }}"
-          echo "Event Name: ${{ github.event_name }}"
-          echo "Workflow Name: ${{ github.workflow }}"
-          echo "Run ID: ${{ github.run_id }}"
-          echo "Full GitHub Context:"
-          echo "$GITHUB_CONTEXT"
-
   build-and-push:
-    needs: debug-branch-context
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-      id-token: write
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: production
-
-      - name: Verbose File System Debug
-        run: |
-          pwd
-          echo "=== Repository Root Contents ==="
-          ls -la
-          echo "=== Dockerfile Contents ==="
-          cat Dockerfile || echo "Dockerfile not found"
-          echo "=== Full Directory Tree ==="
-          find . -type f | sort
-
-      - name: Verify Dockerfile Presence
-        run: |
-          if [ ! -f Dockerfile ]; then
-            echo "Critical Error: Dockerfile is missing!"
-            exit 1
-          fi
-          echo "Dockerfile verified successfully"
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -111,7 +69,12 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.9'
+          python-version: '3.11'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20.18.0'
 
       - name: Install Python dependencies
         run: |
@@ -135,32 +98,45 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata for Docker
-        id: meta
+      # Backend Image Build and Push
+      - name: Extract backend metadata
+        id: backend-meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE_NAME }}
           tags: |
             type=raw,value=production
-            type=sha,prefix=production-
+            type=sha,prefix=production-backend-
 
-      - name: Build and test Docker image
+      - name: Build and test backend Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./Dockerfile
+          file: ./Dockerfile.backend
           load: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ steps.backend-meta.outputs.tags }}
+          labels: ${{ steps.backend-meta.outputs.labels }}
 
-      - name: Set up Docker Compose
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y docker-compose
+      # Frontend Image Build and Push
+      - name: Extract frontend metadata
+        id: frontend-meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }}
+          tags: |
+            type=raw,value=production
+            type=sha,prefix=production-frontend-
 
-      - name: Start services
-        run: docker-compose up -d
+      - name: Build and test frontend Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./next-app
+          file: ./next-app/Dockerfile
+          load: true
+          tags: ${{ steps.frontend-meta.outputs.tags }}
+          labels: ${{ steps.frontend-meta.outputs.labels }}
 
+      # Configuration Validation
       - name: Run configuration validator
         run: |
           python config_validator.py .env.production
@@ -168,17 +144,26 @@ jobs:
           DEPLOYMENT_MODE: production
           AWS_DEFAULT_REGION: us-east-1
 
-      - name: Push Docker image
+      # Push Images
+      - name: Push backend Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
+          file: ./Dockerfile.backend
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ steps.backend-meta.outputs.tags }}
+          labels: ${{ steps.backend-meta.outputs.labels }}
 
-      - name: Stop services
-        run: docker-compose down
+      - name: Push frontend Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./next-app
+          file: ./next-app/Dockerfile
+          push: true
+          tags: ${{ steps.frontend-meta.outputs.tags }}
+          labels: ${{ steps.frontend-meta.outputs.labels }}
 
+      # Trigger Production Deployment
       - name: Trigger Next Workflow with PAT
         env:
           PAT: ${{ secrets.PAT }}
