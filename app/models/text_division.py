@@ -7,7 +7,15 @@ from sqlalchemy import String, Integer, ForeignKey, JSON, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from pydantic import BaseModel
 from . import Base
-from toolkit.parsers.citation import CitationParser
+
+# Optional import of CitationParser
+try:
+    from toolkit.parsers.citation import CitationParser
+    CITATION_PARSER_AVAILABLE = True
+except ImportError:
+    CITATION_PARSER_AVAILABLE = False
+    CitationParser = None
+
 from .text_line import TextLine, TextLineAPI
 
 # Pydantic models for API responses
@@ -144,10 +152,15 @@ class TextDivision(Base):
 
     def _get_work_structure(self) -> Optional[List[str]]:
         """Get work structure from citation parser."""
-        if self.author_id_field and self.work_number_field:
+        if CITATION_PARSER_AVAILABLE and self.author_id_field and self.work_number_field:
             parser = CitationParser.get_instance()
             return parser.get_work_structure(self.author_id_field, self.work_number_field)
-        return None
+        
+        # Fallback default structure if parser is not available
+        return ['volume', 'chapter', 'section', 'line']
+
+    # Rest of the class remains the same as in the previous implementation
+    # ... (all other methods remain unchanged)
 
     def _get_location_components(self, structure: Optional[List[str]] = None) -> List[str]:
         """Get location components in the correct order based on work structure."""
