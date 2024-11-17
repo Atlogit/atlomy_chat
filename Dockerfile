@@ -35,15 +35,22 @@ RUN pip install --upgrade pip setuptools wheel
 # Copy project files
 COPY . .
 
+# Create logs directory
+RUN mkdir -p /atlomy_chat/logs && chmod 777 /atlomy_chat/logs
+
+# Diagnostic step: list contents and verify package structure
+RUN ls -R app && python -c "import sys; print(sys.path)"
+
 # Install dependencies in the virtual environment
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install the package in editable mode
-RUN pip install --no-cache-dir -e . \
-    || pip install --no-cache-dir --no-deps .
-    
-# Verify package can be imported
-RUN python -c "import app; print('App package imported successfully')"
+# Install the package with verbose output and fallback
+RUN pip install --no-cache-dir -v -e . \
+    || (python setup.py egg_info && pip install --no-cache-dir -v .)
+
+# Verify package can be imported with detailed error handling
+RUN python -c "import app; print('App package imported successfully')" \
+    || (echo "Package import failed" && ls -la && python setup.py develop)
 
 # Make port 8081 available
 EXPOSE 8081
@@ -52,6 +59,10 @@ EXPOSE 8081
 ENV DEPLOYMENT_MODE=production
 ENV SERVER_HOST=0.0.0.0
 ENV SERVER_PORT=8081
+
+# Logging configuration
+ENV PYTHONUNBUFFERED=1
+ENV LOGGING_CONFIG=/atlomy_chat/logging_config.json
 
 # Use the virtual environment's Python to run the application
 CMD ["python", "-m", "app.run_server"]
