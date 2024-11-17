@@ -63,17 +63,31 @@ jobs:
           ref: production
           fetch-depth: 0
 
-      # Verbose file system debugging to ensure correct context
-      - name: Verify Repository Context
+      # Deployment Logging Preparation
+      - name: Prepare Deployment Logs
         run: |
-          pwd
-          echo "=== Repository Root Contents ==="
-          ls -la
-          echo "=== Dockerfile Verification ==="
-          cat Dockerfile || echo "Dockerfile not found"
-          echo "=== Full Directory Tree ==="
-          find . -maxdepth 2 -type f | sort
+          # Create deployment logs directory with full permissions
+          mkdir -p deployment_logs
+          chmod 777 deployment_logs
+          
+          # Log workflow initiation
+          echo "Workflow initiated at $(date)" > deployment_logs/workflow_start.log
+          echo "Repository: ${{ github.repository }}" >> deployment_logs/workflow_start.log
+          echo "Workflow Run ID: ${{ github.run_id }}" >> deployment_logs/workflow_start.log
+          
+          # Verify directory and initial log
+          ls -la deployment_logs
 
+          - name: Verify Repository Context
+          run: |
+            pwd
+            echo "=== Repository Root Contents ==="
+            ls -la
+            echo "=== Dockerfile Verification ==="
+            cat Dockerfile || echo "Dockerfile not found"
+            echo "=== Full Directory Tree ==="
+            find . -maxdepth 2 -type f | sort
+  
       # GitHub Container Registry authentication using GitHub Token
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
@@ -234,11 +248,23 @@ jobs:
             exit 1
           HEALTH_EOF
 
-      # Log Preservation
+      # Log Preservation with Fallback
       - name: Preserve Deployment Logs
         if: always()
         uses: actions/upload-artifact@v3
         with:
           name: deployment-logs
-          path: deployment_logs/
+          path: |
+            deployment_logs/
+            ${{ github.workspace }}/deployment_logs/
           retention-days: 7
+
+      # Fallback Log Generation
+      - name: Generate Fallback Logs
+        if: failure()
+        run: |
+          mkdir -p deployment_logs
+          echo "Workflow Failed" > deployment_logs/workflow_failure.log
+          echo "Workflow Run ID: ${{ github.run_id }}" >> deployment_logs/workflow_failure.log
+          echo "Repository: ${{ github.repository }}" >> deployment_logs/workflow_failure.log
+          env >> deployment_logs/environment_vars.log
