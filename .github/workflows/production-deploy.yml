@@ -15,7 +15,14 @@ on:
         type: boolean
         default: false
 
+# Comprehensive permissions for GitHub Actions workflow
+permissions:
+  contents: read
+  packages: read
+  id-token: write
+
 jobs:
+  # Initial debug and context verification step
   debug-workflow-trigger:
     runs-on: ubuntu-latest
     if: ${{ always() }}
@@ -37,8 +44,10 @@ jobs:
           echo "=== Full GitHub Context ==="
           echo "$GITHUB_CONTEXT"
 
+  # Primary deployment job
   deploy-to-ec2:
     needs: debug-workflow-trigger
+    # Conditional execution based on workflow trigger or manual dispatch
     if: |
       (github.event_name == 'workflow_dispatch') ||
       (github.event.workflow_run.conclusion == 'success' && 
@@ -52,12 +61,14 @@ jobs:
       id-token: write
 
     steps:
+      # Repository checkout with explicit production branch reference
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           ref: production
           fetch-depth: 0
 
+      # Verbose file system debugging to ensure correct context
       - name: Verbose File System Debug
         run: |
           pwd
@@ -68,6 +79,7 @@ jobs:
           echo "=== Full Directory Tree ==="
           find . -type f | sort
 
+      # Explicit Dockerfile presence verification
       - name: Verify Dockerfile Presence
         run: |
           if [ ! -f Dockerfile ]; then
@@ -76,17 +88,22 @@ jobs:
           fi
           echo "Dockerfile verified successfully"
 
+      # GitHub Container Registry authentication using GitHub Token
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
-          username: ${{ secrets.PAT_USERNAME }}
-          password: ${{ secrets.PAT }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Docker image pull with explicit repository name transformation
       - name: Pull latest Docker image from GitHub Registry
         run: |
-          docker pull ghcr.io/$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]'):production
+          REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          echo "Pulling image for repository: $REPO_LOWER"
+          docker pull ghcr.io/$REPO_LOWER:production
 
+      # Remaining workflow steps (Python setup, AWS credentials, etc.)
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
@@ -97,12 +114,14 @@ jobs:
           python -m pip install --upgrade pip
           pip install boto3 botocore awscli
 
+      # AWS OIDC credential configuration
       - name: Configure AWS Credentials with OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
           aws-region: us-east-1
 
+      # Secrets retrieval from AWS Secrets Manager
       - name: Retrieve Production Secrets from AWS Secrets Manager
         id: get-secrets
         run: |
@@ -117,6 +136,7 @@ jobs:
           echo "REDIS_URL=$redis_url" >> $GITHUB_OUTPUT
           echo "BEDROCK_MODEL_ID=$bedrock_model_id" >> $GITHUB_OUTPUT
 
+      # Deployment configuration preparation
       - name: Prepare deployment configuration
         env:
           REDIS_URL: ${{ steps.get-secrets.outputs.REDIS_URL }}
@@ -128,6 +148,7 @@ jobs:
           echo "BEDROCK_MODEL_ID=$BEDROCK_MODEL_ID" >> ./deploy_config/deployment.env
           chmod 600 ./deploy_config/deployment.env
 
+      # Configuration validation
       - name: Run configuration validator
         run: |
           python config_validator.py .env.production
@@ -135,6 +156,7 @@ jobs:
           DEPLOYMENT_MODE: production
           AWS_DEFAULT_REGION: us-east-1
 
+      # EC2 deployment via SSH
       - name: Deploy to EC2 via SSH
         env:
           EC2_SSH_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
@@ -187,6 +209,7 @@ jobs:
             docker-compose logs --tail=50 >> deployment.log 2>&1
           DEPLOY_EOF
 
+      # Advanced health verification
       - name: Verify Deployment with Advanced Health Checks
         env:
           EC2_SSH_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
