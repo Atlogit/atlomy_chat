@@ -39,10 +39,6 @@ jobs:
           echo "Head Branch: ${{ github.event.workflow_run.head_branch }}"
           echo "Triggering Workflow ID: ${{ github.event.workflow_run.id }}"
           echo "Triggering Workflow URL: ${{ github.event.workflow_run.html_url }}"
-          echo "=== Full Workflow Run Details ==="
-          echo "$WORKFLOW_RUN"
-          echo "=== Full GitHub Context ==="
-          echo "$GITHUB_CONTEXT"
 
   # Primary deployment job
   deploy-to-ec2:
@@ -69,15 +65,15 @@ jobs:
           fetch-depth: 0
 
       # Verbose file system debugging to ensure correct context
-      - name: Verbose File System Debug
+      - name: Verify Repository Context
         run: |
           pwd
           echo "=== Repository Root Contents ==="
           ls -la
-          echo "=== Dockerfile Contents ==="
-          cat Dockerfile || echo "Dockerfile not found"
+          echo "=== Dockerfile Verification ==="
+          ls -l Dockerfile || echo "Dockerfile not found"
           echo "=== Full Directory Tree ==="
-          find . -type f | sort
+          find . -maxdepth 2 -type f | sort
 
       # Explicit Dockerfile presence verification
       - name: Verify Dockerfile Presence
@@ -86,6 +82,7 @@ jobs:
             echo "Critical Error: Dockerfile is missing!"
             exit 1
           fi
+          cat Dockerfile
           echo "Dockerfile verified successfully"
 
       # GitHub Container Registry authentication using GitHub Token
@@ -101,9 +98,9 @@ jobs:
         run: |
           REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
           echo "Pulling image for repository: $REPO_LOWER"
-          docker pull ghcr.io/$REPO_LOWER:production
+          docker pull ghcr.io/$REPO_LOWER:production || true
 
-      # Remaining workflow steps (Python setup, AWS credentials, etc.)
+                # Remaining workflow steps (Python setup, AWS credentials, etc.)
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
@@ -156,14 +153,12 @@ jobs:
           DEPLOYMENT_MODE: production
           AWS_DEFAULT_REGION: us-east-1
 
-      # EC2 deployment via SSH
-      - name: Deploy to EC2 via SSH
+      # Deployment to EC2 via SSH
+      - name: Deploy to EC2
         env:
           EC2_SSH_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
-          REDIS_URL: ${{ steps.get-secrets.outputs.REDIS_URL }}
-          BEDROCK_MODEL_ID: ${{ steps.get-secrets.outputs.BEDROCK_MODEL_ID }}
         run: |
           # Debugging SSH Connection
           echo "Attempting to deploy to $EC2_HOST as $EC2_USER"
@@ -172,70 +167,45 @@ jobs:
           mkdir -p ~/.ssh
           echo "$EC2_SSH_KEY" > ~/.ssh/ec2_key
           chmod 600 ~/.ssh/ec2_key
-          
-          # Add Host Key Scanning
-          ssh-keyscan -H $EC2_HOST >> ~/.ssh/known_hosts 2>/dev/null
-          
-          # Verbose SSH Connection Test
-          ssh -vv -T -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << SSH_TEST
-            echo "SSH Connection Successful"
-            pwd
-            whoami
-          SSH_TEST
-          
-          # Deployment Commands
-          ssh -T -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << DEPLOY_COMMANDS
-            # Create Project Directory
+          ssh-keyscan -H $EC2_HOST >> ~/.ssh/known_hosts
+
+          # Deploy via SSH
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << DEPLOY_COMMANDS
+            # Ensure project directory exists
             mkdir -p /home/ec2-user/atlomy_chat
-            chmod 750 /home/ec2-user/atlomy_chat
             cd /home/ec2-user/atlomy_chat
-            
-            # Deployment Logging
-            echo "Deployment initiated at \$(date)" > deployment.log
-            
-            # Pull Latest Docker Image
+
+            # Pull latest Docker image
             docker pull ghcr.io/$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]'):production
-            
-            # Stop and Remove Existing Containers
-            docker-compose down
-            
-            # Start New Deployment
+
+            # Stop existing containers
+            docker-compose down || true
+
+            # Start new deployment
             docker-compose up -d
-            
-            # Wait for Container Startup
-            sleep 30
-            
-            # Verbose Container Status
+
+            # Log deployment details
             docker-compose ps
             docker-compose logs --tail=50
           DEPLOY_COMMANDS
-          
-          # Capture SSH Exit Code
-          ssh_exit_code=$?
-          if [ $ssh_exit_code -ne 0 ]; then
-            echo "SSH Deployment Failed with Exit Code: $ssh_exit_code"
-            exit $ssh_exit_code
-          fi
 
-      # Advanced health verification
-      - name: Verify Deployment with Advanced Health Checks
+      # Health Verification
+      - name: Verify Deployment Health
         env:
           EC2_SSH_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
         run: |
-          # Health Check via SSH
-          ssh -T -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << HEALTH_CHECK
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << HEALTH_CHECK
             cd /home/ec2-user/atlomy_chat
             
-            # Advanced Health Verification
+            # Health check with retry
             max_attempts=3
             attempt=0
             
             while [ \$attempt -lt \$max_attempts ]; do
               echo "Health Check Attempt \$((attempt + 1))"
               
-              # Comprehensive Health Check
               health_response=$(curl -s -w "%{http_code}" http://localhost:8081/health)
               http_status=\${health_response: -3}
               
@@ -245,8 +215,6 @@ jobs:
               fi
               
               echo "Health Check Failed. Status Code: \$http_status"
-              
-              # Container Logs for Debugging
               docker-compose logs --tail=50
               
               attempt=\$((attempt + 1))
