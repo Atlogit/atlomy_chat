@@ -139,11 +139,15 @@ jobs:
           REDIS_URL: ${{ steps.get-secrets.outputs.REDIS_URL }}
           BEDROCK_MODEL_ID: ${{ steps.get-secrets.outputs.BEDROCK_MODEL_ID }}
         run: |
-          mkdir -p ./deploy_config
-          echo "DEPLOYMENT_MODE=production" > ./deploy_config/deployment.env
-          echo "REDIS_URL=$REDIS_URL" >> ./deploy_config/deployment.env
-          echo "BEDROCK_MODEL_ID=$BEDROCK_MODEL_ID" >> ./deploy_config/deployment.env
-          chmod 600 ./deploy_config/deployment.env
+          # Create configuration in project directory
+          mkdir -p atlomy_chat/deploy_config
+          echo "DEPLOYMENT_MODE=production" > atlomy_chat/deploy_config/deployment.env
+          echo "REDIS_URL=$REDIS_URL" >> atlomy_chat/deploy_config/deployment.env
+          echo "BEDROCK_MODEL_ID=$BEDROCK_MODEL_ID" >> atlomy_chat/deploy_config/deployment.env
+          chmod 600 atlomy_chat/deploy_config/deployment.env
+          
+          # Verify configuration file
+          cat atlomy_chat/deploy_config/deployment.env
 
       # Configuration validation
       - name: Run configuration validator
