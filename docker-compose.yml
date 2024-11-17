@@ -9,8 +9,8 @@ services:
     ports:
       - "8081:8081"
     volumes:
-      - ./logs:/var/log/amta
-      - ./.env:/opt/amta/.env
+      - ./logs:/atlomy_chat/logs
+      - ./.env:/atlomy_chat/.env
     env_file:
       - .env
     environment:
