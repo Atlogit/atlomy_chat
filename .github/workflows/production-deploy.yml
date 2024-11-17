@@ -149,23 +149,39 @@ jobs:
           chmod 600 ~/.ssh/ec2_key
           ssh-keyscan -H $EC2_HOST >> ~/.ssh/known_hosts
 
-          # Ensure secure project directory
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << SETUP_EOF
+          # Comprehensive Permission and User Context Debugging
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << PERMISSION_DEBUG_EOF
+            echo "=== User and Permission Context ==="
+            whoami
+            id
+            pwd
+            
+            echo "=== Docker Permissions ==="
+            ls -l /var/run/docker.sock || echo "Docker socket not accessible"
+            groups
+            
+            echo "=== Sudo Configuration ==="
+            sudo -l
+            
+            echo "=== Deployment Directory Permissions ==="
             mkdir -p /home/ec2-user/atlomy_chat
-            chmod 750 /home/ec2-user/atlomy_chat
-          SETUP_EOF
+            ls -ld /home/ec2-user/atlomy_chat
+            touch /home/ec2-user/atlomy_chat/test_file
+            ls -l /home/ec2-user/atlomy_chat/test_file
+            
+            echo "=== Docker and Docker Compose Versions ==="
+            docker version || echo "Docker not accessible"
+            docker-compose version || echo "Docker Compose not accessible"
+          PERMISSION_DEBUG_EOF
 
-          # Securely copy deployment files
-          scp -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key \
-              ./deploy_config/deployment.env \
-              $EC2_USER@$EC2_HOST:/home/ec2-user/atlomy_chat/.env
-
-          scp -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key \
-              docker-compose.yml \
-              $EC2_USER@$EC2_HOST:/home/ec2-user/atlomy_chat/docker-compose.yml
-
-          # Enhanced deployment script
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << DEPLOY_EOF
+      - name: Deployment Preparation
+        env:
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+        run: |
+          # Secure Deployment Setup
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << SETUP_EOF
             cd /home/ec2-user/atlomy_chat
             
             # Comprehensive Deployment Logging
@@ -186,7 +202,7 @@ jobs:
             # Verbose Container Status
             docker-compose ps >> deployment.log 2>&1
             docker-compose logs --tail=50 >> deployment.log 2>&1
-          DEPLOY_EOF
+          SETUP_EOF
 
       - name: Verify Deployment with Advanced Health Checks
         env:
