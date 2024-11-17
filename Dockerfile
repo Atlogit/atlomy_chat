@@ -4,6 +4,8 @@ FROM python:3.11-slim-bullseye
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
+ENV VIRTUAL_ENV=/atlomy_chat/venv
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
 # Set working directory to the project root
 WORKDIR /atlomy_chat
@@ -17,15 +19,12 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Create virtual environment in the project directory
-RUN python3 -m venv /atlomy_chat/venv
-
-# Explicitly set PATH to use venv
-ENV PATH="/atlomy_chat/venv/bin:$PATH"
+RUN python3 -m venv $VIRTUAL_ENV
 
 # Verify venv creation and activation
 RUN python3 -m venv --help && \
     ls -la /atlomy_chat && \
-    ls -la /atlomy_chat/venv && \
+    ls -la $VIRTUAL_ENV && \
     which python && \
     python --version
 
@@ -44,13 +43,24 @@ RUN ls -R app && python -c "import sys; print(sys.path)"
 # Install dependencies in the virtual environment
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install the package with verbose output and fallback
-RUN pip install --no-cache-dir -v -e . \
-    || (python setup.py egg_info && pip install --no-cache-dir -v .)
+# Verbose package installation with comprehensive diagnostics
+RUN pip install --no-cache-dir -v -e . || \
+    (echo "=== Package Installation Diagnostics ===" && \
+     echo "Virtual Environment: $VIRTUAL_ENV" && \
+     echo "Current Directory: $(pwd)" && \
+     echo "=== Directory Contents ===" && \
+     ls -la && \
+     echo "=== Python Path ===" && \
+     python -c "import sys; print('\n'.join(sys.path))" && \
+     echo "=== Installed Packages ===" && \
+     pip list && \
+     false)
 
-# Verify package can be imported with detailed error handling
-RUN python -c "import app; print('App package imported successfully')" \
-    || (echo "Package import failed" && ls -la && python setup.py develop)
+# Verify package can be imported
+RUN python -c "import app; print('App package imported successfully')"
+
+# Verify specific module can be imported
+RUN python -c "from app import run_server; print('run_server module imported successfully')"
 
 # Make port 8081 available
 EXPOSE 8081
@@ -59,10 +69,6 @@ EXPOSE 8081
 ENV DEPLOYMENT_MODE=production
 ENV SERVER_HOST=0.0.0.0
 ENV SERVER_PORT=8081
-
-# Logging configuration
-ENV PYTHONUNBUFFERED=1
-ENV LOGGING_CONFIG=/atlomy_chat/logging_config.json
 
 # Use the virtual environment's Python to run the application
 CMD ["python", "-m", "app.run_server"]

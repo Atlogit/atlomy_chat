@@ -12,7 +12,11 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/Atlogit/atlomy_chat",
-    packages=find_packages(include=["app.*"]),
+    
+    # Comprehensive package discovery
+    packages=find_packages(where='.', include=['app', 'app.*']),
+    package_dir={'': '.'},
+    
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Academic Research",

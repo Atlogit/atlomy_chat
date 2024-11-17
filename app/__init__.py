@@ -1,3 +1,4 @@
-"""
-This module contains the web application components for the Ancient Medical Texts Analysis App.
-"""
+"""AMTA: Ancient Medical Text Analysis"""
+
+__version__ = "1.0.0"
+__package_name__ = "amta"

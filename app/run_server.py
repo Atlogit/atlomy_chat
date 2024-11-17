@@ -135,7 +135,8 @@ async def startup_event():
     logger.info(f"LLM Provider: {settings.llm.PROVIDER}")
     logger.info(f"Database URL: {settings.DATABASE_URL.split('@')[1]}")  # Log only host part for security
 
-if __name__ == "__main__":
+def main():
+    """Entry point for the application."""
     import uvicorn
     logger.info("Starting Uvicorn server")
     uvicorn.run(
@@ -145,3 +146,6 @@ if __name__ == "__main__":
         reload=settings.DEBUG,
         log_config=logging_config
     )
+
+if __name__ == "__main__":
+    main()
