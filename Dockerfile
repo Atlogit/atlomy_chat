@@ -6,6 +6,7 @@ ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
 ENV VIRTUAL_ENV=/atlomy_chat/venv
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+ENV PYTHONPATH="/atlomy_chat:$PYTHONPATH"
 
 # Set working directory to the project root
 WORKDIR /atlomy_chat
@@ -20,6 +21,9 @@ RUN apt-get update && apt-get install -y \
 
 # Create virtual environment in the project directory
 RUN python3 -m venv $VIRTUAL_ENV
+
+# Explicitly set PATH to use venv
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
 # Verify venv creation and activation
 RUN python3 -m venv --help && \
@@ -38,7 +42,7 @@ COPY . .
 RUN mkdir -p /atlomy_chat/logs && chmod 777 /atlomy_chat/logs
 
 # Diagnostic step: list contents and verify package structure
-RUN ls -R app && python -c "import sys; print(sys.path)"
+RUN ls -R app && python -c "import sys; print('\n'.join(sys.path))"
 
 # Install dependencies in the virtual environment
 RUN pip install --no-cache-dir -r requirements.txt
@@ -54,13 +58,19 @@ RUN pip install --no-cache-dir -v -e . || \
      python -c "import sys; print('\n'.join(sys.path))" && \
      echo "=== Installed Packages ===" && \
      pip list && \
+     echo "=== PYTHONPATH ===" && \
+     python -c "import os; print(os.environ.get('PYTHONPATH', 'Not set'))" && \
      false)
+
+# Additional diagnostic steps for package discovery
+RUN python -c "import sys; print('Current working directory:', sys.path[0])" && \
+    python -c "import os; print('Current working directory:', os.getcwd())"
 
 # Verify package can be imported
 RUN python -c "import app; print('App package imported successfully')"
 
-# Verify specific module can be imported
-RUN python -c "from app import run_server; print('run_server module imported successfully')"
+# Verify specific module can be imported with full path
+RUN PYTHONPATH=/atlomy_chat python -c "from app import run_server; print('run_server module imported successfully')"
 
 # Make port 8081 available
 EXPOSE 8081
