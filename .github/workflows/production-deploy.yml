@@ -78,16 +78,17 @@ jobs:
           # Verify directory and initial log
           ls -la deployment_logs
 
-          - name: Verify Repository Context
-          run: |
-            pwd
-            echo "=== Repository Root Contents ==="
-            ls -la
-            echo "=== Dockerfile Verification ==="
-            cat Dockerfile || echo "Dockerfile not found"
-            echo "=== Full Directory Tree ==="
-            find . -maxdepth 2 -type f | sort
-  
+      # Verify Repository Context
+      - name: Verify Repository Context
+        run: |
+          pwd
+          echo "=== Repository Root Contents ==="
+          ls -la
+          echo "=== Dockerfile Verification ==="
+          cat Dockerfile || echo "Dockerfile not found"
+          echo "=== Full Directory Tree ==="
+          find . -maxdepth 2 -type f | sort
+
       # GitHub Container Registry authentication using GitHub Token
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
