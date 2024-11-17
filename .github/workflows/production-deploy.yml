@@ -70,19 +70,9 @@ jobs:
           echo "=== Repository Root Contents ==="
           ls -la
           echo "=== Dockerfile Verification ==="
-          ls -l Dockerfile || echo "Dockerfile not found"
+          cat Dockerfile || echo "Dockerfile not found"
           echo "=== Full Directory Tree ==="
           find . -maxdepth 2 -type f | sort
-
-      # Explicit Dockerfile presence verification
-      - name: Verify Dockerfile Presence
-        run: |
-          if [ ! -f Dockerfile ]; then
-            echo "Critical Error: Dockerfile is missing!"
-            exit 1
-          fi
-          cat Dockerfile
-          echo "Dockerfile verified successfully"
 
       # GitHub Container Registry authentication using GitHub Token
       - name: Login to GitHub Container Registry
@@ -99,7 +89,7 @@ jobs:
           echo "Pulling image for repository: $REPO_LOWER"
           docker pull ghcr.io/$REPO_LOWER:production || true
 
-                # Remaining workflow steps (Python setup, AWS credentials, etc.)
+      # Remaining workflow steps (Python setup, AWS credentials, etc.)
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
@@ -144,7 +134,7 @@ jobs:
           echo "BEDROCK_MODEL_ID=$BEDROCK_MODEL_ID" >> .env
           chmod 600 .env
 
-      # Deployment to EC2 via SSH
+      # EC2 deployment via SSH
       - name: Deploy to EC2
         env:
           EC2_SSH_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
@@ -155,40 +145,43 @@ jobs:
           mkdir -p ~/.ssh
           echo "$EC2_SSH_KEY" > ~/.ssh/ec2_key
           chmod 600 ~/.ssh/ec2_key
-          ssh-keyscan -H $EC2_HOST >> ~/.ssh/known_hosts
 
-          # Deploy via SSH with disabled pseudo-terminal
-          ssh -T -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << DEPLOY_COMMANDS
-            # Ensure project directory exists
-            mkdir -p /home/ec2-user/atlomy_chat
-            cd /home/ec2-user/atlomy_chat
+          # Add Host Key Scanning to EC2 user's known_hosts
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << SSH_SETUP
+            mkdir -p /home/$EC2_USER/.ssh
+            chmod 700 /home/$EC2_USER/.ssh
+            ssh-keyscan -H $EC2_HOST >> /home/$EC2_USER/.ssh/known_hosts
+            chmod 600 /home/$EC2_USER/.ssh/known_hosts
+          SSH_SETUP
 
+          # Ensure project directory exists
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << MKDIR_COMMANDS
+            mkdir -p /home/$EC2_USER/atlomy_chat
+            chmod 750 /home/$EC2_USER/atlomy_chat
+          MKDIR_COMMANDS
+
+          # Copy deployment files
+          scp -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key \
+              .env Dockerfile docker-compose.yml \
+              $EC2_USER@$EC2_HOST:/home/$EC2_USER/atlomy_chat/
+
+          # Deploy and start services
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << DEPLOY_COMMANDS
+            cd /home/$EC2_USER/atlomy_chat
+            
             # Pull latest Docker image
             docker pull ghcr.io/$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]'):production
-          DEPLOY_COMMANDS
-
-          # Copy deployment files to EC2
-          scp -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key \
-              .env docker-compose.yml \
-              $EC2_USER@$EC2_HOST:/home/ec2-user/atlomy_chat/
-
-          # Continue deployment with disabled pseudo-terminal
-          ssh -T -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << FINAL_DEPLOY
-            cd /home/ec2-user/atlomy_chat
-
-            # Verify files exist
-            ls -l .env docker-compose.yml
-
-            # Stop existing containers
+            
+            # Stop and remove existing containers
             docker-compose down || true
-
+            
             # Start new deployment
             docker-compose up -d
-
+            
             # Log deployment details
             docker-compose ps
             docker-compose logs --tail=50
-          FINAL_DEPLOY
+          DEPLOY_COMMANDS
 
       # Health Verification
       - name: Verify Deployment Health
@@ -197,11 +190,11 @@ jobs:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
         run: |
-          ssh -T -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << HEALTH_CHECK
-            cd /home/ec2-user/atlomy_chat
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << HEALTH_CHECK
+            cd /home/$EC2_USER/atlomy_chat
             
             # Health check with retry
-            max_attempts=3
+            max_attempts=5
             attempt=0
             
             while [ \$attempt -lt \$max_attempts ]; do
