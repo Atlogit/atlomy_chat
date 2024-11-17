@@ -1,17 +1,40 @@
 [build-system]
-requires = ["setuptools>=45", "wheel", "setuptools_scm[toml]>=6.2"]
+requires = ["setuptools>=61.0", "wheel", "setuptools_scm[toml]>=7.0"]
 build-backend = "setuptools.build_meta"
 
+[project]
+name = "atlomy_chat"
+version = "0.1.0"
+description = "Atlomy Chat Application"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+dependencies = [
+    "fastapi==0.111.1",
+    "uvicorn==0.22.0",
+    "sqlalchemy==2.0.36",
+    "pydantic==2.9.2",
+    "boto3==1.35.49",
+    "python-dotenv==1.0.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.3.1",
+    "black>=23.3.0",
+    "isort>=5.12.0",
+    "mypy>=1.3.0"
+]
+
 [tool.setuptools_scm]
-write_to = "src/atlomy_chat/_version.py"
+write_to = "app/_version.py"
 
 [tool.black]
-line-length = 100
-target-version = ['py37']
+line-length = 120
+target-version = ['py311']
 include = '\.pyi?$'
 extend-exclude = '''
 /(
-  # directories
   \.eggs
   | \.git
   | build
@@ -21,26 +44,35 @@ extend-exclude = '''
 
 [tool.isort]
 profile = "black"
+line_length = 120
 multi_line_output = 3
 include_trailing_comma = true
 force_grid_wrap = 0
 use_parentheses = true
 ensure_newline_before_comments = true
-line_length = 100
 
 [tool.pytest.ini_options]
-minversion = "6.0"
+minversion = "7.0"
 addopts = "-ra -q"
 testpaths = [
     "tests",
-    "toolkit/tests",
 ]
 pythonpath = [
     ".",
 ]
 
 [tool.mypy]
-python_version = "3.7"
+python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
 ignore_missing_imports = true
+strict = true
+
+[tool.coverage.run]
+source = ["app"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+select = ["E", "F", "W", "I", "N", "UP", "ASYNC"]
+ignore = ["E501"]

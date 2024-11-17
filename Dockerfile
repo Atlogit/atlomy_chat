@@ -1,4 +1,3 @@
-# Use an official Python runtime as a parent image
 FROM python:3.11-slim-bullseye
 
 # Set environment variables
@@ -37,11 +36,17 @@ COPY . .
 # Install dependencies in the virtual environment
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install the package in editable mode
-RUN pip install --no-cache-dir -e .
+# Attempt package installation with multiple strategies
+RUN pip install --no-cache-dir . || \
+    pip install --no-cache-dir -e . || \
+    pip install --no-cache-dir -e ./app
 
 # Verify package can be imported
-RUN python -c "import app; print('App package imported successfully')"
+RUN python -c "import app; print('App package imported successfully')" || \
+    (echo "Import failed. Debugging information:" && \
+     python -c "import sys; print('Python path:', sys.path)" && \
+     ls -la && \
+     exit 1)
 
 # Make port 8081 available
 EXPOSE 8081
