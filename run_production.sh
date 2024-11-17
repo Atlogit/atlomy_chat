@@ -96,11 +96,17 @@ export DEBUG=false
 export LOG_LEVEL=INFO
 export PYTHONPATH="${PYTHONPATH:+${PYTHONPATH}:}$(pwd)"
 
+# Set default server configuration if not already set
+export SERVER_HOST=${SERVER_HOST:-0.0.0.0}
+export SERVER_PORT=${SERVER_PORT:-8000}
+
 # Log important settings
 log "INFO" "Production settings:"
 log "INFO" "  - AWS Region: $AWS_REGION"
 log "INFO" "  - Bedrock Model: $BEDROCK_MODEL_ID"
 log "INFO" "  - Database URL: $DATABASE_URL"
+log "INFO" "  - Server Host: $SERVER_HOST"
+log "INFO" "  - Server Port: $SERVER_PORT"
 
 # Start FastAPI server in production mode
 log "INFO" "Starting FastAPI backend in production mode..."
@@ -113,8 +119,8 @@ log "INFO" "Starting FastAPI backend in production mode..."
     fi
     
     uvicorn app.run_server:app \
-        --host 0.0.0.0 \
-        --port 8000 \
+        --host "$SERVER_HOST" \
+        --port "$SERVER_PORT" \
         --log-level warning \
         --log-config "$LOG_CONFIG" &
 } >> "${FASTAPI_LOG}" 2>&1
@@ -125,7 +131,7 @@ FASTAPI_PID=$!
 log "INFO" "Waiting for FastAPI server to be ready..."
 max_attempts=30
 attempt=0
-while ! curl -s http://localhost:8000/api/docs >/dev/null && [ $attempt -lt $max_attempts ]; do
+while ! curl -s http://localhost:"$SERVER_PORT"/api/docs >/dev/null && [ $attempt -lt $max_attempts ]; do
     attempt=$((attempt + 1))
     log "INFO" "Waiting for FastAPI server (attempt ${attempt}/${max_attempts})..."
     sleep 1
@@ -141,6 +147,19 @@ log "INFO" "FastAPI server is ready."
 # Start Next.js frontend in production mode
 log "INFO" "Setting up Next.js frontend in production mode..."
 cd next-app
+
+# NVM Version Check for Next.js
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
+REQUIRED_NODE_VERSION="20.18.0"
+if ! nvm use "$REQUIRED_NODE_VERSION"; then
+    log "ERROR" "Node.js $REQUIRED_NODE_VERSION is not installed for Next.js frontend."
+    log "ERROR" "Please install Node.js $REQUIRED_NODE_VERSION using nvm:"
+    log "ERROR" "  nvm install $REQUIRED_NODE_VERSION"
+    log "ERROR" "  nvm use $REQUIRED_NODE_VERSION"
+    exit 1
+fi
 
 # Verbose build process with error logging
 log "INFO" "Building Next.js application..."
@@ -185,7 +204,7 @@ fi
 cd ..
 
 log "INFO" "Production environment is fully set up!"
-log "INFO" "FastAPI backend is running at http://localhost:8000 (PID: ${FASTAPI_PID})"
+log "INFO" "FastAPI backend is running at http://localhost:${SERVER_PORT} (PID: ${FASTAPI_PID})"
 log "INFO" "Next.js frontend is running at http://localhost:3000 (PID: ${NEXTJS_PID})"
 log "INFO" "Log files:"
 log "INFO" "  - FastAPI: ${FASTAPI_LOG}"

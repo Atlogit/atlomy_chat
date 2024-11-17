@@ -130,6 +130,8 @@ async def startup_event():
     logger.info(f"API Version: {settings.API_V1_STR}")
     logger.info(f"Debug Mode: {settings.DEBUG}")
     logger.info(f"Log Level: {settings.LOG_LEVEL}")
+    logger.info(f"Server Host: {settings.SERVER_HOST}")
+    logger.info(f"Server Port: {settings.SERVER_PORT}")
     logger.info(f"LLM Provider: {settings.llm.PROVIDER}")
     logger.info(f"Database URL: {settings.DATABASE_URL.split('@')[1]}")  # Log only host part for security
 
@@ -138,8 +140,8 @@ if __name__ == "__main__":
     logger.info("Starting Uvicorn server")
     uvicorn.run(
         "app.run_server:app",
-        host="0.0.0.0",
-        port=8081,
+        host=settings.SERVER_HOST,
+        port=settings.SERVER_PORT,
         reload=settings.DEBUG,
         log_config=logging_config
     )

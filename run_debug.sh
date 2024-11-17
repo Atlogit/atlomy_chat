@@ -96,7 +96,7 @@ cleanup() {
     fi
     
     # Check if ports are still in use
-    for port in 8000 3000; do
+    for port in 8081 3000; do
         if check_port ${port}; then
             log "WARN" "Port ${port} is still in use"
         fi
@@ -120,7 +120,7 @@ log "INFO" "Starting debug environment setup..."
 cleanup
 
 # Check if required ports are available
-for port in 8000 3000; do
+for port in 8081 3000; do
     if check_port ${port}; then
         log "ERROR" "Port ${port} is already in use. Please free the port and try again."
         exit 1
@@ -199,7 +199,7 @@ log "INFO" "Starting FastAPI backend..."
         --reload \
         --log-level debug \
         --host 0.0.0.0 \
-        --port 8000 \
+        --port 8081 \
         --reload-dir app \
         --log-config "$LOG_CONFIG" &
 } >> "${FASTAPI_LOG}" 2>&1
@@ -210,7 +210,7 @@ FASTAPI_PID=$!
 log "INFO" "Waiting for FastAPI server to be ready..."
 max_attempts=30
 attempt=0
-while ! curl -s http://localhost:8000/api/docs >/dev/null && [ $attempt -lt $max_attempts ]; do
+while ! curl -s http://localhost:8081/api/docs >/dev/null && [ $attempt -lt $max_attempts ]; do
     attempt=$((attempt + 1))
     log "INFO" "Waiting for FastAPI server (attempt ${attempt}/${max_attempts})..."
     sleep 1
@@ -280,7 +280,7 @@ fi
 cd ..
 
 log "INFO" "Debug environment is fully set up!"
-log "INFO" "FastAPI backend is running at http://localhost:8000 (PID: ${FASTAPI_PID})"
+log "INFO" "FastAPI backend is running at http://localhost:8081 (PID: ${FASTAPI_PID})"
 log "INFO" "Next.js frontend is running at http://localhost:3000 (PID: ${NEXTJS_PID})"
 log "INFO" "Log files:"
 log "INFO" "  - FastAPI: ${FASTAPI_LOG}"

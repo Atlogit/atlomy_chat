@@ -64,6 +64,10 @@ class Settings(BaseSettings):
     DB_MAX_OVERFLOW: int = 10
     DB_POOL_TIMEOUT: int = 30
     
+    # Server settings
+    SERVER_HOST: str = os.getenv("SERVER_HOST", "0.0.0.0")
+    SERVER_PORT: int = int(os.getenv("SERVER_PORT", "8081"))
+    
     # LLM settings
     llm: LLMConfig = LLMConfig()
     

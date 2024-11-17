@@ -19,6 +19,8 @@ services:
       - REDIS_URL=${REDIS_URL}
       - AWS_REGION=${AWS_REGION:-us-east-1}
       - BEDROCK_MODEL_ID=${BEDROCK_MODEL_ID}
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=8081
     restart: unless-stopped
     depends_on:
       - db
