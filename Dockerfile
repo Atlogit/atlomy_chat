@@ -5,8 +5,8 @@ FROM python:3.11-slim-bullseye
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
 
-# Set working directory
-WORKDIR /opt/amta
+# Set working directory to the project root
+WORKDIR /atlomy_chat
 
 # Install system dependencies and venv creation tools
 RUN apt-get update && apt-get install -y \
@@ -15,16 +15,16 @@ RUN apt-get update && apt-get install -y \
     python3-venv \
     && rm -rf /var/lib/apt/lists/*
 
-# Create virtual environment
-RUN python3 -m venv /opt/amta/venv
+# Create virtual environment in the project directory
+RUN python3 -m venv /atlomy_chat/venv
 
 # Explicitly set PATH to use venv
-ENV PATH="/opt/amta/venv/bin:$PATH"
+ENV PATH="/atlomy_chat/venv/bin:$PATH"
 
 # Verify venv creation and activation
 RUN python3 -m venv --help && \
-    ls -la /opt/amta && \
-    ls -la /opt/amta/venv && \
+    ls -la /atlomy_chat && \
+    ls -la /atlomy_chat/venv && \
     which python && \
     python --version
 
