@@ -156,23 +156,23 @@ jobs:
             cd /home/ec2-user/atlomy_chat
             
             # Comprehensive Deployment Logging
-            echo "Deployment started at \$(date)" > deployment_log.txt
+            echo "Deployment started at \$(date)" > deployment.log
             
             # Pull Latest Docker Image
-            docker pull ghcr.io/$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]'):production >> deployment_log.txt 2>&1
+            docker pull ghcr.io/$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]'):production >> deployment.log 2>&1
             
             # Stop and Remove Existing Containers
-            docker-compose down >> deployment_log.txt 2>&1
+            docker-compose down >> deployment.log 2>&1
             
             # Start New Deployment
-            docker-compose up -d >> deployment_log.txt 2>&1
+            docker-compose up -d >> deployment.log 2>&1
             
             # Wait for Container Startup
             sleep 30
             
             # Verbose Container Status
-            docker-compose ps >> deployment_log.txt 2>&1
-            docker-compose logs --tail=50 >> deployment_log.txt 2>&1
+            docker-compose ps >> deployment.log 2>&1
+            docker-compose logs --tail=50 >> deployment.log 2>&1
           DEPLOY_EOF
 
       - name: Verify Deployment with Advanced Health Checks
