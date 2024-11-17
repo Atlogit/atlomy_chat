@@ -1,108 +1,143 @@
-# AMTA Deployment Checklist
+# AMTA Deployment Checklist: Step-by-Step Verification
 
-## Pre-Deployment Preparation
+## Prerequisite Checklist
+### 1. Local Environment Setup
+- [ ] Git is installed
+- [ ] GitHub CLI is installed (optional)
+- [ ] AWS CLI is configured
+- [ ] SSH key is generated for EC2 access
 
-### 1. Environment Configuration
-- [ ] Copy `.env.example` to `.env`
-- [ ] Configure database connection string
-- [ ] Set AWS Bedrock credentials
-- [ ] Configure Redis settings
-- [ ] Set logging parameters
-- [ ] Review and set security variables
+## Step-by-Step Deployment Process
 
-### 2. System Requirements
-- [ ] Verify Python version (3.10 or 3.11)
-- [ ] Check PostgreSQL database availability
-- [ ] Confirm Redis server connectivity
-- [ ] Validate AWS Bedrock access
+### Step 1: Repository Preparation
+- [ ] Clone repository
+  ```bash
+  git clone https://github.com/your-org/atlomy_chat.git
+  cd atlomy_chat
+  ```
+- [ ] Verify key files exist
+  ```bash
+  ls  # Check for:
+  # - Dockerfile.backend
+  # - next-app/Dockerfile
+  # - docker-compose.yml
+  # - .env.example
+  ```
 
-### 3. Configuration Validation
-- [ ] Run `python config_validator.py`
-- [ ] Resolve any configuration errors
-- [ ] Verify all critical environment variables
+### Step 2: Environment Configuration
+- [ ] Create .env file
+  ```bash
+  cp .env.example .env
+  ```
+- [ ] Edit .env file
+  - [ ] Set REDIS_URL
+  - [ ] Set DATABASE_URL
+  - [ ] Set AWS_REGION
+  - [ ] Set BEDROCK_MODEL_ID
+- [ ] Verify configuration
+  ```bash
+  cat .env  # Double-check settings
+  ```
 
-## Deployment Workflow
+### Step 3: Automated Docker Image Build
+- [ ] Ensure GitHub Actions is configured
+  - [ ] Workflow triggers on push to production branch
+  - [ ] Docker Build and Registry Push workflow exists
+- [ ] Trigger image build
+  ```bash
+  # Option 1: Push to production branch
+  git checkout production
+  git push origin production
 
-### 4. Dependency Management
-- [ ] Create virtual environment
-- [ ] Install project dependencies
-  - `pip install -r requirements.txt`
-  - `pip install .`
-- [ ] Verify dependency installation
+  # Option 2: Manual workflow dispatch
+  gh workflow run docker-deploy.yml
+  ```
+- [ ] Verify image build
+  - [ ] Check GitHub Actions workflow logs
+  - [ ] Confirm images pushed to GitHub Container Registry
 
-### 5. Database Preparation
-- [ ] Run database migrations
-  - `alembic upgrade head`
-- [ ] Verify database schema
-- [ ] Check initial data integrity
+### Step 4: AWS EC2 Preparation
+- [ ] Create EC2 Instance
+  - [ ] Choose Amazon Linux 2 or Ubuntu
+  - [ ] Select t2.medium or larger
+  - [ ] Configure Security Group
+    * Allow SSH (port 22)
+    * Allow HTTP (port 80)
+    * Allow HTTPS (port 443)
+    * Allow application ports (8081, 3000)
+- [ ] Install Docker on EC2
+  ```bash
+  # For Amazon Linux
+  sudo yum update -y
+  sudo yum install docker -y
+  sudo systemctl start docker
+  sudo systemctl enable docker
 
-### 6. Deployment Options Checklist
+  # For Ubuntu
+  sudo apt update -y
+  sudo apt install docker.io -y
+  sudo systemctl start docker
+  sudo systemctl enable docker
+  ```
+- [ ] Install Docker Compose
+  ```bash
+  sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+  sudo chmod +x /usr/local/bin/docker-compose
+  ```
 
-#### Local Development
-- [ ] Start local server
-  - `uvicorn app.run_server:app --host 0.0.0.0 --port 8000`
-- [ ] Verify local accessibility
-- [ ] Test basic functionality
+### Step 5: GitHub Actions Configuration
+- [ ] Configure GitHub Secrets
+  - [ ] `AWS_OIDC_ROLE_ARN`: AWS IAM Role ARN
+  - [ ] `EC2_SSH_PRIVATE_KEY`: Base64 encoded SSH private key
+  - [ ] `EC2_HOST`: EC2 instance public DNS/IP
+  - [ ] `EC2_USER`: EC2 login user (ec2-user or ubuntu)
+  - [ ] `PAT`: Personal Access Token for workflow triggers
 
-#### Docker Deployment
-- [ ] Build Docker image
-  - `docker build -t amta .`
-- [ ] Run Docker container
-  - `docker run -p 8000:8000 --env-file .env amta`
-- [ ] Verify container startup
-- [ ] Test container accessibility
+### Step 6: Deployment Trigger
+- [ ] Trigger Production Deployment
+  ```bash
+  # Option 1: Manual GitHub Actions trigger
+  gh workflow run production-deploy.yml
 
-#### Production WSGI Server
-- [ ] Install Gunicorn
-- [ ] Start production server
-  - `gunicorn -w 4 -k uvicorn.workers.UvicornWorker app.run_server:app`
-- [ ] Verify server responsiveness
+  # Option 2: Automatic trigger after image build
+  # (Docker Build workflow will automatically trigger production deploy)
+  ```
 
-## Post-Deployment Verification
+### Step 7: Deployment Verification
+- [ ] Check GitHub Actions workflow logs
+  - [ ] Verify Docker Build workflow
+  - [ ] Confirm Production Deploy workflow
+- [ ] Verify Docker services on EC2
+  ```bash
+  # Optional SSH verification
+  ssh -i your-key.pem ec2-user@your-ec2-instance
+  docker-compose ps
+  ```
+- [ ] Test Application Endpoints
+  - [ ] Backend health check: `http://your-ec2-ip:8081/health`
+  - [ ] Frontend accessibility: `http://your-ec2-ip:3000`
 
-### 7. Functional Testing
-- [ ] Test core application routes
-- [ ] Verify database interactions
-- [ ] Check LLM model connectivity
-- [ ] Validate Redis caching
-- [ ] Test error handling
+## Troubleshooting Checklist
+- [ ] Review GitHub Actions workflow logs
+- [ ] Check AWS Secrets Manager configuration
+- [ ] Verify network security groups
+- [ ] Validate Docker network settings
+- [ ] Confirm GitHub Container Registry access
 
-### 8. Performance and Security
-- [ ] Monitor server resources
-- [ ] Check application logs
-- [ ] Verify CORS settings
-- [ ] Test authentication (if implemented)
-- [ ] Review network security
+## Post-Deployment Recommendations
+- [ ] Monitor application logs
+- [ ] Set up additional monitoring
+- [ ] Regularly update dependencies
+- [ ] Rotate AWS credentials
 
-### 9. Monitoring Setup
-- [ ] Configure log rotation
-- [ ] Set up external monitoring
-- [ ] Create backup strategy
-- [ ] Implement error tracking
+## Success Criteria
+- [ ] Docker images successfully built
+- [ ] Images pushed to GitHub Container Registry
+- [ ] GitHub Actions deployment successful
+- [ ] Application endpoints responsive
+- [ ] Database connectivity verified
 
-## Maintenance and Updates
-
-### 10. Update Procedure
-- [ ] Pull latest production branch
-- [ ] Update dependencies
-- [ ] Run database migrations
-- [ ] Restart application/container
-- [ ] Verify post-update functionality
-
-## Troubleshooting Quick Reference
-- Check `.env` configuration
-- Verify network connectivity
-- Review application logs
-- Restart services
-- Rollback to previous stable version if needed
-
-## Emergency Recovery
-- [ ] Maintain backup of `.env`
-- [ ] Keep previous deployment artifacts
-- [ ] Document deployment steps
-- [ ] Create rollback script
-
-## Compliance and Documentation
-- [ ] Update deployment documentation
-- [ ] Record deployment timestamp
-- [ ] Note any configuration changes
+## Additional Resources
+- [Deployment Strategy](DEPLOYMENT_STRATEGY.md)
+- [Deployment Integration Guide](DEPLOYMENT_INTEGRATION.md)
+- [Deployment Verification Checklist](DEPLOYMENT_VERIFICATION_CHECKLIST.md)

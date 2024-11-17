@@ -21,10 +21,38 @@ permissions:
   packages: read
   id-token: write
 
+env:
+  BACKEND_IMAGE_NAME: ${{ github.repository }}-backend
+  FRONTEND_IMAGE_NAME: ${{ github.repository }}-frontend
+
 jobs:
+  # Deployment Readiness Verification
+  deployment-readiness:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: production
+          fetch-depth: 0
+
+      - name: Set up deployment environment
+        run: |
+          # Ensure all verification scripts are executable
+          chmod +x deployment_readiness.sh verify_deployment.sh
+          chmod +x docker_db_connectivity.sh verify_database_connectivity.sh
+
+      - name: Run Deployment Readiness Checks
+        run: |
+          # Run deployment readiness script
+          ./deployment_readiness.sh production
+        env:
+          DEPLOYMENT_MODE: production
+
   # Initial debug and context verification step
   debug-workflow-trigger:
     runs-on: ubuntu-latest
+    needs: deployment-readiness
     if: ${{ always() }}
     steps:
       - name: Detailed Workflow Trigger Debug
@@ -66,30 +94,13 @@ jobs:
       # Deployment Logging Preparation
       - name: Prepare Deployment Logs
         run: |
-          # Create deployment logs directory with full permissions
           mkdir -p deployment_logs
           chmod 777 deployment_logs
-          
-          # Log workflow initiation
           echo "Workflow initiated at $(date)" > deployment_logs/workflow_start.log
           echo "Repository: ${{ github.repository }}" >> deployment_logs/workflow_start.log
           echo "Workflow Run ID: ${{ github.run_id }}" >> deployment_logs/workflow_start.log
-          
-          # Verify directory and initial log
           ls -la deployment_logs
 
-      # Verify Repository Context
-      - name: Verify Repository Context
-        run: |
-          pwd
-          echo "=== Repository Root Contents ==="
-          ls -la
-          echo "=== Dockerfile Verification ==="
-          cat Dockerfile || echo "Dockerfile not found"
-          echo "=== Full Directory Tree ==="
-          find . -maxdepth 2 -type f | sort
-
-      # GitHub Container Registry authentication using GitHub Token
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -97,33 +108,23 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Docker image pull with explicit repository name transformation
-      - name: Pull latest Docker image from GitHub Registry
+      - name: Pull Backend Docker Image
         run: |
-          REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
-          echo "Pulling image for repository: $REPO_LOWER"
-          docker pull ghcr.io/$REPO_LOWER:production || true
+          BACKEND_REPO_LOWER=$(echo "${{ env.BACKEND_IMAGE_NAME }}" | tr '[:upper:]' '[:lower:]')
+          docker pull ghcr.io/$BACKEND_REPO_LOWER:production || true
 
-      # Remaining workflow steps (Python setup, AWS credentials, etc.)
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-
-      - name: Install Python dependencies
+      - name: Pull Frontend Docker Image
         run: |
-          python -m pip install --upgrade pip
-          pip install boto3 botocore awscli
+          FRONTEND_REPO_LOWER=$(echo "${{ env.FRONTEND_IMAGE_NAME }}" | tr '[:upper:]' '[:lower:]')
+          docker pull ghcr.io/$FRONTEND_REPO_LOWER:production || true
 
-      # AWS OIDC credential configuration
-      - name: Configure AWS Credentials with OIDC
+      - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
           aws-region: us-east-1
 
-      # Secrets retrieval from AWS Secrets Manager
-      - name: Retrieve Production Secrets from AWS Secrets Manager
+      - name: Retrieve Production Secrets
         id: get-secrets
         run: |
           secrets=$(aws secretsmanager get-secret-value --secret-id amta-production-secrets --query SecretString --output text)
@@ -137,66 +138,56 @@ jobs:
           echo "REDIS_URL=$redis_url" >> $GITHUB_OUTPUT
           echo "BEDROCK_MODEL_ID=$bedrock_model_id" >> $GITHUB_OUTPUT
 
-      # Deployment configuration preparation
-      - name: Prepare deployment configuration
+      - name: Prepare Deployment Configuration
         env:
           REDIS_URL: ${{ steps.get-secrets.outputs.REDIS_URL }}
           BEDROCK_MODEL_ID: ${{ steps.get-secrets.outputs.BEDROCK_MODEL_ID }}
         run: |
-          # Create comprehensive .env file
           echo "DEPLOYMENT_MODE=production" > .env
           echo "REDIS_URL=$REDIS_URL" >> .env
           echo "BEDROCK_MODEL_ID=$BEDROCK_MODEL_ID" >> .env
           echo "AWS_REGION=us-east-1" >> .env
           chmod 600 .env
 
-          # Verify .env file contents
-          cat .env
+      - name: Database Connectivity Verification
+        run: |
+          # Run database connectivity checks
+          ./docker_db_connectivity.sh
+          ./verify_database_connectivity.sh
 
-      # EC2 deployment via SSH
       - name: Deploy to EC2
         env:
           EC2_SSH_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
         run: |
-          # Prepare SSH Key
           mkdir -p ~/.ssh
           echo "$EC2_SSH_KEY" > ~/.ssh/ec2_key
           chmod 600 ~/.ssh/ec2_key
 
-          # SSH connection with minimal terminal allocation
           SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=no"
 
-          # Determine home directory and create project structure
+          # Setup EC2 environment
           ssh $SSH_OPTS -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << SETUP_EOF
-            # Determine home directory
             HOME_DIR=\$(eval echo ~$EC2_USER)
-            
-            # Create project directory with full path
             mkdir -p \$HOME_DIR/atlomy_chat/logs
             chmod 750 \$HOME_DIR/atlomy_chat/logs
-            
-            # Log deployment start
             echo "Deployment initiated at \$(date)" > \$HOME_DIR/atlomy_chat/logs/deployment.log
           SETUP_EOF
 
-          # Copy deployment files with verbose output
+          # Copy deployment files
           scp $SSH_OPTS -i ~/.ssh/ec2_key \
-              Dockerfile docker-compose.yml requirements.txt .env \
+              docker-compose.yml .env \
               $EC2_USER@$EC2_HOST:~/atlomy_chat/
 
           # Deploy services
           ssh $SSH_OPTS -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << DEPLOY_EOF
-            # Determine home directory
             HOME_DIR=\$(eval echo ~$EC2_USER)
             cd \$HOME_DIR/atlomy_chat
             
-            # Verify files
-            ls -l
-            
-            # Pull latest Docker image
-            docker pull ghcr.io/$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]'):production
+            # Pull latest images
+            docker pull ghcr.io/$(echo "${{ env.BACKEND_IMAGE_NAME }}" | tr '[:upper:]' '[:lower:]'):production
+            docker pull ghcr.io/$(echo "${{ env.FRONTEND_IMAGE_NAME }}" | tr '[:upper:]' '[:lower:]'):production
             
             # Stop and remove existing containers
             docker-compose down || true
@@ -206,10 +197,14 @@ jobs:
             
             # Log container status
             docker-compose ps
-            docker-compose logs --tail=50
+            docker-compose logs --tail=100
           DEPLOY_EOF
 
-      # Health Verification
+      - name: Verify Deployment
+        run: |
+          # Run comprehensive deployment verification
+          ./verify_deployment.sh
+
       - name: Verify Deployment Health
         env:
           EC2_SSH_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
@@ -219,27 +214,28 @@ jobs:
           SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=no"
           
           ssh $SSH_OPTS -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << HEALTH_EOF
-            # Determine home directory
             HOME_DIR=\$(eval echo ~$EC2_USER)
             cd \$HOME_DIR/atlomy_chat
             
-            # Health check with retry
             max_attempts=3
             attempt=0
             
             while [ \$attempt -lt \$max_attempts ]; do
               echo "Health Check Attempt \$((attempt + 1))"
               
-              health_response=\$(curl -s -w "%{http_code}" http://localhost:8081/health)
-              http_status=\${health_response: -3}
+              backend_response=\$(curl -s -w "%{http_code}" http://localhost:8081/health)
+              frontend_response=\$(curl -s -w "%{http_code}" http://localhost:3000)
               
-              if [ "\$http_status" = "200" ]; then
-                echo "Successful Health Check: Application is Operational"
+              backend_status=\${backend_response: -3}
+              frontend_status=\${frontend_response: -3}
+              
+              if [ "\$backend_status" = "200" ] && [ "\$frontend_status" = "200" ]; then
+                echo "Successful Health Check: Both Backend and Frontend are Operational"
                 exit 0
               fi
               
-              echo "Health Check Failed. Status Code: \$http_status"
-              docker-compose logs --tail=50
+              echo "Health Check Failed. Backend Status: \$backend_status, Frontend Status: \$frontend_status"
+              docker-compose logs --tail=100
               
               attempt=\$((attempt + 1))
               sleep 15
@@ -249,7 +245,6 @@ jobs:
             exit 1
           HEALTH_EOF
 
-      # Log Preservation with Fallback
       - name: Preserve Deployment Logs
         if: always()
         uses: actions/upload-artifact@v3
@@ -260,7 +255,6 @@ jobs:
             ${{ github.workspace }}/deployment_logs/
           retention-days: 7
 
-      # Fallback Log Generation
       - name: Generate Fallback Logs
         if: failure()
         run: |

@@ -1,0 +1,56 @@
+name: Database Connectivity Verification
+
+on:
+  push:
+    branches:
+      - production
+      - main
+  pull_request:
+    branches:
+      - production
+      - main
+  workflow_dispatch:
+
+jobs:
+  verify-database-connectivity:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install sqlalchemy psycopg2-binary
+
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+        aws-region: us-east-1
+
+    - name: Retrieve Database Secrets
+      run: |
+        # Retrieve database connection details from AWS Secrets Manager
+        secrets=$(aws secretsmanager get-secret-value --secret-id amta-production-secrets --query SecretString --output text)
+        
+        # Extract and set database connection URL
+        DATABASE_URL=$(echo $secrets | jq -r '.DATABASE_URL')
+        echo "DATABASE_URL=$DATABASE_URL" >> $GITHUB_ENV
+
+    - name: Verify Database Connectivity
+      run: |
+        chmod +x docker_db_connectivity.sh verify_database_connectivity.sh
+        ./verify_database_connectivity.sh
+
+    - name: Report Connectivity Status
+      if: failure()
+      run: |
+        echo "Database connectivity verification failed"
+        exit 1
