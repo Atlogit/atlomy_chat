@@ -138,23 +138,11 @@ jobs:
           REDIS_URL: ${{ steps.get-secrets.outputs.REDIS_URL }}
           BEDROCK_MODEL_ID: ${{ steps.get-secrets.outputs.BEDROCK_MODEL_ID }}
         run: |
-          # Create configuration in project directory
-          mkdir -p atlomy_chat/deploy_config
-          echo "DEPLOYMENT_MODE=production" > atlomy_chat/deploy_config/deployment.env
-          echo "REDIS_URL=$REDIS_URL" >> atlomy_chat/deploy_config/deployment.env
-          echo "BEDROCK_MODEL_ID=$BEDROCK_MODEL_ID" >> atlomy_chat/deploy_config/deployment.env
-          chmod 600 atlomy_chat/deploy_config/deployment.env
-          
-          # Verify configuration file
-          cat atlomy_chat/deploy_config/deployment.env
-
-      # Configuration validation
-      - name: Run configuration validator
-        run: |
-          python config_validator.py .env.production
-        env:
-          DEPLOYMENT_MODE: production
-          AWS_DEFAULT_REGION: us-east-1
+          # Create .env file for deployment
+          echo "DEPLOYMENT_MODE=production" > .env
+          echo "REDIS_URL=$REDIS_URL" >> .env
+          echo "BEDROCK_MODEL_ID=$BEDROCK_MODEL_ID" >> .env
+          chmod 600 .env
 
       # Deployment to EC2 via SSH
       - name: Deploy to EC2
@@ -163,17 +151,14 @@ jobs:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
         run: |
-          # Debugging SSH Connection
-          echo "Attempting to deploy to $EC2_HOST as $EC2_USER"
-          
           # Prepare SSH Key
           mkdir -p ~/.ssh
           echo "$EC2_SSH_KEY" > ~/.ssh/ec2_key
           chmod 600 ~/.ssh/ec2_key
           ssh-keyscan -H $EC2_HOST >> ~/.ssh/known_hosts
 
-          # Deploy via SSH
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << DEPLOY_COMMANDS
+          # Deploy via SSH with disabled pseudo-terminal
+          ssh -T -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << DEPLOY_COMMANDS
             # Ensure project directory exists
             mkdir -p /home/ec2-user/atlomy_chat
             cd /home/ec2-user/atlomy_chat
@@ -182,17 +167,17 @@ jobs:
             docker pull ghcr.io/$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]'):production
           DEPLOY_COMMANDS
 
-          # Copy docker-compose.yml to EC2
+          # Copy deployment files to EC2
           scp -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key \
-              docker-compose.yml \
-              $EC2_USER@$EC2_HOST:/home/ec2-user/atlomy_chat/docker-compose.yml
+              .env docker-compose.yml \
+              $EC2_USER@$EC2_HOST:/home/ec2-user/atlomy_chat/
 
-          # Continue deployment
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << FINAL_DEPLOY
+          # Continue deployment with disabled pseudo-terminal
+          ssh -T -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << FINAL_DEPLOY
             cd /home/ec2-user/atlomy_chat
 
-            # Verify docker-compose.yml exists
-            ls -l docker-compose.yml
+            # Verify files exist
+            ls -l .env docker-compose.yml
 
             # Stop existing containers
             docker-compose down || true
@@ -212,7 +197,7 @@ jobs:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
         run: |
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << HEALTH_CHECK
+          ssh -T -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << HEALTH_CHECK
             cd /home/ec2-user/atlomy_chat
             
             # Health check with retry
