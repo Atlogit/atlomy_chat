@@ -39,10 +39,6 @@ jobs:
           echo "Head Branch: ${{ github.event.workflow_run.head_branch }}"
           echo "Triggering Workflow ID: ${{ github.event.workflow_run.id }}"
           echo "Triggering Workflow URL: ${{ github.event.workflow_run.html_url }}"
-          echo "=== Full Workflow Run Details ==="
-          echo "$WORKFLOW_RUN"
-          echo "=== Full GitHub Context ==="
-          echo "$GITHUB_CONTEXT"
 
   # Primary deployment job
   deploy-to-ec2:
@@ -165,13 +161,27 @@ jobs:
           REDIS_URL: ${{ steps.get-secrets.outputs.REDIS_URL }}
           BEDROCK_MODEL_ID: ${{ steps.get-secrets.outputs.BEDROCK_MODEL_ID }}
         run: |
+          # Debugging SSH Connection
+          echo "Attempting to deploy to $EC2_HOST as $EC2_USER"
+          
+          # Prepare SSH Key
           mkdir -p ~/.ssh
           echo "$EC2_SSH_KEY" > ~/.ssh/ec2_key
           chmod 600 ~/.ssh/ec2_key
-          ssh-keyscan -H $EC2_HOST >> ~/.ssh/known_hosts
-
-          # Ensure secure project directory
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << SETUP_EOF
+          
+          # Add Host Key Scanning
+          ssh-keyscan -H $EC2_HOST >> ~/.ssh/known_hosts 2>/dev/null
+          
+          # Verbose SSH Connection Test
+          ssh -vv -T -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << SSH_TEST
+            echo "SSH Connection Successful"
+            pwd
+            whoami
+          SSH_TEST
+          
+          # Deployment Commands
+          ssh -T -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << DEPLOY_COMMANDS
+            # Create Project Directory
             mkdir -p /home/ec2-user/atlomy_chat
             chmod 750 /home/ec2-user/atlomy_chat
           SETUP_EOF
@@ -189,37 +199,40 @@ jobs:
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << DEPLOY_EOF
             cd /home/ec2-user/atlomy_chat
             
-            # Comprehensive Deployment Logging
-            echo "Deployment started at \$(date)" > deployment.log
+            # Deployment Logging
+            echo "Deployment initiated at \$(date)" > deployment.log
             
             # Pull Latest Docker Image
-            docker pull ghcr.io/$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]'):production >> deployment.log 2>&1
+            docker pull ghcr.io/$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]'):production
             
-            # Stop and Remove Existing Containers
-            docker-compose down >> deployment.log 2>&1
+            # Restart Containers
+            docker-compose down
+            docker-compose up -d
             
-            # Start New Deployment
-            docker-compose up -d >> deployment.log 2>&1
-            
-            # Wait for Container Startup
-            sleep 30
-            
-            # Verbose Container Status
-            docker-compose ps >> deployment.log 2>&1
-            docker-compose logs --tail=50 >> deployment.log 2>&1
-          DEPLOY_EOF
+            # Log Container Status
+            docker-compose ps
+            docker-compose logs --tail=50
+          DEPLOY_COMMANDS
+          
+          # Capture SSH Exit Code
+          ssh_exit_code=$?
+          if [ $ssh_exit_code -ne 0 ]; then
+            echo "SSH Deployment Failed with Exit Code: $ssh_exit_code"
+            exit $ssh_exit_code
+          fi
 
-      # Advanced health verification
-      - name: Verify Deployment with Advanced Health Checks
+      # Health Verification
+      - name: Verify Deployment Health
         env:
           EC2_SSH_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
         run: |
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << VERIFY_EOF
+          # Health Check via SSH
+          ssh -T -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << HEALTH_CHECK
             cd /home/ec2-user/atlomy_chat
             
-            # Advanced Health Verification
+            # Retry Mechanism for Health Check
             max_attempts=5
             attempt=0
             
@@ -246,4 +259,4 @@ jobs:
             
             echo "Critical: Health Checks Failed After \$max_attempts Attempts"
             exit 1
-          VERIFY_EOF
+          HEALTH_CHECK

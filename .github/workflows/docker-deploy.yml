@@ -4,6 +4,33 @@ on:
   push:
     branches:
       - production
+    paths:
+      # Backend Application
+      - 'Dockerfile'
+      - 'docker-compose.yml'
+      - 'requirements.txt'
+      - 'pyproject.toml'
+      - '.github/workflows/docker-deploy.yml'
+      - 'app/**'
+      - 'config_validator.py'
+      - 'alembic/**'
+      - 'app/core/**'
+      - 'app/models/**'
+      - 'app/services/**'
+      - 'app/api/**'
+
+      # Next.js Frontend Application
+      - 'next-app/package.json'
+      - 'next-app/package-lock.json'
+      - 'next-app/next.config.js'
+      - 'next-app/tsconfig.json'
+      - 'next-app/postcss.config.js'
+      - 'next-app/tailwind.config.js'
+      - 'next-app/src/**'
+      - 'next-app/public/**'
+      - 'next-app/.babelrc'
+      - 'next-app/jest.config.js'
+
   workflow_dispatch:
     inputs:
       force_deploy:
@@ -12,6 +39,7 @@ on:
         type: boolean
         default: false
 
+# Comprehensive permissions for GitHub Actions workflow
 permissions:
   contents: read
   packages: write
