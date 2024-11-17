@@ -124,15 +124,19 @@ jobs:
 
       # Deployment configuration preparation
       - name: Prepare deployment configuration
+        env:
+          REDIS_URL: ${{ steps.get-secrets.outputs.REDIS_URL }}
+          BEDROCK_MODEL_ID: ${{ steps.get-secrets.outputs.BEDROCK_MODEL_ID }}
         run: |
-          # Create comprehensive deployment log
-          mkdir -p deployment_logs
-          touch deployment_logs/deployment_$(date +"%Y%m%d_%H%M%S").log
-          
-          # Log repository context
-          echo "=== Repository Context ===" >> deployment_logs/deployment_*.log
-          pwd >> deployment_logs/deployment_*.log
-          ls -la >> deployment_logs/deployment_*.log
+          # Create comprehensive .env file
+          echo "DEPLOYMENT_MODE=production" > .env
+          echo "REDIS_URL=$REDIS_URL" >> .env
+          echo "BEDROCK_MODEL_ID=$BEDROCK_MODEL_ID" >> .env
+          echo "AWS_REGION=us-east-1" >> .env
+          chmod 600 .env
+
+          # Verify .env file contents
+          cat .env
 
       # EC2 deployment via SSH
       - name: Deploy to EC2
@@ -146,8 +150,11 @@ jobs:
           echo "$EC2_SSH_KEY" > ~/.ssh/ec2_key
           chmod 600 ~/.ssh/ec2_key
 
+          # SSH connection with minimal terminal allocation
+          SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=no"
+
           # Determine home directory and create project structure
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << SETUP_EOF
+          ssh $SSH_OPTS -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << SETUP_EOF
             # Determine home directory
             HOME_DIR=\$(eval echo ~$EC2_USER)
             
@@ -159,16 +166,19 @@ jobs:
             echo "Deployment initiated at \$(date)" > \$HOME_DIR/atlomy_chat/logs/deployment.log
           SETUP_EOF
 
-          # Copy deployment files
-          scp -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key \
+          # Copy deployment files with verbose output
+          scp $SSH_OPTS -i ~/.ssh/ec2_key \
               Dockerfile docker-compose.yml requirements.txt .env \
               $EC2_USER@$EC2_HOST:~/atlomy_chat/
 
           # Deploy services
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << DEPLOY_EOF
+          ssh $SSH_OPTS -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << DEPLOY_EOF
             # Determine home directory
             HOME_DIR=\$(eval echo ~$EC2_USER)
             cd \$HOME_DIR/atlomy_chat
+            
+            # Verify files
+            ls -l
             
             # Pull latest Docker image
             docker pull ghcr.io/$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]'):production
@@ -191,7 +201,9 @@ jobs:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
         run: |
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << HEALTH_EOF
+          SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=no"
+          
+          ssh $SSH_OPTS -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << HEALTH_EOF
             # Determine home directory
             HOME_DIR=\$(eval echo ~$EC2_USER)
             cd \$HOME_DIR/atlomy_chat
