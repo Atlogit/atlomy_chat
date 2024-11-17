@@ -1,14 +1,19 @@
 FROM python:3.11-slim-bullseye
 
-# Set environment variables
-ENV PYTHONDONTWRITEBYTECODE 1
-ENV PYTHONUNBUFFERED 1
+# Set environment variables using modern format
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
 # Set working directory to the project root
 WORKDIR /atlomy_chat
 
-# Install system dependencies and venv creation tools
-RUN apt-get update && apt-get install -y \
+# Install system dependencies with retry and specific mirror
+RUN set -ex; \
+    apt-get update || \
+    (sleep 5 && apt-get update) || \
+    (sleep 10 && apt-get update) || \
+    (echo "Failed to update package lists" && exit 1); \
+    apt-get install -y --no-install-recommends \
     build-essential \
     libpq-dev \
     python3-venv \
@@ -36,10 +41,11 @@ COPY . .
 # Install dependencies in the virtual environment
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Attempt package installation with multiple strategies
+# Install the package with fallback strategies
 RUN pip install --no-cache-dir . || \
     pip install --no-cache-dir -e . || \
-    pip install --no-cache-dir -e ./app
+    pip install --no-cache-dir -e ./app || \
+    pip install --no-cache-dir --no-deps .
 
 # Verify package can be imported
 RUN python -c "import app; print('App package imported successfully')" || \
