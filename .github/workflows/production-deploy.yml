@@ -155,24 +155,27 @@ jobs:
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << DEPLOY_EOF
             cd /home/ec2-user/atlomy_chat
             
-            # Comprehensive logging
-            echo "Deployment started at \$(date)" >> deployment.log
+            # Comprehensive Deployment Logging
+            echo "Deployment started at \$(date)" > deployment_log.txt
             
-            # Secure login to registries
-            docker login ghcr.io -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }} >> deployment.log 2>&1
+            # Pull Latest Docker Image
+            docker pull ghcr.io/$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]'):production >> deployment_log.txt 2>&1
             
-            # Pull and deploy
-            docker pull ghcr.io/$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]'):production >> deployment.log 2>&1
-            docker-compose down >> deployment.log 2>&1
-            docker-compose up -d >> deployment.log 2>&1
+            # Stop and Remove Existing Containers
+            docker-compose down >> deployment_log.txt 2>&1
             
-            # Enhanced status checks
-            docker-compose ps >> deployment.log 2>&1
+            # Start New Deployment
+            docker-compose up -d >> deployment_log.txt 2>&1
             
-            echo "Deployment completed at \$(date)" >> deployment.log
+            # Wait for Container Startup
+            sleep 30
+            
+            # Verbose Container Status
+            docker-compose ps >> deployment_log.txt 2>&1
+            docker-compose logs --tail=50 >> deployment_log.txt 2>&1
           DEPLOY_EOF
 
-      - name: Verify Deployment
+      - name: Verify Deployment with Advanced Health Checks
         env:
           EC2_SSH_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
           EC2_HOST: ${{ secrets.EC2_HOST }}
@@ -181,13 +184,31 @@ jobs:
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << VERIFY_EOF
             cd /home/ec2-user/atlomy_chat
             
-            # Comprehensive health verification
-            docker-compose ps
+            # Advanced Health Verification
+            max_attempts=5
+            attempt=0
             
-            # Health check with enhanced timeout and logging
-            timeout 60s curl -f http://localhost:8081/health || {
-              echo "Critical: Health check failed"
-              docker-compose logs --tail=50 >> health_check_failure.log
-              exit 1
-            }
+            while [ \$attempt -lt \$max_attempts ]; do
+              echo "Health Check Attempt \$((attempt + 1))"
+              
+              # Comprehensive Health Check
+              health_response=$(curl -s -w "%{http_code}" http://localhost:8081/health)
+              http_status=\${health_response: -3}
+              
+              if [ "\$http_status" = "200" ]; then
+                echo "Successful Health Check: Application is Operational"
+                exit 0
+              fi
+              
+              echo "Health Check Failed. Status Code: \$http_status"
+              
+              # Container Logs for Debugging
+              docker-compose logs --tail=50
+              
+              attempt=\$((attempt + 1))
+              sleep 15
+            done
+            
+            echo "Critical: Health Checks Failed After \$max_attempts Attempts"
+            exit 1
           VERIFY_EOF
