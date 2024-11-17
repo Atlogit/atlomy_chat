@@ -124,15 +124,15 @@ jobs:
 
       # Deployment configuration preparation
       - name: Prepare deployment configuration
-        env:
-          REDIS_URL: ${{ steps.get-secrets.outputs.REDIS_URL }}
-          BEDROCK_MODEL_ID: ${{ steps.get-secrets.outputs.BEDROCK_MODEL_ID }}
         run: |
-          # Create .env file for deployment
-          echo "DEPLOYMENT_MODE=production" > .env
-          echo "REDIS_URL=$REDIS_URL" >> .env
-          echo "BEDROCK_MODEL_ID=$BEDROCK_MODEL_ID" >> .env
-          chmod 600 .env
+          # Create comprehensive deployment log
+          mkdir -p deployment_logs
+          touch deployment_logs/deployment_$(date +"%Y%m%d_%H%M%S").log
+          
+          # Log repository context
+          echo "=== Repository Context ===" >> deployment_logs/deployment_*.log
+          pwd >> deployment_logs/deployment_*.log
+          ls -la >> deployment_logs/deployment_*.log
 
       # EC2 deployment via SSH
       - name: Deploy to EC2
@@ -146,42 +146,38 @@ jobs:
           echo "$EC2_SSH_KEY" > ~/.ssh/ec2_key
           chmod 600 ~/.ssh/ec2_key
 
-          # Add Host Key Scanning to EC2 user's known_hosts
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << SSH_SETUP
-            mkdir -p /home/$EC2_USER/.ssh
-            chmod 700 /home/$EC2_USER/.ssh
-            ssh-keyscan -H $EC2_HOST >> /home/$EC2_USER/.ssh/known_hosts
-            chmod 600 /home/$EC2_USER/.ssh/known_hosts
-          SSH_SETUP
-
-          # Ensure project directory exists
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << MKDIR_COMMANDS
-            mkdir -p /home/$EC2_USER/atlomy_chat
-            chmod 750 /home/$EC2_USER/atlomy_chat
-          MKDIR_COMMANDS
+          # SSH Connection with explicit non-interactive mode
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << 'EOF'
+            # Ensure project directory exists
+            mkdir -p /home/$USER/atlomy_chat/logs
+            chmod 750 /home/$USER/atlomy_chat/logs
+            
+            # Log start of deployment
+            echo "Deployment initiated at $(date)" > /home/$USER/atlomy_chat/logs/deployment.log
+          EOF
 
           # Copy deployment files
           scp -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key \
-              .env Dockerfile docker-compose.yml \
+              Dockerfile docker-compose.yml requirements.txt .env \
               $EC2_USER@$EC2_HOST:/home/$EC2_USER/atlomy_chat/
 
-          # Deploy and start services
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << DEPLOY_COMMANDS
-            cd /home/$EC2_USER/atlomy_chat
+          # Deploy services with minimal interaction
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << 'DEPLOY_EOF'
+            cd /home/$USER/atlomy_chat
             
             # Pull latest Docker image
-            docker pull ghcr.io/$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]'):production
+            docker pull ghcr.io/$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]'):production >> logs/deployment.log 2>&1
             
             # Stop and remove existing containers
-            docker-compose down || true
+            docker-compose down >> logs/deployment.log 2>&1
             
             # Start new deployment
-            docker-compose up -d
+            docker-compose up -d >> logs/deployment.log 2>&1
             
-            # Log deployment details
-            docker-compose ps
-            docker-compose logs --tail=50
-          DEPLOY_COMMANDS
+            # Log container status
+            docker-compose ps >> logs/deployment.log
+            docker-compose logs --tail=50 >> logs/deployment.log
+          DEPLOY_EOF
 
       # Health Verification
       - name: Verify Deployment Health
@@ -190,31 +186,40 @@ jobs:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
         run: |
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << HEALTH_CHECK
-            cd /home/$EC2_USER/atlomy_chat
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << 'HEALTH_EOF'
+            cd /home/$USER/atlomy_chat
             
             # Health check with retry
-            max_attempts=5
+            max_attempts=3
             attempt=0
             
-            while [ \$attempt -lt \$max_attempts ]; do
-              echo "Health Check Attempt \$((attempt + 1))"
+            while [ $attempt -lt $max_attempts ]; do
+              echo "Health Check Attempt $((attempt + 1))" >> logs/deployment.log
               
               health_response=$(curl -s -w "%{http_code}" http://localhost:8081/health)
-              http_status=\${health_response: -3}
+              http_status=${health_response: -3}
               
-              if [ "\$http_status" = "200" ]; then
-                echo "Successful Health Check: Application is Operational"
+              if [ "$http_status" = "200" ]; then
+                echo "Successful Health Check: Application is Operational" >> logs/deployment.log
                 exit 0
               fi
               
-              echo "Health Check Failed. Status Code: \$http_status"
-              docker-compose logs --tail=50
+              echo "Health Check Failed. Status Code: $http_status" >> logs/deployment.log
+              docker-compose logs --tail=50 >> logs/deployment.log
               
-              attempt=\$((attempt + 1))
+              attempt=$((attempt + 1))
               sleep 15
             done
             
-            echo "Critical: Health Checks Failed After \$max_attempts Attempts"
+            echo "Critical: Health Checks Failed After $max_attempts Attempts" >> logs/deployment.log
             exit 1
-          HEALTH_CHECK
+          HEALTH_EOF
+
+      # Log Preservation
+      - name: Preserve Deployment Logs
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: deployment-logs
+          path: deployment_logs/
+          retention-days: 7
