@@ -57,6 +57,7 @@ jobs:
       id-token: write
 
     steps:
+      # Repository checkout with explicit production branch reference
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
@@ -64,15 +65,24 @@ jobs:
           fetch-depth: 0
 
       # Verbose file system debugging to ensure correct context
-      - name: Verify Repository Context
+      - name: Verbose File System Debug
         run: |
           pwd
           echo "=== Repository Root Contents ==="
           ls -la
-          echo "=== Dockerfile Verification ==="
+          echo "=== Dockerfile Contents ==="
           cat Dockerfile || echo "Dockerfile not found"
           echo "=== Full Directory Tree ==="
-          find . -maxdepth 2 -type f | sort
+          find . -type f | sort
+
+      # Explicit Dockerfile presence verification
+      - name: Verify Dockerfile Presence
+        run: |
+          if [ ! -f Dockerfile ]; then
+            echo "Critical Error: Dockerfile is missing!"
+            exit 1
+          fi
+          echo "Dockerfile verified successfully"
 
       # GitHub Container Registry authentication using GitHub Token
       - name: Login to GitHub Container Registry
@@ -87,7 +97,7 @@ jobs:
         run: |
           REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
           echo "Pulling image for repository: $REPO_LOWER"
-          docker pull ghcr.io/$REPO_LOWER:production || true
+          docker pull ghcr.io/$REPO_LOWER:production
 
       # Remaining workflow steps (Python setup, AWS credentials, etc.)
       - name: Set up Python
@@ -124,60 +134,92 @@ jobs:
 
       # Deployment configuration preparation
       - name: Prepare deployment configuration
+        env:
+          REDIS_URL: ${{ steps.get-secrets.outputs.REDIS_URL }}
+          BEDROCK_MODEL_ID: ${{ steps.get-secrets.outputs.BEDROCK_MODEL_ID }}
         run: |
-          # Create comprehensive deployment log
-          mkdir -p deployment_logs
-          touch deployment_logs/deployment_$(date +"%Y%m%d_%H%M%S").log
-          
-          # Log repository context
-          echo "=== Repository Context ===" >> deployment_logs/deployment_*.log
-          pwd >> deployment_logs/deployment_*.log
-          ls -la >> deployment_logs/deployment_*.log
+          mkdir -p ./deploy_config
+          echo "DEPLOYMENT_MODE=production" > ./deploy_config/deployment.env
+          echo "REDIS_URL=$REDIS_URL" >> ./deploy_config/deployment.env
+          echo "BEDROCK_MODEL_ID=$BEDROCK_MODEL_ID" >> ./deploy_config/deployment.env
+          chmod 600 ./deploy_config/deployment.env
+
+      # Configuration validation
+      - name: Run configuration validator
+        run: |
+          python config_validator.py .env.production
+        env:
+          DEPLOYMENT_MODE: production
+          AWS_DEFAULT_REGION: us-east-1
 
       # EC2 deployment via SSH
-      - name: Deploy to EC2
+      - name: Deploy to EC2 via SSH
         env:
           EC2_SSH_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
+          REDIS_URL: ${{ steps.get-secrets.outputs.REDIS_URL }}
+          BEDROCK_MODEL_ID: ${{ steps.get-secrets.outputs.BEDROCK_MODEL_ID }}
         run: |
+          # Debugging SSH Connection
+          echo "Attempting to deploy to $EC2_HOST as $EC2_USER"
+          
           # Prepare SSH Key
           mkdir -p ~/.ssh
           echo "$EC2_SSH_KEY" > ~/.ssh/ec2_key
           chmod 600 ~/.ssh/ec2_key
+          
+          # Add Host Key Scanning
+          ssh-keyscan -H $EC2_HOST >> ~/.ssh/known_hosts 2>/dev/null
+          
+          # Verbose SSH Connection Test
+          ssh -vv -T -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << SSH_TEST
+            echo "SSH Connection Successful"
+            pwd
+            whoami
+          SSH_TEST
+          
+          # Deployment Commands
+          ssh -T -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << DEPLOY_COMMANDS
+            # Create Project Directory
+            mkdir -p /home/ec2-user/atlomy_chat
+            chmod 750 /home/ec2-user/atlomy_chat
+          SETUP_EOF
 
-          # SSH Connection with explicit non-interactive mode
-          ssh -o BatchMode=yes -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << 'EOF'
-            # Ensure project directory exists
-            mkdir -p /home/$USER/atlomy_chat/logs
-            chmod 750 /home/$USER/atlomy_chat/logs
-            
-            # Log start of deployment
-            echo "Deployment initiated at $(date)" > /home/$USER/atlomy_chat/logs/deployment.log
-          EOF
-
-          # Copy deployment files
+          # Securely copy deployment files
           scp -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key \
-              Dockerfile docker-compose.yml requirements.txt .env \
-              $EC2_USER@$EC2_HOST:/home/$EC2_USER/atlomy_chat/
+              ./deploy_config/deployment.env \
+              $EC2_USER@$EC2_HOST:/home/ec2-user/atlomy_chat/.env
 
-          # Deploy services with minimal interaction
-          ssh -o BatchMode=yes -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << 'DEPLOY_EOF'
-            cd /home/$USER/atlomy_chat
+          scp -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key \
+              docker-compose.yml \
+              $EC2_USER@$EC2_HOST:/home/ec2-user/atlomy_chat/docker-compose.yml
+
+          # Enhanced deployment script
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << DEPLOY_EOF
+            cd /home/ec2-user/atlomy_chat
             
-            # Pull latest Docker image
-            docker pull ghcr.io/$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]'):production >> logs/deployment.log 2>&1
+            # Deployment Logging
+            echo "Deployment initiated at \$(date)" > deployment.log
             
-            # Stop and remove existing containers
-            docker-compose down >> logs/deployment.log 2>&1
+            # Pull Latest Docker Image
+            docker pull ghcr.io/$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]'):production
             
-            # Start new deployment
-            docker-compose up -d >> logs/deployment.log 2>&1
+            # Restart Containers
+            docker-compose down
+            docker-compose up -d
             
-            # Log container status
-            docker-compose ps >> logs/deployment.log
-            docker-compose logs --tail=50 >> logs/deployment.log
-          DEPLOY_EOF
+            # Log Container Status
+            docker-compose ps
+            docker-compose logs --tail=50
+          DEPLOY_COMMANDS
+          
+          # Capture SSH Exit Code
+          ssh_exit_code=$?
+          if [ $ssh_exit_code -ne 0 ]; then
+            echo "SSH Deployment Failed with Exit Code: $ssh_exit_code"
+            exit $ssh_exit_code
+          fi
 
       # Health Verification
       - name: Verify Deployment Health
@@ -186,40 +228,35 @@ jobs:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
         run: |
-          ssh -o BatchMode=yes -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << 'HEALTH_EOF'
-            cd /home/$USER/atlomy_chat
+          # Health Check via SSH
+          ssh -T -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << HEALTH_CHECK
+            cd /home/ec2-user/atlomy_chat
             
-            # Health check with retry
-            max_attempts=3
+            # Retry Mechanism for Health Check
+            max_attempts=5
             attempt=0
             
-            while [ $attempt -lt $max_attempts ]; do
-              echo "Health Check Attempt $((attempt + 1))" >> logs/deployment.log
+            while [ \$attempt -lt \$max_attempts ]; do
+              echo "Health Check Attempt \$((attempt + 1))"
               
+              # Comprehensive Health Check
               health_response=$(curl -s -w "%{http_code}" http://localhost:8081/health)
-              http_status=${health_response: -3}
+              http_status=\${health_response: -3}
               
-              if [ "$http_status" = "200" ]; then
-                echo "Successful Health Check: Application is Operational" >> logs/deployment.log
+              if [ "\$http_status" = "200" ]; then
+                echo "Successful Health Check: Application is Operational"
                 exit 0
               fi
               
-              echo "Health Check Failed. Status Code: $http_status" >> logs/deployment.log
-              docker-compose logs --tail=50 >> logs/deployment.log
+              echo "Health Check Failed. Status Code: \$http_status"
               
-              attempt=$((attempt + 1))
+              # Container Logs for Debugging
+              docker-compose logs --tail=50
+              
+              attempt=\$((attempt + 1))
               sleep 15
             done
             
-            echo "Critical: Health Checks Failed After $max_attempts Attempts" >> logs/deployment.log
+            echo "Critical: Health Checks Failed After \$max_attempts Attempts"
             exit 1
-          HEALTH_EOF
-
-      # Log Preservation
-      - name: Preserve Deployment Logs
-        if: always()
-        uses: actions/upload-artifact@v3
-        with:
-          name: deployment-logs
-          path: deployment_logs/
-          retention-days: 7
+          HEALTH_CHECK
