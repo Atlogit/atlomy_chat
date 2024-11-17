@@ -4,14 +4,13 @@ on:
   push:
     branches:
       - production
-  # Commented out workflow_dispatch due to scoping error
-  # workflow_dispatch:
-  #   inputs:
-  #     force_deploy:
-  #       description: 'Force Docker build and push'
-  #       required: false
-  #       type: boolean
-  #       default: false
+  workflow_dispatch:
+    inputs:
+      force_deploy:
+        description: 'Force Docker build and push'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -57,6 +56,24 @@ jobs:
           fetch-depth: 0
           ref: production
 
+      - name: Verbose File System Debug
+        run: |
+          pwd
+          echo "=== Repository Root Contents ==="
+          ls -la
+          echo "=== Dockerfile Contents ==="
+          cat Dockerfile || echo "Dockerfile not found"
+          echo "=== Full Directory Tree ==="
+          find . -type f | sort
+
+      - name: Verify Dockerfile Presence
+        run: |
+          if [ ! -f Dockerfile ]; then
+            echo "Critical Error: Dockerfile is missing!"
+            exit 1
+          fi
+          echo "Dockerfile verified successfully"
+
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -99,13 +116,17 @@ jobs:
             type=raw,value=production
             type=sha,prefix=production-
 
-      - name: Build and test Docker image
+      - name: Build and test Docker image with Verbose Logging
         uses: docker/build-push-action@v5
         with:
           context: .
+          file: ./Dockerfile
           load: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # Add verbose output
+          build-args: |
+            BUILDKIT_PROGRESS=plain
 
       - name: Set up Docker Compose
         run: |
@@ -122,13 +143,17 @@ jobs:
           DEPLOYMENT_MODE: production
           AWS_DEFAULT_REGION: us-east-1
 
-      - name: Push Docker image
+      - name: Push Docker image with Verbose Logging
         uses: docker/build-push-action@v5
         with:
           context: .
+          file: ./Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # Add verbose output
+          build-args: |
+            BUILDKIT_PROGRESS=plain
 
       - name: Stop services
         run: docker-compose down

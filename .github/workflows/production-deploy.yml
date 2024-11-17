@@ -58,12 +58,25 @@ jobs:
           ref: production
           fetch-depth: 0
 
-      - name: Verbose Branch Verification
+      - name: Verbose File System Debug
         run: |
-          echo "Current Branch: $(git branch --show-current)"
-          git branch -a
-          git log -1
+          pwd
+          echo "=== Repository Root Contents ==="
+          ls -la
+          echo "=== Dockerfile Contents ==="
+          cat Dockerfile || echo "Dockerfile not found"
+          echo "=== Full Directory Tree ==="
+          find . -type f | sort
 
+      - name: Verify Dockerfile Presence
+        run: |
+          if [ ! -f Dockerfile ]; then
+            echo "Critical Error: Dockerfile is missing!"
+            exit 1
+          fi
+          echo "Dockerfile verified successfully"
+
+      # Rest of the workflow remains the same as in the original file
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
