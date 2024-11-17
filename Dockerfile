@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     libpq-dev \
     python3-venv \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
 # Create virtual environment in the project directory
@@ -29,7 +30,7 @@ RUN python3 -m venv --help && \
     python --version
 
 # Upgrade pip in the virtual environment
-RUN pip install --upgrade pip
+RUN pip install --upgrade pip setuptools wheel
 
 # Copy project files
 COPY . .
@@ -38,8 +39,9 @@ COPY . .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Install the package in editable mode
-RUN pip install --no-cache-dir -e .
-
+RUN pip install --no-cache-dir -e . \
+    || pip install --no-cache-dir --no-deps .
+    
 # Verify package can be imported
 RUN python -c "import app; print('App package imported successfully')"
 
