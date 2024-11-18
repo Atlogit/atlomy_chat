@@ -204,11 +204,14 @@ jobs:
       - name: Restore PostgreSQL Database
         env:
           POSTGRES_HOST: ${{ steps.get-database-secrets.outputs.POSTGRES_HOST }}
+          POSTGRES_PORT: ${{ steps.get-database-secrets.outputs.POSTGRES_PORT }}
           POSTGRES_DB: ${{ steps.get-database-secrets.outputs.POSTGRES_DB }}
           POSTGRES_USER: ${{ steps.get-database-secrets.outputs.POSTGRES_USER }}
           POSTGRES_PASSWORD: ${{ steps.get-database-secrets.outputs.POSTGRES_PASSWORD }}
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
+          S3_BACKUP_BUCKET: ${{ inputs.s3_backup_bucket || 'amta-app' }}
+          S3_BACKUP_PREFIX: ${{ inputs.s3_backup_prefix || 'amta-db' }}
         run: |
           SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=no"
           
@@ -266,7 +269,7 @@ jobs:
             
               # Create new database
               psql -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -c "CREATE DATABASE \"$POSTGRES_DB\";"
-
+            
               # Restore backup
               psql -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -f "/var/lib/postgresql/data/$extracted_file"
             fi
@@ -275,10 +278,10 @@ jobs:
               echo "⚠️ No backup file found. Skipping restoration."
             fi
             exit 1
-
-          # Verify restoration
+            
+            # Verify restoration
           table_count=$(psql -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';")
-          
+            
           if [ "\$table_count" -eq 0 ]; then
             echo "❌ Database restoration failed: No tables found"
             exit 1
