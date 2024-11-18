@@ -30,9 +30,7 @@ def create_s3_client():
         
         try:
             # Fallback to default credentials (EC2 instance role)
-            return boto3.client('s3', config=Config(
-                retries={'max_attempts': 3, 'mode': 'standard'}
-            ))
+            return boto3.client('s3')
         except Exception as default_error:
             logger.error(f"S3 client creation failed: {default_error}")
             return None
@@ -55,6 +53,10 @@ def stage_database_backup(
     logger.info(f"S3 Bucket: {s3_bucket}")
     logger.info(f"S3 Prefix: {s3_prefix}")
 
+    # Log GitHub Actions role information
+    logger.info("GitHub Actions Role Details:")
+    logger.info(f"Role ARN: {os.environ.get('GITHUB_ACTIONS_ROLE_ARN', 'Not Set')}")
+
     try:
         # Create S3 client with fallback mechanism
         s3_client = create_s3_client()
@@ -70,10 +72,23 @@ def stage_database_backup(
             )
         except NoCredentialsError:
             logger.error("No AWS credentials found. Ensure proper IAM role is attached.")
+            logger.error("Recommended Actions:")
+            logger.error("1. Verify GitHub Actions workflow has correct AWS credentials")
+            logger.error("2. Check IAM role permissions for s3:ListBucket")
             return False
         except ClientError as e:
-            logger.error(f"S3 ListObjects error: {e}")
-            logger.error(f"Verify bucket name '{s3_bucket}' and IAM permissions")
+            error_code = e.response['Error']['Code']
+            error_message = e.response['Error']['Message']
+            
+            logger.error(f"S3 ListObjects error: {error_code}")
+            logger.error(f"Detailed Error: {error_message}")
+            
+            if error_code == 'AccessDenied':
+                logger.error("Access Denied Troubleshooting:")
+                logger.error("1. Update GitHub Actions IAM role to include s3:ListBucket permission")
+                logger.error("2. Verify the role has access to 'amta-app' S3 bucket")
+                logger.error("3. Check AWS account and bucket policies")
+            
             return False
         except BotoCoreError as e:
             logger.error(f"Boto3 core error during S3 interaction: {e}")
