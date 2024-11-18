@@ -19,6 +19,27 @@ on:
         description: 'S3 Prefix for Database Backups'
         required: true
         default: 'amta-db'
+  workflow_call:
+    inputs:
+      deployment_mode:
+        description: 'Deployment mode (development/production)'
+        type: string
+        required: false
+        default: 'production'
+      force_restore:
+        description: 'Force database restoration'
+        type: boolean
+        default: false
+      s3_backup_bucket:
+        description: 'S3 Bucket for Database Backups'
+        type: string
+        required: false
+        default: 'amta-app'
+      s3_backup_prefix:
+        description: 'S3 Prefix for Database Backups'
+        type: string
+        required: false
+        default: 'amta-db'
 
 permissions:
   id-token: write
@@ -68,41 +89,6 @@ jobs:
           echo "${{ secrets.EC2_SSH_PRIVATE_KEY }}" > ~/.ssh/ec2_key
           chmod 600 ~/.ssh/ec2_key
 
-      - name: Check Database Connectivity
-        id: database-connectivity
-        env:
-          POSTGRES_HOST: ${{ steps.get-database-secrets.outputs.POSTGRES_HOST }}
-          POSTGRES_PORT: ${{ steps.get-database-secrets.outputs.POSTGRES_PORT }}
-          POSTGRES_DB: ${{ steps.get-database-secrets.outputs.POSTGRES_DB }}
-          POSTGRES_USER: ${{ steps.get-database-secrets.outputs.POSTGRES_USER }}
-          POSTGRES_PASSWORD: ${{ steps.get-database-secrets.outputs.POSTGRES_PASSWORD }}
-        run: |
-          export PGPASSWORD=$POSTGRES_PASSWORD
-          
-          echo "🔌 Attempting Database Connection:"
-          echo "  Host: $POSTGRES_HOST"
-          echo "  Port: $POSTGRES_PORT"
-          echo "  Database: $POSTGRES_DB"
-          echo "  User: $POSTGRES_USER"
-
-          # Attempt connection with timeout
-          connection_output=$(timeout 10s psql -h "$POSTGRES_HOST" -p "$POSTGRES_PORT" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -t -c "SELECT 1" 2>&1)
-          connection_status=$?
-          
-          if [ $connection_status -eq 0 ]; then
-            echo "✅ Database connection successful"
-            echo "connection_status=success" >> $GITHUB_OUTPUT
-            echo "connection_available=true" >> $GITHUB_OUTPUT
-          else
-            echo "❌ Database connection failed"
-            echo "Connection Error: $connection_output"
-            echo "connection_status=failed" >> $GITHUB_OUTPUT
-            echo "connection_available=false" >> $GITHUB_OUTPUT
-          fi
-          
-          # Always continue workflow
-          exit 0
-
       - name: Check PostgreSQL Data Directory
         id: check-postgres-data
         env:
@@ -143,68 +129,61 @@ jobs:
               ;;
           esac
 
-      - name: Verify Backup Availability
-        id: verify-backup
+      - name: Check Backup File Availability
+        id: check-backup-file
+        if: steps.check-postgres-data.outputs.postgres_data_status == 'missing' || steps.check-postgres-data.outputs.postgres_data_status == 'empty'
         env:
-          S3_BACKUP_BUCKET: ${{ inputs.s3_backup_bucket || 'amta-app' }}
-          S3_BACKUP_PREFIX: ${{ inputs.s3_backup_prefix || 'amta-db' }}
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
         run: |
-          # Discover latest backup
-          latest_backup=$(aws s3 ls "s3://$S3_BACKUP_BUCKET/$S3_BACKUP_PREFIX/" | grep '.tar.gz' | sort | tail -n 1 | awk '{print $4}')
-          
-          if [ -z "$latest_backup" ]; then
-            echo "❌ No backup files found in S3 bucket"
-            echo "backup_available=false" >> $GITHUB_OUTPUT
-            exit 1
-          fi
-
-          echo "🏷️ Latest Backup: $latest_backup"
-          echo "backup_file=$latest_backup" >> $GITHUB_OUTPUT
-          echo "backup_available=true" >> $GITHUB_OUTPUT
-
-          # Check remote backup directory
           SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=no"
           
+          # Check backup file in /opt/atlomy/database_backups
           ssh $SSH_OPTS -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << REMOTE_SCRIPT
             # Ensure backup directory exists
             mkdir -p /opt/atlomy/database_backups
             
-            # Check if backup already exists
+            # Check for backup file
             if [ -f "/opt/atlomy/database_backups/latest_backup.tar.gz" ]; then
-              echo "✅ Backup file already exists in remote directory"
+              echo "✅ Backup file exists in /opt/atlomy/database_backups"
               exit 0
             else
-              echo "❌ No backup file in remote directory"
+              echo "❌ No backup file in /opt/atlomy/database_backups"
               exit 1
             fi
           REMOTE_SCRIPT
           
-          remote_backup_status=$?
-          
-          if [ $remote_backup_status -eq 0 ]; then
-            echo "remote_backup_status=exists" >> $GITHUB_OUTPUT
+          if [ $? -eq 0 ]; then
+            echo "backup_file_status=exists" >> $GITHUB_OUTPUT
           else
-            echo "remote_backup_status=missing" >> $GITHUB_OUTPUT
+            echo "backup_file_status=missing" >> $GITHUB_OUTPUT
           fi
 
-      - name: Download Backup to Remote Host
+      - name: Download Backup from S3
         id: download-backup
-        if: steps.verify-backup.outputs.remote_backup_status == 'missing'
+        if: steps.check-backup-file.outputs.backup_file_status == 'missing'
         env:
           S3_BACKUP_BUCKET: ${{ inputs.s3_backup_bucket || 'amta-app' }}
           S3_BACKUP_PREFIX: ${{ inputs.s3_backup_prefix || 'amta-db' }}
-          BACKUP_FILE: ${{ steps.verify-backup.outputs.backup_file }}
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
         run: |
+          echo "📋 Discovering Latest Backup"
+          latest_backup=$(aws s3 ls "s3://$S3_BACKUP_BUCKET/$S3_BACKUP_PREFIX/" | grep '.tar.gz' | sort | tail -n 1 | awk '{print $4}')
+          
+          if [ -z "$latest_backup" ]; then
+            echo "❌ Error: No backup files found in S3 bucket"
+            exit 1
+          fi
+
+          echo "🏷️ Latest Backup: $latest_backup"
+          
           SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=no"
           
-          # Transfer backup to remote host
+          # Transfer backup to EC2
           ssh $SSH_OPTS -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << REMOTE_SCRIPT
-            # Download backup from S3
-            aws s3 cp "s3://$S3_BACKUP_BUCKET/$S3_BACKUP_PREFIX/$BACKUP_FILE" /opt/atlomy/database_backups/latest_backup.tar.gz
+            mkdir -p /opt/atlomy/database_backups
+            aws s3 cp "s3://$S3_BACKUP_BUCKET/$S3_BACKUP_PREFIX/$latest_backup" /opt/atlomy/database_backups/latest_backup.tar.gz
             
             # Verify download
             if [ -f "/opt/atlomy/database_backups/latest_backup.tar.gz" ]; then
@@ -224,7 +203,7 @@ jobs:
           fi
 
       - name: Restore PostgreSQL Database
-        if: steps.download-backup.outputs.download_status == 'success' || steps.verify-backup.outputs.remote_backup_status == 'exists'
+        if: steps.download-backup.outputs.download_status == 'success'
         env:
           POSTGRES_HOST: ${{ steps.get-database-secrets.outputs.POSTGRES_HOST }}
           POSTGRES_DB: ${{ steps.get-database-secrets.outputs.POSTGRES_DB }}
