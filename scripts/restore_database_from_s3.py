@@ -10,62 +10,89 @@ from botocore.exceptions import ClientError
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
 
-def log_environment_context():
+def transfer_backup_via_ssh(local_backup_path):
     """
-    Log detailed environment variable context for debugging
+    Transfer backup to EC2 instance using SSH
     """
-    logger.info("Environment Variable Context:")
-    env_vars_to_check = [
-        'EC2_HOST', 
-        'EC2_INSTANCE_ID', 
-        'AWS_DEFAULT_REGION', 
-        'GITHUB_ACTIONS'
-    ]
+    # Retrieve SSH connection details
+    ec2_host = os.environ.get('EC2_HOST')
+    ec2_user = os.environ.get('EC2_USER', 'ec2-user')
+    ssh_key_path = os.environ.get('EC2_SSH_PRIVATE_KEY_PATH', '/tmp/ec2_ssh_key')
     
-    for var in env_vars_to_check:
-        value = os.environ.get(var, 'NOT SET')
-        logger.info(f"{var}: {value}")
-
-def transfer_to_ec2(local_backup_path):
-    """
-    Transfer backup to EC2 instance using AWS SSM
-    """
-    # Log environment context
-    log_environment_context()
-
-    # Retrieve EC2 instance ID
-    ec2_instance_id = os.environ.get('EC2_INSTANCE_ID')
-    s3_bucket = os.environ.get('S3_BACKUP_BUCKET', 'amta-app')
-    
-    if not ec2_instance_id:
-        logger.warning("Cannot transfer backup: No EC2 instance ID found")
+    if not ec2_host:
+        logger.error("No EC2 host specified for SSH transfer")
         return False
-
+    
+    # Ensure SSH key is available
+    if not os.path.exists(ssh_key_path):
+        try:
+            # Write SSH key from environment variable
+            ssh_key = os.environ.get('EC2_SSH_PRIVATE_KEY')
+            if not ssh_key:
+                logger.error("No SSH private key provided")
+                return False
+            
+            with open(ssh_key_path, 'w') as key_file:
+                key_file.write(ssh_key)
+            
+            # Set correct permissions for SSH key
+            os.chmod(ssh_key_path, 0o600)
+        except Exception as e:
+            logger.error(f"Failed to write SSH key: {e}")
+            return False
+    
+    # Destination directory on EC2 for database backup
+    remote_backup_dir = '/atlomy_chat/database_backups'
+    
     try:
-        # Construct SSM command for backup transfer
-        transfer_cmd = [
-            'aws', 'ssm', 'send-command',
-            '--instance-ids', ec2_instance_id,
-            '--document-name', 'AWS-RunShellScript',
-            '--parameters', f'commands=["mkdir -p /opt/atlomy/database_backups", "aws s3 cp s3://{s3_bucket}/{os.path.basename(local_backup_path)} /opt/atlomy/database_backups/latest_backup.tar.gz"]'
+        # Ensure remote directory exists
+        ssh_mkdir_cmd = [
+            'ssh', 
+            '-o', 'StrictHostKeyChecking=no',
+            '-i', ssh_key_path,
+            f'{ec2_user}@{ec2_host}',
+            f'mkdir -p {remote_backup_dir}'
         ]
         
-        # Execute transfer command
-        result = subprocess.run(transfer_cmd, capture_output=True, text=True, check=True)
+        subprocess.run(ssh_mkdir_cmd, check=True)
         
-        logger.info("Backup transfer command sent successfully")
-        logger.info(f"Transfer command details: {' '.join(transfer_cmd)}")
-        logger.info(f"Transfer output: {result.stdout}")
+        # SCP command to transfer backup
+        scp_cmd = [
+            'scp', 
+            '-o', 'StrictHostKeyChecking=no',
+            '-i', ssh_key_path,
+            local_backup_path,
+            f'{ec2_user}@{ec2_host}:{remote_backup_dir}/latest_backup.tar.gz'
+        ]
+        
+        # Execute SCP transfer
+        result = subprocess.run(scp_cmd, capture_output=True, text=True, check=True)
+        
+        logger.info("Backup transferred via SSH successfully")
+        logger.info(f"Transfer command: {' '.join(scp_cmd)}")
+        logger.info(f"Remote backup directory: {remote_backup_dir}")
+        
+        # Optional: Verify file on remote system
+        ssh_verify_cmd = [
+            'ssh', 
+            '-o', 'StrictHostKeyChecking=no',
+            '-i', ssh_key_path,
+            f'{ec2_user}@{ec2_host}',
+            f'ls -l {remote_backup_dir}/latest_backup.tar.gz'
+        ]
+        
+        verify_result = subprocess.run(ssh_verify_cmd, capture_output=True, text=True, check=True)
+        logger.info(f"Remote file verification: {verify_result.stdout.strip()}")
         
         return True
     
     except subprocess.CalledProcessError as e:
-        logger.error(f"Transfer failed: {e}")
+        logger.error(f"SSH transfer failed: {e}")
         logger.error(f"STDOUT: {e.stdout}")
         logger.error(f"STDERR: {e.stderr}")
         return False
     except Exception as e:
-        logger.error(f"Unexpected transfer error: {e}")
+        logger.error(f"Unexpected SSH transfer error: {e}")
         return False
 
 def stage_database_backup(
@@ -109,8 +136,8 @@ def stage_database_backup(
         
         logger.info(f"Database backup downloaded: {local_backup_path}")
         
-        # Attempt to transfer to EC2
-        transfer_success = transfer_to_ec2(local_backup_path)
+        # Transfer backup via SSH
+        transfer_success = transfer_backup_via_ssh(local_backup_path)
         
         if transfer_success:
             logger.info("Backup transferred to EC2 instance")
