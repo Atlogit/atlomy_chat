@@ -95,6 +95,69 @@ def transfer_backup_via_ssh(local_backup_path):
         logger.error(f"Unexpected SSH transfer error: {e}")
         return False
 
+def prepare_database_restoration(ec2_host, ec2_user, ssh_key_path):
+    """
+    Prepare for database restoration on the remote EC2 instance
+    """
+    try:
+        # SSH command to prepare database restoration
+        prepare_cmd = [
+            'ssh', 
+            '-o', 'StrictHostKeyChecking=no',
+            '-i', ssh_key_path,
+            f'{ec2_user}@{ec2_host}',
+            '''
+            set -e
+            
+            # Database restoration preparation
+            BACKUP_DIR="/opt/atlomy/database_backups"
+            BACKUP_FILE="$BACKUP_DIR/latest_backup.tar.gz"
+            
+            # Validate backup file exists
+            if [ ! -f "$BACKUP_FILE" ]; then
+                echo "Error: Backup file not found"
+                exit 1
+            fi
+            
+            # Ensure PostgreSQL data directory is prepared
+            sudo mkdir -p /var/lib/postgresql/data
+            sudo chown postgres:postgres /var/lib/postgresql/data
+            
+            # Log restoration attempt
+            echo "Preparing database restoration from $BACKUP_FILE" | sudo tee /var/log/database_restore.log
+            
+            # Optional: Extract backup (if tar.gz)
+            if [[ "$BACKUP_FILE" == *.tar.gz ]]; then
+                sudo tar -xzf "$BACKUP_FILE" -C /var/lib/postgresql/data
+            else
+                echo "Unsupported backup format" | sudo tee -a /var/log/database_restore.log
+                exit 1
+            fi
+            
+            # Set correct permissions
+            sudo chown -R postgres:postgres /var/lib/postgresql/data
+            
+            echo "Database backup prepared successfully"
+            '''
+        ]
+        
+        # Execute preparation command
+        result = subprocess.run(prepare_cmd, capture_output=True, text=True, check=True)
+        
+        logger.info("Database restoration preparation successful")
+        logger.info(f"Preparation output: {result.stdout}")
+        
+        return True
+    
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Database restoration preparation failed: {e}")
+        logger.error(f"STDOUT: {e.stdout}")
+        logger.error(f"STDERR: {e.stderr}")
+        return False
+    except Exception as e:
+        logger.error(f"Unexpected preparation error: {e}")
+        return False
+
 def stage_database_backup(
     s3_bucket='amta-app', 
     s3_prefix='amta-db',
@@ -139,12 +202,23 @@ def stage_database_backup(
         # Transfer backup via SSH
         transfer_success = transfer_backup_via_ssh(local_backup_path)
         
-        if transfer_success:
-            logger.info("Backup transferred to EC2 instance")
-        else:
+        if not transfer_success:
             logger.warning("Failed to transfer backup to EC2 instance")
+            return False
         
-        return True
+        # Prepare for database restoration
+        ec2_host = os.environ.get('EC2_HOST')
+        ec2_user = os.environ.get('EC2_USER', 'ec2-user')
+        ssh_key_path = os.environ.get('EC2_SSH_PRIVATE_KEY_PATH', '/tmp/ec2_ssh_key')
+        
+        prepare_success = prepare_database_restoration(ec2_host, ec2_user, ssh_key_path)
+        
+        if prepare_success:
+            logger.info("Database backup staged and prepared for restoration")
+        else:
+            logger.warning("Database restoration preparation failed")
+        
+        return prepare_success
     
     except Exception as e:
         logger.error(f"Backup staging error: {e}")
