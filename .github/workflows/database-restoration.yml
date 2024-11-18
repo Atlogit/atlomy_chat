@@ -19,27 +19,6 @@ on:
         description: 'S3 Prefix for Database Backups'
         required: true
         default: 'amta-db'
-  workflow_call:
-    inputs:
-      deployment_mode:
-        description: 'Deployment mode (development/production)'
-        type: string
-        required: false
-        default: 'production'
-      force_restore:
-        description: 'Force database restoration'
-        type: boolean
-        default: false
-      s3_backup_bucket:
-        description: 'S3 Bucket for Database Backups'
-        type: string
-        required: false
-        default: 'amta-app'
-      s3_backup_prefix:
-        description: 'S3 Prefix for Database Backups'
-        type: string
-        required: false
-        default: 'amta-db'
 
 permissions:
   id-token: write
@@ -49,7 +28,7 @@ jobs:
   database-restoration:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
       - name: Configure AWS Credentials
@@ -62,69 +41,25 @@ jobs:
         id: get-database-secrets
         run: |
           secrets=$(aws secretsmanager get-secret-value --secret-id amta-production-secrets --query SecretString --output text)
-
-          # Extract DATABASE_URL and parse host
-          database_url=$(echo $secrets | jq -r '.DATABASE_URL')
           
-          # Validate DATABASE_URL format with more lenient parsing
-          if [[ -z "$database_url" ]]; then
-            echo "❌ DATABASE_URL is empty"
-            echo "connection_status=no_url" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-          
-          # Robust URL parsing with comprehensive error handling
+          database_url=$(echo "$secrets" | jq -r '.DATABASE_URL')
           postgres_host=$(echo "$database_url" | sed -E 's|postgresql\+asyncpg://[^:]+:[^@]+@([^:/]+).*|\1|')
           postgres_port=$(echo "$database_url" | sed -E 's|postgresql\+asyncpg://[^:]+:[^@]+@[^:/]+:?([0-9]+)?.*|\1|' || echo "5432")
           postgres_db=$(echo "$database_url" | sed -E 's|postgresql\+asyncpg://[^:]+:[^@]+@[^:/]+:?[0-9]*/([^?]+).*|\1|')
           postgres_user=$(echo "$database_url" | sed -E 's|postgresql\+asyncpg://([^:]+):.*|\1|')
-          
-          # Enhanced validation with detailed logging
-          echo "🔬 Parsed Connection Details:"
-          echo "  Host: $postgres_host"
-          echo "  Port: $postgres_port"
-          echo "  Database: $postgres_db"
-          echo "  User: $postgres_user"
-          
-          # Comprehensive validation
-          validation_errors=()
-          
-          if [[ -z "$postgres_host" || "$postgres_host" == "localhost" ]]; then
-            echo "⚠️ Warning: Potentially problematic host configuration"
-            validation_errors+=("Invalid or localhost host")
-          fi
-          
-          if [ -z "$postgres_db" ]; then
-            validation_errors+=("Database name could not be parsed")
-          fi
-          
-          if [ -z "$postgres_user" ]; then
-            validation_errors+=("Username could not be parsed")
-          fi
-          
-          # Output validation status
-          if [ "${#validation_errors[@]}" -gt 0 ]; then
-            echo "❗ Configuration Validation Warnings:"
-            printf '%s\n' "${validation_errors[@]}"
-            echo "connection_status=partial_config" >> $GITHUB_OUTPUT
-          else
-            echo "connection_status=valid_config" >> $GITHUB_OUTPUT
-          fi
-          
-          # Retrieve password
-          postgres_password=$(echo $secrets" | jq -r '.POSTGRES_PASSWORD')
-          
-          if [ -z "$postgres_password" ]; then
-            echo "❌ Database password could not be retrieved"
-            echo "connection_status=no_password" >> $GITHUB_OUTPUT
-          fi
-          
-          # Always output connection parameters
+          postgres_password=$(echo "$secrets" | jq -r '.POSTGRES_PASSWORD')
+
           echo "POSTGRES_HOST=$postgres_host" >> $GITHUB_OUTPUT
           echo "POSTGRES_PORT=$postgres_port" >> $GITHUB_OUTPUT
           echo "POSTGRES_DB=$postgres_db" >> $GITHUB_OUTPUT
           echo "POSTGRES_USER=$postgres_user" >> $GITHUB_OUTPUT
           echo "POSTGRES_PASSWORD=$postgres_password" >> $GITHUB_OUTPUT
+
+          echo "🔍 Database Connection Details:"
+          echo "  Host: $postgres_host"
+          echo "  Port: $postgres_port"
+          echo "  Database: $postgres_db"
+          echo "  User: $postgres_user"
 
       - name: Check Database Connectivity
         id: database-connectivity
@@ -135,7 +70,6 @@ jobs:
           POSTGRES_USER: ${{ steps.get-database-secrets.outputs.POSTGRES_USER }}
           POSTGRES_PASSWORD: ${{ steps.get-database-secrets.outputs.POSTGRES_PASSWORD }}
         run: |
-          # Comprehensive connectivity check with detailed logging
           export PGPASSWORD=$POSTGRES_PASSWORD
           
           echo "🔌 Attempting Database Connection:"
@@ -143,184 +77,167 @@ jobs:
           echo "  Port: $POSTGRES_PORT"
           echo "  Database: $POSTGRES_DB"
           echo "  User: $POSTGRES_USER"
-          
-          # Attempt connection with extended timeout and verbose output
-          connection_output=$(timeout 30s psql -v ON_ERROR_STOP=1 -h "$POSTGRES_HOST" -p "$POSTGRES_PORT" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -t -c "SELECT 1" 2>&1)
+
+          # Attempt connection with timeout
+          connection_output=$(timeout 10s psql -h "$POSTGRES_HOST" -p "$POSTGRES_PORT" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -t -c "SELECT 1" 2>&1)
           connection_status=$?
           
           if [ $connection_status -eq 0 ]; then
             echo "✅ Database connection successful"
             echo "connection_status=success" >> $GITHUB_OUTPUT
             echo "connection_available=true" >> $GITHUB_OUTPUT
-          elif [ $connection_status -eq 124 ]; then
-            echo "⏰ Database connection timed out"
-            echo "connection_status=timeout" >> $GITHUB_OUTPUT
-            echo "connection_available=false" >> $GITHUB_OUTPUT
           else
             echo "❌ Database connection failed"
-            echo "Connection Error Details: $connection_output"
+            echo "Connection Error: $connection_output"
             echo "connection_status=failed" >> $GITHUB_OUTPUT
             echo "connection_available=false" >> $GITHUB_OUTPUT
           fi
           
-          # Always exit successfully to allow workflow continuation
+          # Always continue workflow
           exit 0
 
-          - name: Check Existing Database State
-            id: database-check
-            if: steps.database-connectivity.outputs.connection_available == 'true'
-            env:
-              POSTGRES_HOST: ${{ steps.get-database-secrets.outputs.POSTGRES_HOST }}
-              POSTGRES_DB: ${{ steps.get-database-secrets.outputs.POSTGRES_DB }}
-              POSTGRES_USER: ${{ steps.get-database-secrets.outputs.POSTGRES_USER }}
-              POSTGRES_PASSWORD: ${{ steps.get-database-secrets.outputs.POSTGRES_PASSWORD }}
-            run: |
-              export PGPASSWORD=$POSTGRES_PASSWORD
+      - name: Check PostgreSQL Data Directory
+        id: check-postgres-data
+        if: steps.database-connectivity.outputs.connection_available == 'false'
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+        run: |
+          SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=no"
+          
+          # Check PostgreSQL data directory
+          ssh $SSH_OPTS -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << REMOTE_SCRIPT
+            # Check if data directory exists
+            if [ -d "/var/lib/postgresql/data" ]; then
+              # Count files in the directory
+              file_count=$(find /var/lib/postgresql/data -type f | wc -l)
               
-              # Check if database exists
-              db_exists=$(psql -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -t -c "SELECT 1 FROM pg_database WHERE datname = '$POSTGRES_DB'")
-              
-              # If database doesn't exist, we need to restore
-              if [ -z "$db_exists" ]; then
-                echo "❌ Database does not exist"
-                echo "restore_needed=true" >> $GITHUB_OUTPUT
+              if [ "\$file_count" -gt 0 ]; then
+                echo "✅ PostgreSQL data directory exists and contains files"
                 exit 0
-              fi
-              
-              # Check current database checksum
-              current_checksum=$(psql -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -t -c "SELECT md5(string_agg(md5(row::text), '')) FROM (SELECT * FROM information_schema.tables LIMIT 1000) AS row")
-              
-              echo "current_checksum=$current_checksum" >> $GITHUB_OUTPUT
-              echo "✅ Database checksum retrieved"
-    
-          - name: Find Latest Database Backup
-            id: find-backup
-            if: steps.database-check.outputs.restore_needed == 'true'
-            env:
-              S3_BACKUP_BUCKET: ${{ inputs.s3_backup_bucket || 'amta-app' }}
-              S3_BACKUP_PREFIX: ${{ inputs.s3_backup_prefix || 'amta-db' }}
-            run: |
-              echo "📋 Discovering Latest Backup"
-              latest_backup=$(aws s3 ls "s3://$S3_BACKUP_BUCKET/$S3_BACKUP_PREFIX/" | grep '.tar.gz' | sort | tail -n 1 | awk '{print $4}')
-              
-              if [ -z "$latest_backup" ]; then
-                echo "❌ Error: No backup files found in S3 bucket"
-                exit 1
-              fi
-    
-              echo "🏷️ Latest Backup: $latest_backup"
-              echo "backup_file=$latest_backup" >> $GITHUB_OUTPUT
-    
-          - name: Download and Validate Backup
-            id: download-backup
-            if: steps.database-check.outputs.restore_needed == 'true'
-            env:
-              S3_BACKUP_BUCKET: ${{ inputs.s3_backup_bucket || 'amta-app' }}
-              S3_BACKUP_PREFIX: ${{ inputs.s3_backup_prefix || 'amta-db' }}
-              BACKUP_FILE: ${{ steps.find-backup.outputs.backup_file }}
-            run: |
-              echo "⬇️ Downloading Backup: $BACKUP_FILE"
-              aws s3 cp "s3://$S3_BACKUP_BUCKET/$S3_BACKUP_PREFIX/$BACKUP_FILE" ./latest_backup.tar.gz
-    
-              if [ ! -f ./latest_backup.tar.gz ]; then
-                echo "❌ Error: Backup download failed"
-                exit 1
-              fi
-    
-              backup_size=$(du -h ./latest_backup.tar.gz | cut -f1)
-              backup_checksum=$(sha256sum ./latest_backup.tar.gz | awk '{print $1}')
-    
-              echo "📦 Backup Size: $backup_size"
-              echo "🔢 Backup Checksum: $backup_checksum"
-              
-          - name: Determine Restore Necessity
-            id: restore-decision
-            env:
-              CURRENT_CHECKSUM: ${{ steps.database-check.outputs.current_checksum }}
-              BACKUP_CHECKSUM: ${{ steps.download-backup.outputs.backup_checksum }}
-              DB_EXISTS: ${{ steps.database-check.outputs.restore_needed }}
-            run: |
-              if [[ "$DB_EXISTS" == "true" ]]; then
-                echo "✅ Database does not exist. Restore needed."
-                echo "restore_needed=true" >> $GITHUB_OUTPUT
-              elif [[ "$CURRENT_CHECKSUM" != "$BACKUP_CHECKSUM" ]]; then
-                echo "🔄 Database checksum differs. Restore needed."
-                echo "restore_needed=true" >> $GITHUB_OUTPUT
               else
-                echo "✅ Database is up to date."
-                echo "restore_needed=false" >> $GITHUB_OUTPUT
+                echo "⚠️ PostgreSQL data directory is empty"
+                exit 1
               fi
-    
-          - name: Prepare SSH Key
-            if: steps.restore-decision.outputs.restore_needed == 'true'
-            env:
-              EC2_SSH_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
-            run: |
-              echo "🔐 Preparing SSH Key"
-              mkdir -p ~/.ssh
-              echo "$EC2_SSH_KEY" > ~/.ssh/ec2_key
-              chmod 600 ~/.ssh/ec2_key
-              echo "✅ SSH Key prepared successfully"
-    
-          - name: Transfer Backup to EC2
-            if: steps.restore-decision.outputs.restore_needed == 'true'
-            env:
-              S3_BACKUP_BUCKET: ${{ secrets.S3_BACKUP_BUCKET }}
-              BACKUP_FILE: ${{ steps.find-backup.outputs.backup_file }}
-              BACKUP_SIZE: ${{ steps.download-backup.outputs.backup_size }}
-              EC2_HOST: ${{ secrets.EC2_HOST }}
-              EC2_USER: ${{ secrets.EC2_USER }}
-            run: |
-              echo "🚀 Transferring Backup to EC2"
-              echo "📍 Destination: $EC2_USER@$EC2_HOST"
-              echo "📦 Backup Size: $BACKUP_SIZE"
-    
-              SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=no -v"
-    
-              # Ensure remote backup directory exists with sudo
-              ssh $SSH_OPTS -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST "sudo mkdir -p /opt/atlomy/database_backups && sudo chown $EC2_USER:$EC2_USER /opt/atlomy/database_backups"
-    
-              # Transfer backup with verbose output
-              scp -v $SSH_OPTS -i ~/.ssh/ec2_key \
-                  ./latest_backup.tar.gz \
-                  $EC2_USER@$EC2_HOST:/opt/atlomy/database_backups/latest_backup.tar.gz
-    
-              echo "✅ Backup transfer completed"
-    
-          - name: Restore PostgreSQL Database
-            if: steps.restore-decision.outputs.restore_needed == 'true'
-            env:
-              EC2_HOST: ${{ secrets.EC2_HOST }}
-              EC2_USER: ${{ secrets.EC2_USER }}
-              POSTGRES_HOST: ${{ steps.get-database-secrets.outputs.POSTGRES_HOST }}
-              POSTGRES_DB: ${{ steps.get-database-secrets.outputs.POSTGRES_DB }}
-              POSTGRES_USER: ${{ steps.get-database-secrets.outputs.POSTGRES_USER }}
-              POSTGRES_PASSWORD: ${{ steps.get-database-secrets.outputs.POSTGRES_PASSWORD }}
-            run: |
-              SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=no"
-              
-              ssh $SSH_OPTS -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << EOF
-                export PGPASSWORD=$POSTGRES_PASSWORD
-                
-                # Drop existing database if it exists
-                psql -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -c "DROP DATABASE IF EXISTS \"$POSTGRES_DB\";"
-                
-                # Create new database
-                psql -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -c "CREATE DATABASE \"$POSTGRES_DB\";"
-                
-                # Restore backup
-                pg_restore -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -d "$POSTGRES_DB" /opt/atlomy/database_backups/latest_backup.tar.gz
-                
-                # Verify restoration
-                table_count=$(psql -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';")
-                
-                if [ "\$table_count" -eq 0 ]; then
-                  echo "❌ Database restoration failed: No tables found"
-                  exit 1
-                fi
-                
-                echo "✅ Database restored successfully. Tables found: \$table_count"
-              EOF
+            else
+              echo "❌ PostgreSQL data directory does not exist"
+              exit 2
+            fi
+          REMOTE_SCRIPT
+          
+          case $? in
+            0)
+              echo "postgres_data_status=populated" >> $GITHUB_OUTPUT
+              ;;
+            1)
+              echo "postgres_data_status=empty" >> $GITHUB_OUTPUT
+              ;;
+            2)
+              echo "postgres_data_status=missing" >> $GITHUB_OUTPUT
+              ;;
+          esac
+
+      - name: Check Backup File Availability
+        id: check-backup-file
+        if: steps.check-postgres-data.outputs.postgres_data_status == 'missing' || steps.check-postgres-data.outputs.postgres_data_status == 'empty'
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+        run: |
+          SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=no"
+          
+          # Check backup file in /opt/atlomy/database_backups
+          ssh $SSH_OPTS -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << REMOTE_SCRIPT
+            # Ensure backup directory exists
+            mkdir -p /opt/atlomy/database_backups
+            
+            # Check for backup file
+            if [ -f "/opt/atlomy/database_backups/latest_backup.tar.gz" ]; then
+              echo "✅ Backup file exists in /opt/atlomy/database_backups"
+              exit 0
+            else
+              echo "❌ No backup file in /opt/atlomy/database_backups"
+              exit 1
+            fi
+          REMOTE_SCRIPT
+          
+          if [ $? -eq 0 ]; then
+            echo "backup_file_status=exists" >> $GITHUB_OUTPUT
+          else
+            echo "backup_file_status=missing" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Download Backup from S3
+        id: download-backup
+        if: steps.check-backup-file.outputs.backup_file_status == 'missing'
+        env:
+          S3_BACKUP_BUCKET: ${{ inputs.s3_backup_bucket || 'amta-app' }}
+          S3_BACKUP_PREFIX: ${{ inputs.s3_backup_prefix || 'amta-db' }}
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+        run: |
+          echo "📋 Discovering Latest Backup"
+          latest_backup=$(aws s3 ls "s3://$S3_BACKUP_BUCKET/$S3_BACKUP_PREFIX/" | grep '.tar.gz' | sort | tail -n 1 | awk '{print $4}')
+          
+          if [ -z "$latest_backup" ]; then
+            echo "❌ Error: No backup files found in S3 bucket"
+            exit 1
+          fi
+
+          echo "🏷️ Latest Backup: $latest_backup"
+          
+          SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=no"
+          
+          # Transfer backup to EC2
+          ssh $SSH_OPTS -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << REMOTE_SCRIPT
+            mkdir -p /opt/atlomy/database_backups
+            aws s3 cp "s3://$S3_BACKUP_BUCKET/$S3_BACKUP_PREFIX/$latest_backup" /opt/atlomy/database_backups/latest_backup.tar.gz
+            
+            # Verify download
+            if [ -f "/opt/atlomy/database_backups/latest_backup.tar.gz" ]; then
+              echo "✅ Backup downloaded successfully"
+              exit 0
+            else
+              echo "❌ Backup download failed"
+              exit 1
+            fi
+          REMOTE_SCRIPT
+          
+          if [ $? -eq 0 ]; then
+            echo "download_status=success" >> $GITHUB_OUTPUT
+          else
+            echo "download_status=failed" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+      - name: Restore PostgreSQL Database
+        if: steps.download-backup.outputs.download_status == 'success'
+        env:
+          POSTGRES_HOST: ${{ steps.get-database-secrets.outputs.POSTGRES_HOST }}
+          POSTGRES_DB: ${{ steps.get-database-secrets.outputs.POSTGRES_DB }}
+          POSTGRES_USER: ${{ steps.get-database-secrets.outputs.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ steps.get-database-secrets.outputs.POSTGRES_PASSWORD }}
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+        run: |
+          SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=no"
+          
+          ssh $SSH_OPTS -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << EOF
+            export PGPASSWORD=$POSTGRES_PASSWORD
+            
+            # Restore backup
+            pg_restore -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -d "$POSTGRES_DB" /opt/atlomy/database_backups/latest_backup.tar.gz
+            
+            # Verify restoration
+            table_count=$(psql -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';")
+            
+            if [ "\$table_count" -eq 0 ]; then
+              echo "❌ Database restoration failed: No tables found"
+              exit 1
+            fi
+            
+            echo "✅ Database restored successfully. Tables found: \$table_count"
+          EOF
 
   notify-status:
     if: always()
@@ -330,8 +247,8 @@ jobs:
       - name: Determine Workflow Status
         run: |
           if [[ "${{ needs.database-restoration.result }}" == "success" ]]; then
-            echo "✅ Database Backup Staging Completed Successfully"
+            echo "✅ Database Restoration Completed Successfully"
           else
-            echo "❌ Database Backup Staging Failed"
+            echo "❌ Database Restoration Failed"
             exit 1
           fi
