@@ -16,10 +16,12 @@ def stage_database_backup(
 ):
     """
     Stage database backup from S3 for future Docker deployment
+    Copies backup to the specified location on the current instance
     """
     logger.info(f"Starting database backup staging process")
     logger.info(f"S3 Bucket: {s3_bucket}")
     logger.info(f"S3 Prefix: {s3_prefix}")
+    logger.info(f"Local Backup Directory: {backup_dir}")
 
     try:
         s3_client = boto3.client('s3')
@@ -47,7 +49,12 @@ def stage_database_backup(
             local_backup_path
         )
         
-        logger.info(f"Database backup staged: {local_backup_path}")
+        # Resolve to absolute path for clarity
+        abs_backup_path = os.path.abspath(local_backup_path)
+        
+        logger.info(f"Database backup downloaded: {abs_backup_path}")
+        logger.info(f"Backup ready for Docker deployment on this instance")
+        
         return True
     
     except Exception as e:
