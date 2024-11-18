@@ -1,35 +1,25 @@
-# Node.js Version Requirements
+# Node.js Version Management
 
-## Supported Node.js Versions
+## Recommended Node.js Version
+- **Stable Version**: 20.18.0
+- **Minimum Compatible Version**: 18.x
+- **Maximum Tested Version**: 20.x
 
-This project requires Node.js version 20.18.0.
+## Version Management
 
-### Why This Version?
-
-Many of our dependencies have specific Node.js version requirements:
-- Next.js 15.0.1 requires Node.js >=18.18.0
-- TypeScript 5.6.3 requires Node.js >=14.17
-- Testing libraries require Node.js >=16 or >=18
-
-## Managing Node.js Version
-
-We recommend using `nvm` (Node Version Manager) to manage Node.js versions:
-
+### Using NVM
 ```bash
-# Install NVM (if not already installed)
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.3/install.sh | bash
-
-# Install the required Node.js version
 nvm install 20.18.0
-
-# Use the required version
 nvm use 20.18.0
+nvm alias default 20.18.0
 ```
 
-## Automatic Version Management
-
-The `.nvmrc` file in this project will automatically tell `nvm` which version to use when you enter the project directory.
+### Docker Configuration
+- Base Image: node:20.18.0-alpine
+- Ensure Dockerfile uses matching version
 
 ## Troubleshooting
-
-If you encounter engine compatibility warnings, ensure you are using the specified Node.js version.
+- If experiencing build issues, verify:
+  1. Node.js version matches Dockerfile
+  2. npm version is compatible
+  3. All dependencies support the Node.js version

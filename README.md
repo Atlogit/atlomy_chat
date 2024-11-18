@@ -75,7 +75,36 @@ We use AWS Secrets Manager for comprehensive, secure secret management:
 ## Prerequisites
 
 - Python 3.9+
-- Node.js 18+
+- Node.js Version Management
+  * **Recommended Version**: 20.18.0
+  * **Minimum Version**: 18.x
+  * **Maximum Tested Version**: 20.x
+
+### Node.js Version Setup with NVM
+
+```bash
+# Install NVM (Node Version Manager)
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.3/install.sh | bash
+
+# Install recommended Node.js version
+nvm install 20.18.0
+
+# Use the recommended version
+nvm use 20.18.0
+
+# Set as default
+nvm alias default 20.18.0
+
+# Verify installation
+node --version  # Should output v20.18.0
+npm --version   # Should output 10.x.x
+```
+
+### Version Compatibility Notes
+- Ensure consistent Node.js version across development and deployment
+- Use `npm ci` for clean, reproducible builds
+- Regularly update dependencies to maintain compatibility
+
 - PostgreSQL 14+
 - Redis 6+
 - AWS Account with Bedrock access
