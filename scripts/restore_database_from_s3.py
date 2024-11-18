@@ -112,7 +112,7 @@ def restore_database_from_s3(
     
     # Safely handle DB_PORT, defaulting to 5432 if not set or empty
     try:
-        db_port = int(get_env_var('DB_PORT', str(db_port)) or 5432)
+        db_port = int(os.environ.get('DB_PORT', str(db_port)) or 5432)
     except ValueError:
         logger.warning(f"Invalid DB_PORT, defaulting to {db_port}")
         db_port = 5432
