@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
-const nextConfig = {
-  // Enable static exports if needed
-  // output: 'export',
+module.exports = {
+  // Disable any experimental features
+  experimental: {},
   
   // Configure rewrites to proxy API requests to the FastAPI backend
   async rewrites() {
@@ -19,13 +19,11 @@ const nextConfig = {
     NEXT_PUBLIC_BACKEND_URL: process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8081',
   },
 
-  // Remove deprecated swcMinify option
-  // Use SWC for compilation by default in Next.js 15+
+  // Explicitly disable any potentially problematic optimizations
+  swcMinify: false,
   
-  // Optional: Configure webpack if needed
+  // Minimal webpack configuration
   webpack: (config) => {
     return config;
   }
 }
-
-module.exports = nextConfig
