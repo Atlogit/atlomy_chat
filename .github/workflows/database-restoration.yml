@@ -85,6 +85,7 @@ jobs:
           DB_PORT: ${{ secrets.DB_PORT }}
           S3_BACKUP_BUCKET: ${{ secrets.S3_BACKUP_BUCKET }}
           EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_SSH_PRIVATE_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
           DEPLOYMENT_MODE: ${{ inputs.deployment_mode || github.event.inputs.deployment_mode || 'production' }}
         run: |
           chmod +x scripts/restore_database_from_s3.py
