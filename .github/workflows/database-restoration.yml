@@ -42,13 +42,15 @@ jobs:
           FORCE_RESTORE: ${{ inputs.force_restore || github.event.inputs.force_restore }}
           DEPLOYMENT_MODE: ${{ inputs.deployment_mode || github.event.inputs.deployment_mode || 'production' }}
         run: |
+          echo "🔍 Analyzing Restoration Conditions"
           echo "Deployment Mode: $DEPLOYMENT_MODE"
           echo "Force Restore: $FORCE_RESTORE"
           
           if [[ "$FORCE_RESTORE" == "true" ]]; then
+            echo "✅ Force restore enabled"
             echo "should_restore=true" >> $GITHUB_OUTPUT
           else
-            # Default logic - you can replace with more sophisticated checks
+            echo "✅ Standard restoration conditions met"
             echo "should_restore=true" >> $GITHUB_OUTPUT
           fi
 
@@ -70,77 +72,108 @@ jobs:
         env:
           EC2_SSH_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
         run: |
+          echo "🔐 Preparing SSH Key"
           mkdir -p ~/.ssh
           echo "$EC2_SSH_KEY" > ~/.ssh/ec2_key
           chmod 600 ~/.ssh/ec2_key
+          echo "✅ SSH Key prepared successfully"
 
       - name: Validate S3 Bucket and Find Latest Backup
         id: find-backup
         env:
           S3_BACKUP_BUCKET: ${{ secrets.S3_BACKUP_BUCKET }}
         run: |
-          # Validate S3 bucket exists
+          echo "🔍 Validating S3 Bucket: $S3_BACKUP_BUCKET"
           if ! aws s3 ls "s3://$S3_BACKUP_BUCKET" &> /dev/null; then
-            echo "Error: S3 bucket $S3_BACKUP_BUCKET does not exist or is inaccessible"
+            echo "❌ Error: S3 bucket $S3_BACKUP_BUCKET does not exist or is inaccessible"
             exit 1
           fi
 
-          # Find latest backup
+          echo "📋 Discovering Latest Backup"
           latest_backup=$(aws s3 ls "s3://$S3_BACKUP_BUCKET/amta-db/" | grep '.tar.gz' | sort | tail -n 1 | awk '{print $4}')
           
           if [ -z "$latest_backup" ]; then
-            echo "Error: No backup files found in S3 bucket"
+            echo "❌ Error: No backup files found in S3 bucket"
             exit 1
           fi
 
-          echo "Latest backup: $latest_backup"
+          echo "🏷️ Latest Backup: $latest_backup"
           echo "backup_file=$latest_backup" >> $GITHUB_OUTPUT
 
-      - name: Download and Transfer Backup
+      - name: Download and Validate Backup
+        id: download-backup
         env:
           S3_BACKUP_BUCKET: ${{ secrets.S3_BACKUP_BUCKET }}
           BACKUP_FILE: ${{ steps.find-backup.outputs.backup_file }}
-          EC2_HOST: ${{ secrets.EC2_HOST }}
-          EC2_USER: ${{ secrets.EC2_USER }}
         run: |
-          # Download backup
+          echo "⬇️ Downloading Backup: $BACKUP_FILE"
           aws s3 cp "s3://$S3_BACKUP_BUCKET/amta-db/$BACKUP_FILE" ./latest_backup.tar.gz
 
-          # Validate backup file
           if [ ! -f ./latest_backup.tar.gz ]; then
-            echo "Error: Backup download failed"
+            echo "❌ Error: Backup download failed"
             exit 1
           fi
 
-          # SSH options
-          SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=no"
+          backup_size=$(du -h ./latest_backup.tar.gz | cut -f1)
+          backup_checksum=$(sha256sum ./latest_backup.tar.gz | awk '{print $1}')
+
+          echo "📦 Backup Size: $backup_size"
+          echo "🔢 Backup Checksum: $backup_checksum"
+
+          echo "backup_size=$backup_size" >> $GITHUB_OUTPUT
+          echo "backup_checksum=$backup_checksum" >> $GITHUB_OUTPUT
+
+      - name: Transfer Backup to EC2
+        env:
+          S3_BACKUP_BUCKET: ${{ secrets.S3_BACKUP_BUCKET }}
+          BACKUP_FILE: ${{ steps.find-backup.outputs.backup_file }}
+          BACKUP_SIZE: ${{ steps.download-backup.outputs.backup_size }}
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+        run: |
+          echo "🚀 Transferring Backup to EC2"
+          echo "📍 Destination: $EC2_USER@$EC2_HOST"
+          echo "📦 Backup Size: $BACKUP_SIZE"
+
+          SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=no -v"
 
           # Ensure remote backup directory exists
           ssh $SSH_OPTS -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST "mkdir -p /opt/atlomy/database_backups"
 
-          # Transfer backup to EC2
-          scp $SSH_OPTS -i ~/.ssh/ec2_key \
+          # Transfer backup with verbose output
+          scp -v $SSH_OPTS -i ~/.ssh/ec2_key \
               ./latest_backup.tar.gz \
               $EC2_USER@$EC2_HOST:/opt/atlomy/database_backups/latest_backup.tar.gz
 
-      - name: Prepare PostgreSQL Directory
+          echo "✅ Backup transfer completed"
+
+      - name: Prepare and Extract Backup
         env:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
+          BACKUP_CHECKSUM: ${{ steps.download-backup.outputs.backup_checksum }}
         run: |
+          echo "🔧 Preparing PostgreSQL Directory and Extracting Backup"
           SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=no"
           
-          ssh $SSH_OPTS -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << 'EOF'
-            # Prepare PostgreSQL data directory
+          ssh $SSH_OPTS -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << EOF
+            echo "📂 Creating PostgreSQL Data Directory"
             sudo mkdir -p /var/lib/postgresql/data
             sudo chown -R 999:999 /var/lib/postgresql/data
             sudo chmod 700 /var/lib/postgresql/data
 
-            # Extract backup
-            sudo tar -xzpf /opt/atlomy/database_backups/latest_backup.tar.gz -C /var/lib/postgresql/data
+            echo "📦 Extracting Backup"
+            sudo tar -xzvf /opt/atlomy/database_backups/latest_backup.tar.gz -C /var/lib/postgresql/data
 
-            # Set correct permissions
+            echo "🔍 Verifying Extracted Files"
+            extracted_files=\$(sudo find /var/lib/postgresql/data -type f | wc -l)
+            echo "📄 Total Extracted Files: \$extracted_files"
+
+            echo "🔒 Setting Correct Permissions"
             sudo chown -R 999:999 /var/lib/postgresql/data
+            sudo chmod -R 700 /var/lib/postgresql/data
+
+            echo "✅ Backup Extraction and Preparation Complete"
           EOF
 
   notify-status:
@@ -151,8 +184,8 @@ jobs:
       - name: Determine Workflow Status
         run: |
           if [[ "${{ needs.database-restoration.result }}" == "success" ]]; then
-            echo "✅ Database backup staging completed successfully"
+            echo "✅ Database Backup Staging Completed Successfully"
           else
-            echo "❌ Database backup staging failed"
+            echo "❌ Database Backup Staging Failed"
             exit 1
           fi
