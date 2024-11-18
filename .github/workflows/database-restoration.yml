@@ -11,11 +11,22 @@ on:
         description: 'Force database restoration'
         type: boolean
         default: false
+  workflow_call:
+    inputs:
+      deployment_mode:
+        description: 'Deployment mode (development/production)'
+        type: string
+        required: false
+        default: 'production'
+      force_restore:
+        description: 'Force database restoration'
+        type: boolean
+        default: false
+
 
 permissions:
-  contents: read
-  packages: read
   id-token: write
+  contents: read
 
 jobs:
   pre-restore-checks:
@@ -29,10 +40,12 @@ jobs:
       - name: Check Restoration Conditions
         id: check-conditions
         env:
-          FORCE_RESTORE: ${{ github.event.inputs.force_restore }}
+          FORCE_RESTORE: ${{ inputs.force_restore || github.event.inputs.force_restore }}
+          DEPLOYMENT_MODE: ${{ inputs.deployment_mode || github.event.inputs.deployment_mode || 'production' }}
         run: |
-          # Add custom logic to determine if restoration is needed
-          # For example, check last backup timestamp, database health, etc.
+          echo "Deployment Mode: $DEPLOYMENT_MODE"
+          echo "Force Restore: $FORCE_RESTORE"
+          
           if [[ "$FORCE_RESTORE" == "true" ]]; then
             echo "should_restore=true" >> $GITHUB_OUTPUT
           else
@@ -72,6 +85,7 @@ jobs:
           DB_HOST: ${{ secrets.DB_HOST }}
           DB_PORT: ${{ secrets.DB_PORT }}
           S3_BACKUP_BUCKET: ${{ secrets.S3_BACKUP_BUCKET }}
+          DEPLOYMENT_MODE: ${{ inputs.deployment_mode || github.event.inputs.deployment_mode || 'production' }}
         run: |
           chmod +x scripts/restore_database_from_s3.py
           python3 scripts/restore_database_from_s3.py
@@ -100,9 +114,8 @@ jobs:
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           DB_HOST: ${{ secrets.DB_HOST }}
           DB_PORT: ${{ secrets.DB_PORT }}
+          DEPLOYMENT_MODE: ${{ inputs.deployment_mode || github.event.inputs.deployment_mode || 'production' }}
         run: |
-          # Add database validation script or commands
-          # Example: Check table counts, run basic queries
           python -c "
           import psycopg2
           try:
