@@ -39,6 +39,13 @@ jobs:
           pip install boto3 psycopg2-binary
 
       - name: Restore Database from S3
+        env:
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+          S3_BACKUP_BUCKET: ${{ secrets.S3_BACKUP_BUCKET }}
         run: |
           chmod +x scripts/restore_database_from_s3.py
           python3 scripts/restore_database_from_s3.py
@@ -46,5 +53,5 @@ jobs:
       - name: Notify Restoration Status
         if: failure()
         run: |
-          echo "Database restoration failed"
+          echo "❌ Database restoration failed"
           exit 1

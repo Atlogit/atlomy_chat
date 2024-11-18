@@ -2,73 +2,120 @@
 
 import os
 import sys
+import logging
 import boto3
 import psycopg2
 import subprocess
+from botocore.exceptions import ClientError
+from botocore.config import Config
 
-def database_exists(db_name, db_user, db_password, host='localhost'):
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s: %(message)s')
+logger = logging.getLogger(__name__)
+
+def create_s3_client():
     """
-    Check if a specific database exists
-    
-    :param db_name: Name of the database
-    :param db_user: Database user
-    :param db_password: Database password
-    :param host: Database host
-    :return: Boolean indicating database existence
+    Create S3 client with fallback to instance credentials
+    Prioritizes explicit credentials, then falls back to instance role
     """
+    try:
+        # Try explicit credentials first
+        session = boto3.Session(
+            aws_access_key_id=os.environ.get('AWS_ACCESS_KEY_ID'),
+            aws_secret_access_key=os.environ.get('AWS_SECRET_ACCESS_KEY'),
+            aws_session_token=os.environ.get('AWS_SESSION_TOKEN')
+        )
+        return session.client('s3')
+    except Exception as explicit_error:
+        logger.warning(f"Explicit credentials failed: {explicit_error}")
+        
+        try:
+            # Fallback to default credentials (EC2 instance role)
+            return boto3.client('s3', config=Config(
+                retries={'max_attempts': 3, 'mode': 'standard'}
+            ))
+        except Exception as default_error:
+            logger.error(f"S3 client creation failed: {default_error}")
+            return None
+
+def get_env_var(name, default=None, required=False):
+    """Safely retrieve environment variables with optional defaults."""
+    value = os.environ.get(name, default)
+    if required and not value:
+        raise ValueError(f"Required environment variable {name} is not set")
+    return value
+
+def database_exists(db_name, db_user, db_password, host='localhost', port=5432):
+    """Check if a specific database exists with improved error handling."""
     try:
         conn = psycopg2.connect(
             dbname='postgres',
             user=db_user,
             password=db_password,
-            host=host
+            host=host,
+            port=port
         )
         conn.autocommit = True
-        cur = conn.cursor()
-        cur.execute(f"SELECT 1 FROM pg_catalog.pg_database WHERE datname = '{db_name}'")
-        return cur.fetchone() is not None
-    except Exception as e:
-        print(f"Error checking database existence: {e}")
+        with conn.cursor() as cur:
+            cur.execute(f"SELECT 1 FROM pg_catalog.pg_database WHERE datname = '{db_name}'")
+            return cur.fetchone() is not None
+    except psycopg2.Error as e:
+        logger.error(f"Database connection error: {e}")
         return False
+    finally:
+        if 'conn' in locals():
+            conn.close()
 
 def restore_database_from_s3(
-    db_name='amta_greek', 
-    db_user='atlomy', 
-    db_password='atlomy21',
-    s3_bucket='amta-app', 
-    s3_prefix='amta-db'
+    db_name=None, 
+    db_user=None, 
+    db_password=None,
+    db_host='localhost',
+    db_port=5432,
+    s3_bucket=None, 
+    s3_prefix='amta-db',
+    max_retries=3
 ):
-    """
-    Restore database from S3 backup
-    
-    :param db_name: Target database name
-    :param db_user: Database user
-    :param db_password: Database password
-    :param s3_bucket: S3 bucket name
-    :param s3_prefix: S3 prefix/folder for backups
-    :return: Boolean indicating restoration success
-    """
+    """Robust database restoration from S3 with improved error handling and configurability."""
+    # Use environment variables with fallback to parameters
+    db_name = db_name or get_env_var('DB_NAME', 'amta_greek')
+    db_user = db_user or get_env_var('DB_USER', 'atlomy')
+    db_password = db_password or get_env_var('DB_PASSWORD')
+    s3_bucket = s3_bucket or get_env_var('S3_BACKUP_BUCKET', 'amta-app')
+    db_host = get_env_var('DB_HOST', db_host)
+    db_port = int(get_env_var('DB_PORT', db_port))
+
+    if not db_password:
+        logger.error("Database password is required")
+        return False
+
     try:
         # Check if database already exists
-        if database_exists(db_name, db_user, db_password):
-            print(f"Database {db_name} already exists. Skipping restoration.")
+        if database_exists(db_name, db_user, db_password, host=db_host, port=db_port):
+            logger.info(f"Database {db_name} already exists. Skipping restoration.")
             return True
         
-        # Initialize S3 client
-        s3_client = boto3.client('s3')
+        # Create S3 client with fallback mechanism
+        s3_client = create_s3_client()
+        if not s3_client:
+            logger.error("Failed to create S3 client")
+            return False
         
         # List objects in S3 bucket
-        response = s3_client.list_objects_v2(
-            Bucket=s3_bucket,
-            Prefix=s3_prefix
-        )
+        try:
+            response = s3_client.list_objects_v2(
+                Bucket=s3_bucket,
+                Prefix=s3_prefix
+            )
+        except ClientError as e:
+            logger.error(f"S3 ListObjects error: {e}")
+            return False
         
         # Find the latest backup file
         backups = [obj['Key'] for obj in response.get('Contents', []) 
                    if obj['Key'].endswith('.tar.gz') or obj['Key'].endswith('.sql.gz')]
         
         if not backups:
-            print("No database backups found in S3.")
+            logger.warning("No database backups found in S3.")
             return False
         
         latest_backup = max(backups, key=lambda x: x.split('_')[-1])
@@ -91,14 +138,16 @@ def restore_database_from_s3(
         # Drop and recreate database commands
         drop_db_cmd = [
             'psql', 
-            '-h', 'localhost', 
+            '-h', db_host, 
+            '-p', str(db_port),
             '-U', db_user, 
             '-c', f'DROP DATABASE IF EXISTS "{db_name}";'
         ]
         
         create_db_cmd = [
             'psql', 
-            '-h', 'localhost', 
+            '-h', db_host, 
+            '-p', str(db_port),
             '-U', db_user, 
             '-c', f'CREATE DATABASE "{db_name}";'
         ]
@@ -106,22 +155,29 @@ def restore_database_from_s3(
         # Restore command (different for .tar.gz and .sql.gz)
         restore_cmd = [
             'pg_restore' if local_backup_path.endswith('.tar.gz') else 'psql',
-            '-h', 'localhost',
+            '-h', db_host,
+            '-p', str(db_port),
             '-U', db_user,
             '-d', db_name,
             local_backup_path
         ]
         
         # Execute database restoration commands
-        subprocess.run(drop_db_cmd, env=env, check=True)
-        subprocess.run(create_db_cmd, env=env, check=True)
-        subprocess.run(restore_cmd, env=env, check=True)
+        for cmd in [drop_db_cmd, create_db_cmd, restore_cmd]:
+            try:
+                result = subprocess.run(cmd, env=env, capture_output=True, text=True, check=True)
+                logger.info(f"Command executed successfully: {' '.join(cmd)}")
+            except subprocess.CalledProcessError as e:
+                logger.error(f"Command failed: {' '.join(cmd)}")
+                logger.error(f"STDOUT: {e.stdout}")
+                logger.error(f"STDERR: {e.stderr}")
+                return False
         
-        print(f"Database {db_name} restored successfully")
+        logger.info(f"Database {db_name} restored successfully")
         return True
     
     except Exception as e:
-        print(f"Database restoration error: {e}")
+        logger.error(f"Unexpected error during database restoration: {e}")
         return False
 
 def main():
@@ -132,18 +188,23 @@ def main():
     import argparse
     
     parser = argparse.ArgumentParser(description='Restore database from S3')
-    parser.add_argument('--db-name', default='amta_greek', help='Database name')
-    parser.add_argument('--db-user', default='atlomy', help='Database user')
-    parser.add_argument('--db-password', default='atlomy21', help='Database password')
-    parser.add_argument('--s3-bucket', default='amta-app', help='S3 bucket name')
-    parser.add_argument('--s3-prefix', default='amta-db', help='S3 prefix/folder')
+    parser.add_argument('--db-name', help='Database name')
+    parser.add_argument('--db-user', help='Database user')
+    parser.add_argument('--db-password', help='Database password')
+    parser.add_argument('--db-host', help='Database host')
+    parser.add_argument('--db-port', type=int, help='Database port')
+    parser.add_argument('--s3-bucket', help='S3 bucket name')
+    parser.add_argument('--s3-prefix', help='S3 prefix/folder')
     
     args = parser.parse_args()
     
+    # Use environment variables if not provided via arguments
     success = restore_database_from_s3(
         db_name=args.db_name,
         db_user=args.db_user,
         db_password=args.db_password,
+        db_host=args.db_host,
+        db_port=args.db_port,
         s3_bucket=args.s3_bucket,
         s3_prefix=args.s3_prefix
     )
