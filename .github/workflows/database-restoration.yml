@@ -116,7 +116,7 @@ jobs:
           echo "POSTGRES_DB=$postgres_db" >> $GITHUB_OUTPUT
           echo "POSTGRES_USER=$postgres_user" >> $GITHUB_OUTPUT
           echo "POSTGRES_PASSWORD=$postgres_password" >> $GITHUB_OUTPUT
-          
+
           # Diagnostic logging
           echo "🔍 Parsed Connection Details:"
           echo "  Host: $postgres_host"
@@ -141,18 +141,24 @@ jobs:
           if [ $connection_status -eq 0 ]; then
             echo "✅ Database connection successful"
             echo "connection_status=success" >> $GITHUB_OUTPUT
+            echo "connection_available=true" >> $GITHUB_OUTPUT
           elif [ $connection_status -eq 124 ]; then
             echo "⏰ Database connection timed out"
             echo "connection_status=timeout" >> $GITHUB_OUTPUT
+            echo "connection_available=false" >> $GITHUB_OUTPUT
           else
             echo "❌ Database connection failed"
             echo "Connection Error: $connection_output"
             echo "connection_status=failed" >> $GITHUB_OUTPUT
+            echo "connection_available=false" >> $GITHUB_OUTPUT
           fi
+          
+          # Always exit successfully to allow workflow to continue
+          exit 0
 
       - name: Check Existing Database State
         id: database-check
-        if: steps.database-connectivity.outputs.connection_status == 'success'
+        if: steps.database-connectivity.outputs.connection_available == 'true'
         env:
           POSTGRES_HOST: ${{ steps.get-database-secrets.outputs.POSTGRES_HOST }}
           POSTGRES_DB: ${{ steps.get-database-secrets.outputs.POSTGRES_DB }}
