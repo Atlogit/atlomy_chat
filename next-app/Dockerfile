@@ -8,8 +8,11 @@ WORKDIR /app
 # Copy package.json and package-lock.json
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci --only=production
+# Debug: List and display package files
+RUN ls -l && cat package.json && cat package-lock.json
+
+# Install dependencies with more verbose output
+RUN npm install --verbose
 
 # Copy the rest of the application code
 COPY . .
