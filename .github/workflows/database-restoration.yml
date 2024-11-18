@@ -91,26 +91,42 @@ jobs:
           echo "Latest backup: $latest_backup"
           echo "backup_file=$latest_backup" >> $GITHUB_OUTPUT
 
-      - name: Download Database Backup
+      - name: Validate and Download Database Backup
+        id: download-backup
         env:
           S3_BACKUP_BUCKET: ${{ secrets.S3_BACKUP_BUCKET }}
           BACKUP_FILE: ${{ steps.find-backup.outputs.backup_file }}
         run: |
+          # Download backup
           aws s3 cp s3://$S3_BACKUP_BUCKET/amta-db/$BACKUP_FILE ./latest_backup.tar.gz
+          
+          # Get file details
+          backup_size=$(du -h ./latest_backup.tar.gz | cut -f1)
+          backup_checksum=$(sha256sum ./latest_backup.tar.gz | awk '{print $1}')
+          
+          echo "Backup File: $BACKUP_FILE"
+          echo "Backup Size: $backup_size"
+          echo "Backup SHA256 Checksum: $backup_checksum"
+          
+          echo "backup_size=$backup_size" >> $GITHUB_OUTPUT
+          echo "backup_checksum=$backup_checksum" >> $GITHUB_OUTPUT
 
       - name: Transfer Backup to EC2
         env:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
+          BACKUP_SIZE: ${{ steps.download-backup.outputs.backup_size }}
         run: |
-          scp -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key \
+          echo "Transferring backup file (Size: $BACKUP_SIZE) to EC2 instance..."
+          scp -v -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key \
             ./latest_backup.tar.gz \
             $EC2_USER@$EC2_HOST:/opt/atlomy/database_backups/latest_backup.tar.gz
 
-      - name: Restore Database on EC2
+      - name: Verify Backup Transfer and Extract
         env:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
+          BACKUP_CHECKSUM: ${{ steps.download-backup.outputs.backup_checksum }}
         run: |
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << 'EOF'
             set -e
@@ -119,21 +135,32 @@ jobs:
             BACKUP_FILE="$BACKUP_DIR/latest_backup.tar.gz"
             PG_DATA_DIR="/var/lib/postgresql/data"
             
-            # Validate backup file
+            # Validate backup file exists
             if [ ! -f "$BACKUP_FILE" ]; then
               echo "Error: Backup file not found"
               exit 1
             fi
             
+            # Log backup file details
+            echo "Backup File: $BACKUP_FILE"
+            echo "Backup Size: $(du -h "$BACKUP_FILE" | cut -f1)"
+            echo "Backup Checksum: $(sha256sum "$BACKUP_FILE" | awk '{print $1}')"
+            
             # Prepare PostgreSQL data directory
             sudo mkdir -p "$PG_DATA_DIR"
             sudo chown postgres:postgres "$PG_DATA_DIR"
             
-            # Extract backup
-            sudo tar -xzf "$BACKUP_FILE" -C "$PG_DATA_DIR"
+            # Extract backup with verbose output
+            echo "Starting backup extraction..."
+            sudo tar -xzvf "$BACKUP_FILE" -C "$PG_DATA_DIR"
             
             # Set correct permissions
+            echo "Setting permissions for PostgreSQL data directory..."
             sudo chown -R postgres:postgres "$PG_DATA_DIR"
+            
+            # Verify extraction
+            echo "Verifying extracted files..."
+            sudo ls -lR "$PG_DATA_DIR"
             
             echo "Database restoration completed successfully"
           EOF
