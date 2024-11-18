@@ -7,45 +7,45 @@ IFS=$'\n\t'
 # Get absolute path for script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Explicitly set BACKEND_URL for local development
-export BACKEND_URL=${BACKEND_URL:-http://localhost:8081}
-export NEXT_PUBLIC_BACKEND_URL=${NEXT_PUBLIC_BACKEND_URL:-$BACKEND_URL}
+# Explicitly source NVM
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
 
-# Run service preparation script in production mode
-if ! ./setup_services.sh production; then
-    echo "Service preparation failed. Cannot start production environment."
+# Node.js Version Enforcement
+REQUIRED_NODE_VERSION="20.18.0"
+
+# Debugging NVM and Node.js setup
+echo "NVM_DIR: $NVM_DIR"
+echo "NVM installed: $(command -v nvm)"
+echo "Current Node.js version before check: $(node --version 2>/dev/null || echo 'Not installed')"
+
+# Check if nvm is available
+if ! command -v nvm &> /dev/null; then
+    echo "Error: nvm (Node Version Manager) is not installed or not in PATH."
+    echo "Please install nvm and ensure it's properly configured."
     exit 1
 fi
 
-# Directory for logs (using absolute path)
-LOG_DIR="${SCRIPT_DIR}/logs/production"
-FASTAPI_LOG="${LOG_DIR}/fastapi_production.log"
-NEXTJS_LOG="${LOG_DIR}/nextjs_production.log"
-NEXTJS_ERROR_LOG="${LOG_DIR}/nextjs_production_error.log"
-
-# Ensure logs directory exists with proper permissions
-mkdir -p "${LOG_DIR}"
-chmod 755 "${LOG_DIR}"
-
-# Initialize log files with proper permissions
-for log_file in "${FASTAPI_LOG}" "${NEXTJS_LOG}" "${NEXTJS_ERROR_LOG}"; do
-    touch "${log_file}"
-    chmod 644 "${log_file}"
-done
-
-# Function for timestamped logging
-log() {
-    local level=$1
-    local message=$2
-    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
-    echo "[${timestamp}] [${level}] ${message}"
-    echo "[${timestamp}] [${level}] ${message}" >> "${FASTAPI_LOG}"
-}
-
-# Cleanup function
-cleanup() {
-    log "INFO" "Cleaning up production processes..."
+# Attempt to use the required Node.js version
+echo "Attempting to use Node.js $REQUIRED_NODE_VERSION"
+if ! nvm use "$REQUIRED_NODE_VERSION"; then
+    echo "Error: Node.js $REQUIRED_NODE_VERSION is not installed."
+    echo "Installing Node.js $REQUIRED_NODE_VERSION..."
+    if ! nvm install "$REQUIRED_NODE_VERSION"; then
+        echo "Error: Failed to install Node.js $REQUIRED_NODE_VERSION"
+        exit 1
+    fi
     
+    # Try using the version again after installation
+    if ! nvm use "$REQUIRED_NODE_VERSION"; then
+        echo "Error: Still unable to use Node.js $REQUIRED_NODE_VERSION after installation"
+        exit 1
+    fi
+fi
+
+# Verify Node.js version
+CURRENT_VERSION=$(node --version | sed 's/v//')
     # Check and kill FastAPI server
     if pgrep -f "uvicorn app.run_server:app" > /dev/null; then
         log "INFO" "Stopping FastAPI server..."
