@@ -56,12 +56,21 @@ jobs:
         run: |
           secrets=$(aws secretsmanager get-secret-value --secret-id amta-production-secrets --query SecretString --output text)
           
+          # Extract database connection details
           database_url=$(echo $secrets | jq -r '.DATABASE_URL')
           postgres_host=$(echo $secrets | jq -r '.POSTGRES_HOST')
-          postgres_port=$(echo $secrets | jq -r '.POSTGRES_PORT')
+          postgres_port=5432  # Explicitly set to 5432
           postgres_db=$(echo $secrets | jq -r '.POSTGRES_DB')
           postgres_user=$(echo $secrets | jq -r '.POSTGRES_USER')
           
+          # Output parsed values with comprehensive logging
+          echo "🔍 Database Connection Details:"
+          echo "  Host: $postgres_host"
+          echo "  Port: $postgres_port"
+          echo "  Database: $postgres_db"
+          echo "  User: $postgres_user"
+          
+          # Output values for workflow use
           echo "POSTGRES_HOST=$postgres_host" >> $GITHUB_OUTPUT
           echo "POSTGRES_PORT=$postgres_port" >> $GITHUB_OUTPUT
           echo "POSTGRES_DB=$postgres_db" >> $GITHUB_OUTPUT
@@ -78,21 +87,49 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y postgresql-client
 
-          # Attempt database connection with timeout
-          export PGPASSWORD=$(aws secretsmanager get-secret-value --secret-id amta-production-secrets --query 'SecretString' --output text | jq -r '.POSTGRES_PASSWORD')
-          
-          connection_output=$(timeout 30s psql -h "$POSTGRES_HOST" -p "$POSTGRES_PORT" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -t -c "SELECT 1" 2>&1)
+          # Retrieve database password securely
+          POSTGRES_PASSWORD=$(aws secretsmanager get-secret-value \
+            --secret-id amta-production-secrets \
+            --query 'SecretString' \
+            --output text | jq -r '.POSTGRES_PASSWORD')
+
+          # Comprehensive connection attempt logging
+          echo "🔬 Detailed Connection Attempt:"
+          echo "  Hostname: $POSTGRES_HOST"
+          echo "  Port: $POSTGRES_PORT"
+          echo "  Database: $POSTGRES_DB"
+          echo "  Username: $POSTGRES_USER"
+
+          # Attempt database connection with timeout and detailed error handling
+          export PGPASSWORD="$POSTGRES_PASSWORD"
+          connection_output=$(timeout 10s psql \
+            -h "$POSTGRES_HOST" \
+            -p "$POSTGRES_PORT" \
+            -U "$POSTGRES_USER" \
+            -d "$POSTGRES_DB" \
+            -t -c "SELECT 1" 2>&1)
           connection_status=$?
           
+          # Detailed connection status reporting
           if [ $connection_status -eq 0 ]; then
             echo "✅ Database connection successful"
-            exit 0
+            echo "connection_status=success" >> $GITHUB_OUTPUT
           elif [ $connection_status -eq 124 ]; then
             echo "⏰ Database connection timed out"
+            echo "❗ Connection Timeout Details:"
+            echo "  Host: $POSTGRES_HOST"
+            echo "  Port: $POSTGRES_PORT"
+            echo "  Database: $POSTGRES_DB"
+            echo "connection_status=timeout" >> $GITHUB_OUTPUT
             exit 1
           else
             echo "❌ Database connection failed"
-            echo "Connection Error: $connection_output"
+            echo "❗ Detailed Connection Failure:"
+            echo "  Host: $POSTGRES_HOST"
+            echo "  Port: $POSTGRES_PORT"
+            echo "  Database: $POSTGRES_DB"
+            echo "  Connection Error: $connection_output"
+            echo "connection_status=failed" >> $GITHUB_OUTPUT
             exit 1
           fi
 
@@ -120,5 +157,6 @@ jobs:
             echo "✅ Database Connectivity Validation Completed Successfully"
           else
             echo "❌ Database Connectivity Validation Failed"
+            echo "🔍 Note: Failure expected during initial database setup"
             exit 1
           fi
