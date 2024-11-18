@@ -174,8 +174,8 @@ jobs:
 
           SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=no -v"
 
-          # Ensure remote backup directory exists
-          ssh $SSH_OPTS -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST "mkdir -p /opt/atlomy/database_backups"
+          # Ensure remote backup directory exists with sudo
+          ssh $SSH_OPTS -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST "sudo mkdir -p /opt/atlomy/database_backups && sudo chown $EC2_USER:$EC2_USER /opt/atlomy/database_backups"
 
           # Transfer backup with verbose output
           scp -v $SSH_OPTS -i ~/.ssh/ec2_key \
