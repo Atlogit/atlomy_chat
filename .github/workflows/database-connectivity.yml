@@ -1,58 +1,124 @@
-name: Database Connectivity Verification
+name: Database Connectivity Validation
 
 on:
   workflow_dispatch:
+    inputs:
+      deployment_mode:
+        description: 'Deployment mode (development/production)'
+        required: false
+        default: 'production'
   workflow_call:
     inputs:
-      trigger_source:
-        description: 'Workflow that triggered this check'
+      deployment_mode:
+        description: 'Deployment mode (development/production)'
         type: string
         required: false
+        default: 'production'
+
+permissions:
+  id-token: write
+  contents: read
 
 jobs:
-  verify-database-connectivity:
+  validate-database-connectivity:
     runs-on: ubuntu-latest
-    
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Log Trigger Source
-      run: |
-        echo "Triggered by workflow: ${{ inputs.trigger_source }}"
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          aws-region: us-east-1
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
+      - name: Retrieve GitHub Actions Runner IP
+        id: runner-ip
+        run: |
+          RUNNER_IP=$(curl -s https://api.ipify.org)
+          echo "GitHub Actions Runner IP: $RUNNER_IP"
+          echo "runner_ip=$RUNNER_IP" >> $GITHUB_OUTPUT
 
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install sqlalchemy psycopg2-binary
+      - name: Add Temporary Security Group Rule
+        env:
+          SECURITY_GROUP_ID: ${{ secrets.EC2_SECURITY_GROUP_ID }}
+          RUNNER_IP: ${{ steps.runner-ip.outputs.runner_ip }}
+        run: |
+          echo "Adding temporary access for IP: $RUNNER_IP"
+          aws ec2 authorize-security-group-ingress \
+            --group-id $SECURITY_GROUP_ID \
+            --protocol tcp \
+            --port 5432 \
+            --cidr $RUNNER_IP/32
 
-    - name: Configure AWS Credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
-        aws-region: us-east-1
+      - name: Retrieve Database Secrets
+        id: get-database-secrets
+        run: |
+          secrets=$(aws secretsmanager get-secret-value --secret-id amta-production-secrets --query SecretString --output text)
+          
+          database_url=$(echo $secrets | jq -r '.DATABASE_URL')
+          postgres_host=$(echo $secrets | jq -r '.POSTGRES_HOST')
+          postgres_port=$(echo $secrets | jq -r '.POSTGRES_PORT')
+          postgres_db=$(echo $secrets | jq -r '.POSTGRES_DB')
+          postgres_user=$(echo $secrets | jq -r '.POSTGRES_USER')
+          
+          echo "POSTGRES_HOST=$postgres_host" >> $GITHUB_OUTPUT
+          echo "POSTGRES_PORT=$postgres_port" >> $GITHUB_OUTPUT
+          echo "POSTGRES_DB=$postgres_db" >> $GITHUB_OUTPUT
+          echo "POSTGRES_USER=$postgres_user" >> $GITHUB_OUTPUT
 
-    - name: Retrieve Database Secrets
-      run: |
-        # Retrieve database connection details from AWS Secrets Manager
-        secrets=$(aws secretsmanager get-secret-value --secret-id amta-production-secrets --query SecretString --output text)
-        
-        # Extract and set database connection URL
-        DATABASE_URL=$(echo $secrets | jq -r '.DATABASE_URL')
-        echo "DATABASE_URL=$DATABASE_URL" >> $GITHUB_ENV
+      - name: Validate Database Connectivity
+        env:
+          POSTGRES_HOST: ${{ steps.get-database-secrets.outputs.POSTGRES_HOST }}
+          POSTGRES_PORT: ${{ steps.get-database-secrets.outputs.POSTGRES_PORT }}
+          POSTGRES_DB: ${{ steps.get-database-secrets.outputs.POSTGRES_DB }}
+          POSTGRES_USER: ${{ steps.get-database-secrets.outputs.POSTGRES_USER }}
+        run: |
+          # Install PostgreSQL client
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
 
-    - name: Verify Database Connectivity
-      run: |
-        chmod +x docker_db_connectivity.sh verify_database_connectivity.sh
-        ./verify_database_connectivity.sh
+          # Attempt database connection with timeout
+          export PGPASSWORD=$(aws secretsmanager get-secret-value --secret-id amta-production-secrets --query 'SecretString' --output text | jq -r '.POSTGRES_PASSWORD')
+          
+          connection_output=$(timeout 30s psql -h "$POSTGRES_HOST" -p "$POSTGRES_PORT" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -t -c "SELECT 1" 2>&1)
+          connection_status=$?
+          
+          if [ $connection_status -eq 0 ]; then
+            echo "✅ Database connection successful"
+            exit 0
+          elif [ $connection_status -eq 124 ]; then
+            echo "⏰ Database connection timed out"
+            exit 1
+          else
+            echo "❌ Database connection failed"
+            echo "Connection Error: $connection_output"
+            exit 1
+          fi
 
-    - name: Report Connectivity Status
-      if: failure()
-      run: |
-        echo "Database connectivity verification failed"
-        exit 1
+      - name: Remove Temporary Security Group Rule
+        if: always()
+        env:
+          SECURITY_GROUP_ID: ${{ secrets.EC2_SECURITY_GROUP_ID }}
+          RUNNER_IP: ${{ steps.runner-ip.outputs.runner_ip }}
+        run: |
+          echo "Removing temporary access for IP: $RUNNER_IP"
+          aws ec2 revoke-security-group-ingress \
+            --group-id $SECURITY_GROUP_ID \
+            --protocol tcp \
+            --port 5432 \
+            --cidr $RUNNER_IP/32
+
+  notify-status:
+    if: always()
+    needs: [validate-database-connectivity]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determine Workflow Status
+        run: |
+          if [[ "${{ needs.validate-database-connectivity.result }}" == "success" ]]; then
+            echo "✅ Database Connectivity Validation Completed Successfully"
+          else
+            echo "❌ Database Connectivity Validation Failed"
+            exit 1
+          fi
