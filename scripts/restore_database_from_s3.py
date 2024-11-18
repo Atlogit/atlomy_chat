@@ -10,10 +10,29 @@ from botocore.exceptions import ClientError
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
 
+def log_environment_context():
+    """
+    Log detailed environment variable context for debugging
+    """
+    logger.info("Environment Variable Context:")
+    env_vars_to_check = [
+        'EC2_HOST', 
+        'EC2_INSTANCE_ID', 
+        'AWS_DEFAULT_REGION', 
+        'GITHUB_ACTIONS'
+    ]
+    
+    for var in env_vars_to_check:
+        value = os.environ.get(var, 'NOT SET')
+        logger.info(f"{var}: {value}")
+
 def get_ec2_instance_id(hostname=None):
     """
-    Retrieve EC2 instance ID based on hostname
+    Retrieve EC2 instance ID with comprehensive logging and fallback
     """
+    # Log environment context for debugging
+    log_environment_context()
+
     # Use environment variable first
     ec2_instance_id = os.environ.get('EC2_INSTANCE_ID')
     if ec2_instance_id:
@@ -26,6 +45,10 @@ def get_ec2_instance_id(hostname=None):
     
     if not hostname:
         logger.error("No hostname or EC2_HOST provided to identify instance")
+        logger.warning("To resolve this:")
+        logger.warning("1. Set EC2_HOST in GitHub Actions secrets")
+        logger.warning("2. Set EC2_INSTANCE_ID in GitHub Actions secrets")
+        logger.warning("3. Ensure AWS credentials are correctly configured")
         return None
 
     try:
