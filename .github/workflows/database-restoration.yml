@@ -46,39 +46,7 @@ permissions:
   contents: read
 
 jobs:
-  pre-restore-checks:
-    runs-on: ubuntu-latest
-    outputs:
-      should_restore: ${{ steps.check-conditions.outputs.should_restore }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Check Restoration Conditions
-        id: check-conditions
-        env:
-          FORCE_RESTORE: ${{ inputs.force_restore || github.event.inputs.force_restore }}
-          DEPLOYMENT_MODE: ${{ inputs.deployment_mode || github.event.inputs.deployment_mode || 'production' }}
-          S3_BACKUP_BUCKET: ${{ inputs.s3_backup_bucket || 'amta-app' }}
-          S3_BACKUP_PREFIX: ${{ inputs.s3_backup_prefix || 'amta-db' }}
-        run: |
-          echo "🔍 Analyzing Restoration Conditions"
-          echo "Deployment Mode: $DEPLOYMENT_MODE"
-          echo "Force Restore: $FORCE_RESTORE"
-          echo "S3 Backup Bucket: $S3_BACKUP_BUCKET"
-          echo "S3 Backup Prefix: $S3_BACKUP_PREFIX"
-          
-          if [[ "$FORCE_RESTORE" == "true" ]]; then
-            echo "✅ Force restore enabled"
-            echo "should_restore=true" >> $GITHUB_OUTPUT
-          else
-            echo "✅ Standard restoration conditions met"
-            echo "should_restore=true" >> $GITHUB_OUTPUT
-          fi
-
   database-restoration:
-    needs: pre-restore-checks
-    if: needs.pre-restore-checks.outputs.should_restore == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -97,29 +65,94 @@ jobs:
           
           # Extract DATABASE_URL and parse host
           database_url=$(echo $secrets | jq -r '.DATABASE_URL')
-          postgres_user=$(echo $secrets | jq -r '.POSTGRES_USER')
-          postgres_password=$(echo $secrets | jq -r '.POSTGRES_PASSWORD')
           
-          # Parse host from DATABASE_URL using sed
-          postgres_host=$(echo "$database_url" | sed -E 's|postgresql\+asyncpg://[^:]+:[^@]+@([^:/]+).*|\1|')
-          postgres_port=$(echo "$database_url" | sed -E 's|postgresql\+asyncpg://[^:]+:[^@]+@[^:/]+:?([0-9]+)?.*|\1|' || echo "5432")
-          postgres_db=$(echo "$database_url" | sed -E 's|postgresql\+asyncpg://[^:]+:[^@]+@[^:/]+:?[0-9]*/(.+)|\1|')
-          
-          # Validate parsed values
-          if [ -z "$postgres_host" ] || [ -z "$postgres_db" ] || [ -z "$postgres_user" ] || [ -z "$postgres_password" ]; then
-            echo "❌ Failed to parse database connection details"
-            echo "Parsed Host: $postgres_host, Database: $postgres_db, User: $postgres_user"
+          # Validate DATABASE_URL format
+          if [[ ! "$database_url" =~ ^postgresql\+asyncpg://[^:]+:[^@]+@[^:/]+(/[^?]*)?(\?.*)?$ ]]; then
+            echo "❌ Invalid DATABASE_URL format"
+            echo "Provided URL: $database_url"
+            echo "Expected format: postgresql+asyncpg://user:pass@host/database"
             exit 1
           fi
           
+          # Robust URL parsing with error handling
+          postgres_host=$(echo "$database_url" | sed -E 's|postgresql\+asyncpg://[^:]+:[^@]+@([^:/]+).*|\1|')
+          postgres_port=$(echo "$database_url" | sed -E 's|postgresql\+asyncpg://[^:]+:[^@]+@[^:/]+:?([0-9]+)?.*|\1|' || echo "5432")
+          postgres_db=$(echo "$database_url" | sed -E 's|postgresql\+asyncpg://[^:]+:[^@]+@[^:/]+:?[0-9]*/([^?]+).*|\1|')
+          postgres_user=$(echo "$database_url" | sed -E 's|postgresql\+asyncpg://([^:]+):.*|\1|')
+          
+          # Comprehensive validation with detailed error reporting
+          validation_errors=()
+          
+          if [ -z "$postgres_host" ]; then
+            validation_errors+=("Host could not be parsed")
+          fi
+          
+          if [ -z "$postgres_db" ]; then
+            validation_errors+=("Database name could not be parsed")
+          fi
+          
+          if [ -z "$postgres_user" ]; then
+            validation_errors+=("Username could not be parsed")
+          fi
+          
+          if [ "${#validation_errors[@]}" -gt 0 ]; then
+            echo "❌ Database URL parsing failed"
+            printf '%s\n' "${validation_errors[@]}"
+            echo "Full URL: $database_url"
+            exit 1
+          fi
+          
+          # Retrieve password separately to avoid potential sed parsing issues
+          postgres_password=$(echo $secrets | jq -r '.POSTGRES_PASSWORD')
+          
+          if [ -z "$postgres_password" ]; then
+            echo "❌ Database password could not be retrieved"
+            exit 1
+          fi
+          
+          # Output parsed values
           echo "POSTGRES_HOST=$postgres_host" >> $GITHUB_OUTPUT
           echo "POSTGRES_PORT=$postgres_port" >> $GITHUB_OUTPUT
           echo "POSTGRES_DB=$postgres_db" >> $GITHUB_OUTPUT
           echo "POSTGRES_USER=$postgres_user" >> $GITHUB_OUTPUT
           echo "POSTGRES_PASSWORD=$postgres_password" >> $GITHUB_OUTPUT
+          
+          # Diagnostic logging
+          echo "🔍 Parsed Connection Details:"
+          echo "  Host: $postgres_host"
+          echo "  Port: $postgres_port"
+          echo "  Database: $postgres_db"
+
+      - name: Check Database Connectivity
+        id: database-connectivity
+        env:
+          POSTGRES_HOST: ${{ steps.get-database-secrets.outputs.POSTGRES_HOST }}
+          POSTGRES_PORT: ${{ steps.get-database-secrets.outputs.POSTGRES_PORT }}
+          POSTGRES_DB: ${{ steps.get-database-secrets.outputs.POSTGRES_DB }}
+          POSTGRES_USER: ${{ steps.get-database-secrets.outputs.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ steps.get-database-secrets.outputs.POSTGRES_PASSWORD }}
+        run: |
+          export PGPASSWORD=$POSTGRES_PASSWORD
+          
+          # Attempt connection with timeout
+          connection_output=$(timeout 10s psql -h "$POSTGRES_HOST" -p "$POSTGRES_PORT" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -t -c "SELECT 1" 2>&1)
+          connection_status=$?
+          
+          if [ $connection_status -eq 0 ]; then
+            echo "✅ Database connection successful"
+            echo "connection_status=success" >> $GITHUB_OUTPUT
+          elif [ $connection_status -eq 124 ]; then
+            echo "⏰ Database connection timed out"
+            echo "connection_status=timeout" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Database connection failed"
+            echo "Connection Error: $connection_output"
+            echo "connection_status=failed" >> $GITHUB_OUTPUT
+          fi
 
       - name: Check Existing Database State
         id: database-check
+        if: steps.database-connectivity.outputs.connection_status == 'success'
         env:
           POSTGRES_HOST: ${{ steps.get-database-secrets.outputs.POSTGRES_HOST }}
           POSTGRES_DB: ${{ steps.get-database-secrets.outputs.POSTGRES_DB }}
@@ -183,10 +216,7 @@ jobs:
 
           echo "📦 Backup Size: $backup_size"
           echo "🔢 Backup Checksum: $backup_checksum"
-
-          echo "backup_size=$backup_size" >> $GITHUB_OUTPUT
-          echo "backup_checksum=$backup_checksum" >> $GITHUB_OUTPUT
-
+          
       - name: Determine Restore Necessity
         id: restore-decision
         env:
@@ -278,7 +308,7 @@ jobs:
 
   notify-status:
     if: always()
-    needs: [pre-restore-checks, database-restoration]
+    needs: [database-restoration]
     runs-on: ubuntu-latest
     steps:
       - name: Determine Workflow Status
