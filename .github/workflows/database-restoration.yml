@@ -11,12 +11,11 @@ on:
         description: 'Force database restoration'
         type: boolean
         default: false
-  schedule:
-    - cron: '0 2 * * *'  # Daily at 2 AM UTC
 
 permissions:
-  id-token: write
   contents: read
+  packages: read
+  id-token: write
 
 jobs:
   pre-restore-checks:
