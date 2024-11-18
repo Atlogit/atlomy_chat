@@ -7,7 +7,7 @@ import socket
 import boto3
 import psycopg2
 import subprocess
-from botocore.exceptions import ClientError
+from botocore.exceptions import ClientError, NoCredentialsError, PartnerNetworkConnectionError
 from botocore.config import Config
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s: %(message)s')
@@ -47,29 +47,13 @@ def stage_database_backup(
     Stage database backup from S3 without attempting restoration
     Prepares backup for future use during Docker deployment
     """
-    # Comprehensive environment variable logging
-    logger.info("Detailed Environment Variable Inspection:")
-    for key in ['S3_BACKUP_BUCKET', 'AWS_S3_BUCKET', 'BACKUP_BUCKET']:
-        value = os.environ.get(key)
-        logger.info(f"{key}: {value if value else 'NOT SET'}")
-    
-    # Additional logging for context
-    logger.info(f"Passed s3_bucket parameter: {s3_bucket}")
-
-    # Determine bucket name with multiple fallback strategies
-    s3_bucket = (
-        s3_bucket or 
-        os.environ.get('S3_BACKUP_BUCKET') or 
-        os.environ.get('AWS_S3_BUCKET') or 
-        os.environ.get('BACKUP_BUCKET') or 
-        'amta-app'
-    )
-
+    # Hardcode the bucket name based on toolkit scripts
+    s3_bucket = 'amta-app'
     deployment_mode = os.environ.get('DEPLOYMENT_MODE', 'production')
 
     logger.info(f"Starting database backup staging process")
     logger.info(f"Deployment Mode: {deployment_mode}")
-    logger.info(f"Resolved S3 Bucket: {s3_bucket}")
+    logger.info(f"S3 Bucket: {s3_bucket}")
     logger.info(f"S3 Prefix: {s3_prefix}")
 
     try:
@@ -85,9 +69,12 @@ def stage_database_backup(
                 Bucket=s3_bucket,
                 Prefix=s3_prefix
             )
+        except NoCredentialsError:
+            logger.error("No AWS credentials found. Ensure proper IAM role is attached.")
+            return False
         except ClientError as e:
             logger.error(f"S3 ListObjects error: {e}")
-            logger.error(f"Bucket details - Name: {s3_bucket}, Prefix: {s3_prefix}")
+            logger.error(f"Verify bucket name '{s3_bucket}' and IAM permissions")
             return False
         
         # Find the latest backup file
@@ -105,11 +92,15 @@ def stage_database_backup(
         local_backup_path = os.path.join(backup_dir, os.path.basename(latest_backup))
         
         # Download backup
-        s3_client.download_file(
-            s3_bucket, 
-            latest_backup, 
-            local_backup_path
-        )
+        try:
+            s3_client.download_file(
+                s3_bucket, 
+                latest_backup, 
+                local_backup_path
+            )
+        except Exception as download_error:
+            logger.error(f"Failed to download backup: {download_error}")
+            return False
         
         logger.info(f"Database backup staged successfully: {local_backup_path}")
         return True
@@ -126,7 +117,6 @@ def main():
     import argparse
     
     parser = argparse.ArgumentParser(description='Stage database backup from S3')
-    parser.add_argument('--s3-bucket', help='S3 bucket name')
     parser.add_argument('--s3-prefix', help='S3 prefix/folder', default='amta-db')
     parser.add_argument('--backup-dir', help='Local backup directory', default='database_backups')
     
@@ -134,7 +124,6 @@ def main():
     
     # Attempt to stage backup
     success = stage_database_backup(
-        s3_bucket=args.s3_bucket,
         s3_prefix=args.s3_prefix,
         backup_dir=args.backup_dir
     )
