@@ -1,0 +1,50 @@
+name: Database Restoration from S3
+
+on:
+  workflow_dispatch:
+    inputs:
+      deployment_mode:
+        description: 'Deployment mode (development/production)'
+        required: false
+        default: 'production'
+  workflow_call:
+    inputs:
+      deployment_mode:
+        description: 'Deployment mode (development/production)'
+        type: string
+        required: false
+        default: 'production'
+
+jobs:
+  restore-database:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install boto3 psycopg2-binary
+
+      - name: Restore Database from S3
+        run: |
+          chmod +x scripts/restore_database_from_s3.py
+          python3 scripts/restore_database_from_s3.py
+
+      - name: Notify Restoration Status
+        if: failure()
+        run: |
+          echo "Database restoration failed"
+          exit 1
