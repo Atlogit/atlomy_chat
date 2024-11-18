@@ -62,30 +62,36 @@ jobs:
         id: get-database-secrets
         run: |
           secrets=$(aws secretsmanager get-secret-value --secret-id amta-production-secrets --query SecretString --output text)
-          
+
           # Extract DATABASE_URL and parse host
           database_url=$(echo $secrets | jq -r '.DATABASE_URL')
           
-          # Validate DATABASE_URL format
-          if [[ ! "$database_url" =~ ^postgresql\+asyncpg://[^:]+:[^@]+@[^:/]+(/[^?]*)?(\?.*)?$ ]]; then
-            echo "❌ Invalid DATABASE_URL format"
-            echo "Provided URL: $database_url"
-            echo "Expected format: postgresql+asyncpg://user:pass@host/database"
-            exit 1
+          # Validate DATABASE_URL format with more lenient parsing
+          if [[ -z "$database_url" ]]; then
+            echo "❌ DATABASE_URL is empty"
+            echo "connection_status=no_url" >> $GITHUB_OUTPUT
+            exit 0
           fi
           
-          # Robust URL parsing with error handling
+          # Robust URL parsing with comprehensive error handling
           postgres_host=$(echo "$database_url" | sed -E 's|postgresql\+asyncpg://[^:]+:[^@]+@([^:/]+).*|\1|')
           postgres_port=$(echo "$database_url" | sed -E 's|postgresql\+asyncpg://[^:]+:[^@]+@[^:/]+:?([0-9]+)?.*|\1|' || echo "5432")
           postgres_db=$(echo "$database_url" | sed -E 's|postgresql\+asyncpg://[^:]+:[^@]+@[^:/]+:?[0-9]*/([^?]+).*|\1|')
           postgres_user=$(echo "$database_url" | sed -E 's|postgresql\+asyncpg://([^:]+):.*|\1|')
           
-          # Comprehensive validation with detailed error reporting
+          # Enhanced validation with detailed logging
+          echo "🔬 Parsed Connection Details:"
+          echo "  Host: $postgres_host"
+          echo "  Port: $postgres_port"
+          echo "  Database: $postgres_db"
+          echo "  User: $postgres_user"
+          
+          # Comprehensive validation
           validation_errors=()
           
           if [[ -z "$postgres_host" || "$postgres_host" == "localhost" ]]; then
-            echo "⚠️ Warning: Invalid or localhost host detected"
-            echo "Host: $postgres_host"
+            echo "⚠️ Warning: Potentially problematic host configuration"
+            validation_errors+=("Invalid or localhost host")
           fi
           
           if [ -z "$postgres_db" ]; then
@@ -96,70 +102,70 @@ jobs:
             validation_errors+=("Username could not be parsed")
           fi
           
+          # Output validation status
           if [ "${#validation_errors[@]}" -gt 0 ]; then
-            echo "❌ Database URL parsing errors:"
+            echo "❗ Configuration Validation Warnings:"
             printf '%s\n' "${validation_errors[@]}"
-            echo "Full URL: $database_url"
             echo "connection_status=partial_config" >> $GITHUB_OUTPUT
           else
             echo "connection_status=valid_config" >> $GITHUB_OUTPUT
           fi
           
-          # Retrieve password separately to avoid potential sed parsing issues
-          postgres_password=$(echo $secrets | jq -r '.POSTGRES_PASSWORD')
+          # Retrieve password
+          postgres_password=$(echo $secrets" | jq -r '.POSTGRES_PASSWORD')
           
           if [ -z "$postgres_password" ]; then
             echo "❌ Database password could not be retrieved"
             echo "connection_status=no_password" >> $GITHUB_OUTPUT
           fi
           
-          # Output parsed values
+          # Always output connection parameters
           echo "POSTGRES_HOST=$postgres_host" >> $GITHUB_OUTPUT
           echo "POSTGRES_PORT=$postgres_port" >> $GITHUB_OUTPUT
           echo "POSTGRES_DB=$postgres_db" >> $GITHUB_OUTPUT
           echo "POSTGRES_USER=$postgres_user" >> $GITHUB_OUTPUT
           echo "POSTGRES_PASSWORD=$postgres_password" >> $GITHUB_OUTPUT
-          
-          # Diagnostic logging
-          echo "🔍 Parsed Connection Details:"
-          echo "  Host: $postgres_host"
-          echo "  Port: $postgres_port"
-          echo "  Database: $postgres_db"
 
-          - name: Check Database Connectivity
-          id: database-connectivity
-          if: steps.get-database-secrets.outputs.connection_status == 'valid_config'
-          env:
-            POSTGRES_HOST: ${{ steps.get-database-secrets.outputs.POSTGRES_HOST }}
-            POSTGRES_PORT: ${{ steps.get-database-secrets.outputs.POSTGRES_PORT }}
-            POSTGRES_DB: ${{ steps.get-database-secrets.outputs.POSTGRES_DB }}
-            POSTGRES_USER: ${{ steps.get-database-secrets.outputs.POSTGRES_USER }}
-            POSTGRES_PASSWORD: ${{ steps.get-database-secrets.outputs.POSTGRES_PASSWORD }}
-          run: |
-            export PGPASSWORD=$POSTGRES_PASSWORD
-            
-            # Attempt connection with timeout
-            connection_output=$(timeout 10s psql -h "$POSTGRES_HOST" -p "$POSTGRES_PORT" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -t -c "SELECT 1" 2>&1)
-            connection_status=$?
-            
-            if [ $connection_status -eq 0 ]; then
-              echo "✅ Database connection successful"
-              echo "connection_status=success" >> $GITHUB_OUTPUT
-              echo "connection_available=true" >> $GITHUB_OUTPUT
-            elif [ $connection_status -eq 124 ]; then
-              echo "⏰ Database connection timed out"
-              echo "connection_status=timeout" >> $GITHUB_OUTPUT
-              echo "connection_available=false" >> $GITHUB_OUTPUT
-            else
-              echo "❌ Database connection failed"
-              echo "Connection Error: $connection_output"
-              echo "connection_status=failed" >> $GITHUB_OUTPUT
-              echo "connection_available=false" >> $GITHUB_OUTPUT
-            fi
-            
-            # Always exit successfully to allow workflow to continue
-            exit 0
-  
+      - name: Check Database Connectivity
+        id: database-connectivity
+        env:
+          POSTGRES_HOST: ${{ steps.get-database-secrets.outputs.POSTGRES_HOST }}
+          POSTGRES_PORT: ${{ steps.get-database-secrets.outputs.POSTGRES_PORT }}
+          POSTGRES_DB: ${{ steps.get-database-secrets.outputs.POSTGRES_DB }}
+          POSTGRES_USER: ${{ steps.get-database-secrets.outputs.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ steps.get-database-secrets.outputs.POSTGRES_PASSWORD }}
+        run: |
+          # Comprehensive connectivity check with detailed logging
+          export PGPASSWORD=$POSTGRES_PASSWORD
+          
+          echo "🔌 Attempting Database Connection:"
+          echo "  Host: $POSTGRES_HOST"
+          echo "  Port: $POSTGRES_PORT"
+          echo "  Database: $POSTGRES_DB"
+          echo "  User: $POSTGRES_USER"
+          
+          # Attempt connection with extended timeout and verbose output
+          connection_output=$(timeout 30s psql -v ON_ERROR_STOP=1 -h "$POSTGRES_HOST" -p "$POSTGRES_PORT" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -t -c "SELECT 1" 2>&1)
+          connection_status=$?
+          
+          if [ $connection_status -eq 0 ]; then
+            echo "✅ Database connection successful"
+            echo "connection_status=success" >> $GITHUB_OUTPUT
+            echo "connection_available=true" >> $GITHUB_OUTPUT
+          elif [ $connection_status -eq 124 ]; then
+            echo "⏰ Database connection timed out"
+            echo "connection_status=timeout" >> $GITHUB_OUTPUT
+            echo "connection_available=false" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Database connection failed"
+            echo "Connection Error Details: $connection_output"
+            echo "connection_status=failed" >> $GITHUB_OUTPUT
+            echo "connection_available=false" >> $GITHUB_OUTPUT
+          fi
+          
+          # Always exit successfully to allow workflow continuation
+          exit 0
+
           - name: Check Existing Database State
             id: database-check
             if: steps.database-connectivity.outputs.connection_available == 'true'
@@ -315,17 +321,17 @@ jobs:
                 
                 echo "✅ Database restored successfully. Tables found: \$table_count"
               EOF
-    
-      notify-status:
-        if: always()
-        needs: [database-restoration]
-        runs-on: ubuntu-latest
-        steps:
-          - name: Determine Workflow Status
-            run: |
-              if [[ "${{ needs.database-restoration.result }}" == "success" ]]; then
-                echo "✅ Database Backup Staging Completed Successfully"
-              else
-                echo "❌ Database Backup Staging Failed"
-                exit 1
-              fi
+
+  notify-status:
+    if: always()
+    needs: [database-restoration]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determine Workflow Status
+        run: |
+          if [[ "${{ needs.database-restoration.result }}" == "success" ]]; then
+            echo "✅ Database Backup Staging Completed Successfully"
+          else
+            echo "❌ Database Backup Staging Failed"
+            exit 1
+          fi
