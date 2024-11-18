@@ -57,6 +57,69 @@ def get_env_var(name, default=None, required=False):
         raise ValueError(f"Required environment variable {name} is not set")
     return value
 
+def stage_database_backup(
+    s3_bucket=None, 
+    s3_prefix='amta-db',
+    backup_dir='database_backups'
+):
+    """
+    Stage database backup from S3 without attempting restoration
+    Prepares backup for future use during Docker deployment
+    """
+    # Use environment variables with fallback to parameters
+    s3_bucket = s3_bucket or get_env_var('S3_BACKUP_BUCKET', 'amta-app')
+    deployment_mode = get_env_var('DEPLOYMENT_MODE', 'production')
+
+    logger.info(f"Starting database backup staging process")
+    logger.info(f"Deployment Mode: {deployment_mode}")
+    logger.info(f"S3 Bucket: {s3_bucket}")
+    logger.info(f"S3 Prefix: {s3_prefix}")
+
+    try:
+        # Create S3 client with fallback mechanism
+        s3_client = create_s3_client()
+        if not s3_client:
+            logger.error("Failed to create S3 client")
+            return False
+        
+        # List objects in S3 bucket
+        try:
+            response = s3_client.list_objects_v2(
+                Bucket=s3_bucket,
+                Prefix=s3_prefix
+            )
+        except ClientError as e:
+            logger.error(f"S3 ListObjects error: {e}")
+            return False
+        
+        # Find the latest backup file
+        backups = [obj['Key'] for obj in response.get('Contents', []) 
+                   if obj['Key'].endswith('.tar.gz') or obj['Key'].endswith('.sql.gz')]
+        
+        if not backups:
+            logger.warning("No database backups found in S3.")
+            return False
+        
+        latest_backup = max(backups, key=lambda x: x.split('_')[-1])
+        
+        # Create local backup directory
+        os.makedirs(backup_dir, exist_ok=True)
+        local_backup_path = os.path.join(backup_dir, os.path.basename(latest_backup))
+        
+        # Download backup
+        s3_client.download_file(
+            s3_bucket, 
+            latest_backup, 
+            local_backup_path
+        )
+        
+        logger.info(f"Database backup staged successfully: {local_backup_path}")
+        return True
+    
+    except Exception as e:
+        logger.error(f"Unexpected error during database backup staging: {e}")
+        return False
+
 def database_exists(db_name, db_user, db_password, host='localhost', port=5432):
     """Check if a specific database exists with comprehensive error handling."""
     logger.info(f"Checking database existence: {db_name} on {host}:{port}")
@@ -130,6 +193,11 @@ def restore_database_from_s3(
             logger.info(f"Database {db_name} already exists. Skipping restoration.")
             return True
         
+        # Stage backup first
+        if not stage_database_backup(s3_bucket, s3_prefix):
+            logger.error("Failed to stage database backup")
+            return False
+        
         # Create S3 client with fallback mechanism
         s3_client = create_s3_client()
         if not s3_client:
@@ -159,13 +227,6 @@ def restore_database_from_s3(
         # Create local backup directory
         os.makedirs('database_backups', exist_ok=True)
         local_backup_path = os.path.join('database_backups', os.path.basename(latest_backup))
-        
-        # Download backup
-        s3_client.download_file(
-            s3_bucket, 
-            latest_backup, 
-            local_backup_path
-        )
         
         # Prepare environment for authentication
         env = os.environ.copy()
@@ -231,19 +292,27 @@ def main():
     parser.add_argument('--db-port', type=int, help='Database port')
     parser.add_argument('--s3-bucket', help='S3 bucket name')
     parser.add_argument('--s3-prefix', help='S3 prefix/folder')
+    parser.add_argument('--stage-only', action='store_true', help='Only stage backup, do not restore')
     
     args = parser.parse_args()
     
-    # Use environment variables if not provided via arguments
-    success = restore_database_from_s3(
-        db_name=args.db_name,
-        db_user=args.db_user,
-        db_password=args.db_password,
-        db_host=args.db_host,
-        db_port=args.db_port,
-        s3_bucket=args.s3_bucket,
-        s3_prefix=args.s3_prefix
-    )
+    # Determine whether to stage only or perform full restoration
+    if args.stage_only:
+        success = stage_database_backup(
+            s3_bucket=args.s3_bucket,
+            s3_prefix=args.s3_prefix or 'amta-db'
+        )
+    else:
+        # Use environment variables if not provided via arguments
+        success = restore_database_from_s3(
+            db_name=args.db_name,
+            db_user=args.db_user,
+            db_password=args.db_password,
+            db_host=args.db_host,
+            db_port=args.db_port,
+            s3_bucket=args.s3_bucket,
+            s3_prefix=args.s3_prefix
+        )
     
     sys.exit(0 if success else 1)
 
