@@ -41,17 +41,17 @@ def transfer_backup_via_ssh(local_backup_path):
             logger.error(f"Failed to write SSH key: {e}")
             return False
     
-    # Destination directory on EC2 for database backup
-    remote_backup_dir = '/atlomy_chat/database_backups'
+    # Destination directory for PostgreSQL data
+    remote_backup_dir = '/var/lib/postgresql/data'
     
     try:
-        # Ensure remote directory exists
+        # Ensure remote directory exists with correct permissions
         ssh_mkdir_cmd = [
             'ssh', 
             '-o', 'StrictHostKeyChecking=no',
             '-i', ssh_key_path,
             f'{ec2_user}@{ec2_host}',
-            f'mkdir -p {remote_backup_dir}'
+            f'sudo mkdir -p {remote_backup_dir} && sudo chown postgres:postgres {remote_backup_dir}'
         ]
         
         subprocess.run(ssh_mkdir_cmd, check=True)
@@ -67,6 +67,17 @@ def transfer_backup_via_ssh(local_backup_path):
         
         # Execute SCP transfer
         result = subprocess.run(scp_cmd, capture_output=True, text=True, check=True)
+        
+        # Ensure correct permissions for backup file
+        ssh_chmod_cmd = [
+            'ssh', 
+            '-o', 'StrictHostKeyChecking=no',
+            '-i', ssh_key_path,
+            f'{ec2_user}@{ec2_host}',
+            f'sudo chown postgres:postgres {remote_backup_dir}/latest_backup.tar.gz'
+        ]
+        
+        subprocess.run(ssh_chmod_cmd, check=True)
         
         logger.info("Backup transferred via SSH successfully")
         logger.info(f"Transfer command: {' '.join(scp_cmd)}")
