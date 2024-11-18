@@ -90,6 +90,23 @@ jobs:
           role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
           aws-region: us-east-1
 
+      - name: Retrieve Database Secrets
+        id: get-database-secrets
+        run: |
+          secrets=$(aws secretsmanager get-secret-value --secret-id amta-production-secrets --query SecretString --output text)
+          
+          postgres_host=$(echo $secrets | jq -r '.POSTGRES_HOST')
+          postgres_port=$(echo $secrets | jq -r '.POSTGRES_PORT')
+          postgres_db=$(echo $secrets | jq -r '.POSTGRES_DB')
+          postgres_user=$(echo $secrets | jq -r '.POSTGRES_USER')
+          postgres_password=$(echo $secrets | jq -r '.POSTGRES_PASSWORD')
+          
+          echo "POSTGRES_HOST=$postgres_host" >> $GITHUB_OUTPUT
+          echo "POSTGRES_PORT=$postgres_port" >> $GITHUB_OUTPUT
+          echo "POSTGRES_DB=$postgres_db" >> $GITHUB_OUTPUT
+          echo "POSTGRES_USER=$postgres_user" >> $GITHUB_OUTPUT
+          echo "POSTGRES_PASSWORD=$postgres_password" >> $GITHUB_OUTPUT
+
       - name: Validate S3 Bucket
         env:
           S3_BACKUP_BUCKET: ${{ inputs.s3_backup_bucket || 'amta-app' }}
@@ -101,23 +118,12 @@ jobs:
             exit 1
           fi
 
-          # Attempt to list bucket contents
           if ! aws s3 ls "s3://$S3_BACKUP_BUCKET/$S3_BACKUP_PREFIX/" &> /dev/null; then
             echo "❌ Error: S3 bucket $S3_BACKUP_BUCKET with prefix $S3_BACKUP_PREFIX does not exist or is inaccessible"
             exit 1
           fi
 
           echo "✅ S3 Bucket validated successfully"
-
-      - name: Prepare SSH Key
-        env:
-          EC2_SSH_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
-        run: |
-          echo "🔐 Preparing SSH Key"
-          mkdir -p ~/.ssh
-          echo "$EC2_SSH_KEY" > ~/.ssh/ec2_key
-          chmod 600 ~/.ssh/ec2_key
-          echo "✅ SSH Key prepared successfully"
 
       - name: Find Latest Database Backup
         id: find-backup
@@ -160,7 +166,51 @@ jobs:
           echo "backup_size=$backup_size" >> $GITHUB_OUTPUT
           echo "backup_checksum=$backup_checksum" >> $GITHUB_OUTPUT
 
+      - name: Prepare SSH Key
+        env:
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+        run: |
+          echo "🔐 Preparing SSH Key"
+          mkdir -p ~/.ssh
+          echo "$EC2_SSH_KEY" > ~/.ssh/ec2_key
+          chmod 600 ~/.ssh/ec2_key
+          echo "✅ SSH Key prepared successfully"
+
+      - name: Check Existing Database State
+        id: database-check
+        env:
+          POSTGRES_HOST: ${{ steps.get-database-secrets.outputs.POSTGRES_HOST }}
+          POSTGRES_DB: ${{ steps.get-database-secrets.outputs.POSTGRES_DB }}
+          POSTGRES_USER: ${{ steps.get-database-secrets.outputs.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ steps.get-database-secrets.outputs.POSTGRES_PASSWORD }}
+          BACKUP_CHECKSUM: ${{ steps.download-backup.outputs.backup_checksum }}
+        run: |
+          export PGPASSWORD=$POSTGRES_PASSWORD
+          
+          # Check if database exists
+          db_exists=$(psql -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -t -c "SELECT 1 FROM pg_database WHERE datname = '$POSTGRES_DB'")
+          
+          # If database doesn't exist, we need to restore
+          if [ -z "$db_exists" ]; then
+            echo "❌ Database does not exist"
+            echo "restore_needed=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Check current database checksum
+          current_checksum=$(psql -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -t -c "SELECT md5(string_agg(md5(row::text), '')) FROM (SELECT * FROM information_schema.tables LIMIT 1000) AS row")
+          
+          # Compare checksums
+          if [ "$current_checksum" != "$BACKUP_CHECKSUM" ]; then
+            echo "🔄 Database needs update"
+            echo "restore_needed=true" >> $GITHUB_OUTPUT
+          else
+            echo "✅ Database is up to date"
+            echo "restore_needed=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Transfer Backup to EC2
+        if: steps.database-check.outputs.restore_needed == 'true'
         env:
           S3_BACKUP_BUCKET: ${{ secrets.S3_BACKUP_BUCKET }}
           BACKUP_FILE: ${{ steps.find-backup.outputs.backup_file }}
@@ -184,33 +234,39 @@ jobs:
 
           echo "✅ Backup transfer completed"
 
-      - name: Prepare and Extract Backup
+      - name: Restore PostgreSQL Database
+        if: steps.database-check.outputs.restore_needed == 'true'
         env:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
-          BACKUP_CHECKSUM: ${{ steps.download-backup.outputs.backup_checksum }}
+          POSTGRES_HOST: ${{ steps.get-database-secrets.outputs.POSTGRES_HOST }}
+          POSTGRES_DB: ${{ steps.get-database-secrets.outputs.POSTGRES_DB }}
+          POSTGRES_USER: ${{ steps.get-database-secrets.outputs.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ steps.get-database-secrets.outputs.POSTGRES_PASSWORD }}
         run: |
-          echo "🔧 Preparing PostgreSQL Directory and Extracting Backup"
           SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=no"
           
           ssh $SSH_OPTS -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << EOF
-            echo "📂 Creating PostgreSQL Data Directory"
-            sudo mkdir -p /var/lib/postgresql/data
-            sudo chown -R 999:999 /var/lib/postgresql/data
-            sudo chmod 700 /var/lib/postgresql/data
-
-            echo "📦 Extracting Backup"
-            sudo tar -xzvf /opt/atlomy/database_backups/latest_backup.tar.gz -C /var/lib/postgresql/data
-
-            echo "🔍 Verifying Extracted Files"
-            extracted_files=\$(sudo find /var/lib/postgresql/data -type f | wc -l)
-            echo "📄 Total Extracted Files: \$extracted_files"
-
-            echo "🔒 Setting Correct Permissions"
-            sudo chown -R 999:999 /var/lib/postgresql/data
-            sudo chmod -R 700 /var/lib/postgresql/data
-
-            echo "✅ Backup Extraction and Preparation Complete"
+            export PGPASSWORD=$POSTGRES_PASSWORD
+            
+            # Drop existing database if it exists
+            psql -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -c "DROP DATABASE IF EXISTS \"$POSTGRES_DB\";"
+            
+            # Create new database
+            psql -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -c "CREATE DATABASE \"$POSTGRES_DB\";"
+            
+            # Restore backup
+            pg_restore -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -d "$POSTGRES_DB" /opt/atlomy/database_backups/latest_backup.tar.gz
+            
+            # Verify restoration
+            table_count=$(psql -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';")
+            
+            if [ "\$table_count" -eq 0 ]; then
+              echo "❌ Database restoration failed: No tables found"
+              exit 1
+            fi
+            
+            echo "✅ Database restored successfully. Tables found: \$table_count"
           EOF
 
   notify-status:
