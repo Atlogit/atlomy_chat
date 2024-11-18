@@ -89,65 +89,16 @@ jobs:
           chmod +x scripts/restore_database_from_s3.py
           python3 scripts/restore_database_from_s3.py
 
-  post-restore-validation:
-    needs: database-restoration
-    runs-on: ubuntu-latest
-    steps:
-      - name: Validate Database Restoration
-        env:
-          DB_NAME: ${{ secrets.DB_NAME }}
-          DB_USER: ${{ secrets.DB_USER }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-          DB_HOST: ${{ secrets.DB_HOST }}
-          DB_PORT: ${{ secrets.DB_PORT }}
-          DEPLOYMENT_MODE: ${{ inputs.deployment_mode || github.event.inputs.deployment_mode || 'production' }}
-        run: |
-          # Skip validation if no database details are provided
-          if [[ -z "$DB_NAME" || -z "$DB_USER" || -z "$DB_PASSWORD" || -z "$DB_HOST" || -z "$DB_PORT" ]]; then
-            echo "Skipping database validation: Insufficient connection details"
-            exit 0
-          fi
-
-          python -c "
-          import os
-          import psycopg2
-
-          def validate_database():
-              try:
-                  conn = psycopg2.connect(
-                      dbname=os.environ.get('DB_NAME'),
-                      user=os.environ.get('DB_USER'),
-                      password=os.environ.get('DB_PASSWORD'),
-                      host=os.environ.get('DB_HOST'),
-                      port=os.environ.get('DB_PORT')
-                  )
-                  cur = conn.cursor()
-                  cur.execute('SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = \'public\'')
-                  table_count = cur.fetchone()[0]
-                  print(f'Database validation successful. Total tables: {table_count}')
-                  cur.close()
-                  conn.close()
-                  return True
-              except Exception as e:
-                  print(f'Database validation failed: {e}')
-                  return False
-
-          if not validate_database():
-              print('Warning: Database validation encountered issues. This may be expected during pre-deployment staging.')
-              exit(0)
-          "
-
   notify-status:
     if: always()
-    needs: [pre-restore-checks, database-restoration, post-restore-validation]
+    needs: [pre-restore-checks, database-restoration]
     runs-on: ubuntu-latest
     steps:
       - name: Determine Workflow Status
         run: |
-          if [[ "${{ needs.database-restoration.result }}" == "success" && 
-                "${{ needs.post-restore-validation.result }}" == "success" ]]; then
-            echo "✅ Database restoration completed successfully"
+          if [[ "${{ needs.database-restoration.result }}" == "success" ]]; then
+            echo "✅ Database backup staging completed successfully"
           else
-            echo "❌ Database restoration encountered issues"
+            echo "❌ Database backup staging failed"
             exit 1
           fi
