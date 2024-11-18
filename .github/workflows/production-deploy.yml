@@ -1,12 +1,6 @@
-name: Production Deployment to EC2
+name: Production Deployment Workflow
 
 on:
-  workflow_run:
-    workflows: ["Docker Build and Registry Push"]
-    types:
-      - completed
-    branches:
-      - production
   workflow_dispatch:
     inputs:
       force_deploy:
@@ -14,6 +8,12 @@ on:
         required: false
         type: boolean
         default: false
+  workflow_run:
+    workflows: ["Docker Build and Registry Push"]
+    types:
+      - completed
+    branches:
+      - production
 
 # Comprehensive permissions for GitHub Actions workflow
 permissions:
@@ -26,14 +26,24 @@ env:
   FRONTEND_IMAGE_NAME: ${{ github.repository }}-frontend
 
 jobs:
-  # Database Restoration Job
+  validate-workflow-trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate Workflow Trigger
+        run: |
+          echo "🔍 Workflow Trigger Analysis:"
+          echo "Event Name: ${{ github.event_name }}"
+          echo "Workflow Run Conclusion: ${{ github.event.workflow_run.conclusion }}"
+          echo "Workflow Run Name: ${{ github.event.workflow_run.name }}"
+          echo "Workflow Run Branch: ${{ github.event.workflow_run.head_branch }}"
+
   database-restoration:
+    needs: validate-workflow-trigger
     uses: ./.github/workflows/database-restoration.yml
     secrets: inherit
     with:
       deployment_mode: production
 
-  # Database Initialization and Setup
   database-initialization:
     needs: database-restoration
     runs-on: ubuntu-latest
@@ -57,13 +67,12 @@ jobs:
         run: |
           secrets=$(aws secretsmanager get-secret-value --secret-id amta-production-secrets --query SecretString --output text)
           
-          database_url=$(echo $secrets | jq -r '.DATABASE_URL')
-          postgres_host=$(echo $secrets | jq -r '.POSTGRES_HOST')
-          postgres_port=$(echo $secrets | jq -r '.POSTGRES_PORT')
-          postgres_db=$(echo $secrets | jq -r '.POSTGRES_DB')
-          postgres_user=$(echo $secrets | jq -r '.POSTGRES_USER')
+          database_url=$(echo "$secrets" | jq -r '.DATABASE_URL')
+          postgres_host=$(echo "$secrets" | jq -r '.POSTGRES_HOST')
+          postgres_port=$(echo "$secrets" | jq -r '.POSTGRES_PORT')
+          postgres_db=$(echo "$secrets" | jq -r '.POSTGRES_DB')
+          postgres_user=$(echo "$secrets" | jq -r '.POSTGRES_USER')
           
-          echo "::add-mask::$database_url"
           echo "DATABASE_URL=$database_url" >> $GITHUB_OUTPUT
           echo "POSTGRES_HOST=$postgres_host" >> $GITHUB_OUTPUT
           echo "POSTGRES_PORT=$postgres_port" >> $GITHUB_OUTPUT
@@ -145,26 +154,21 @@ jobs:
 
       - name: Set up deployment environment
         run: |
-          # Ensure all verification scripts are executable
           chmod +x deployment_readiness.sh verify_deployment.sh
 
       - name: Run Deployment Readiness Checks
         run: |
-          # Run deployment readiness script
           ./deployment_readiness.sh production
         env:
           DEPLOYMENT_MODE: production
 
-  # Primary deployment job
   deploy-to-ec2:
     needs: deployment-readiness
-    # Conditional execution based on workflow trigger or manual dispatch
     if: |
-      (github.event_name == 'workflow_dispatch') ||
+      github.event_name == 'workflow_dispatch' || 
       (github.event.workflow_run.conclusion == 'success' && 
-       github.event.workflow_run.name == 'Docker Build and Registry Push' &&
-       (github.event.workflow_run.head_branch == 'production' || 
-        contains(github.event.workflow_run.head_branch, 'production')))
+       github.event.workflow_run.name == 'Docker Build and Registry Push' && 
+       contains(github.event.workflow_run.head_branch, 'production'))
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -178,7 +182,6 @@ jobs:
           ref: production
           fetch-depth: 0
 
-      # Deployment Logging Preparation
       - name: Prepare Deployment Logs
         run: |
           mkdir -p deployment_logs
@@ -344,3 +347,17 @@ jobs:
           echo "Workflow Run ID: ${{ github.run_id }}" >> deployment_logs/workflow_failure.log
           echo "Repository: ${{ github.repository }}" >> deployment_logs/workflow_failure.log
           env >> deployment_logs/environment_vars.log
+
+  notify-status:
+    if: always()
+    needs: [deploy-to-ec2]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determine Workflow Status
+        run: |
+          if [[ "${{ needs.deploy-to-ec2.result }}" == "success" ]]; then
+            echo "✅ Production Deployment Completed Successfully"
+          else
+            echo "❌ Production Deployment Failed"
+            exit 1
+          fi
