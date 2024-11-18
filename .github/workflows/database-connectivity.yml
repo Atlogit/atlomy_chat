@@ -1,15 +1,13 @@
 name: Database Connectivity Verification
 
 on:
-  push:
-    branches:
-      - production
-      - main
-  pull_request:
-    branches:
-      - production
-      - main
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      trigger_source:
+        description: 'Workflow that triggered this check'
+        type: string
+        required: false
 
 jobs:
   verify-database-connectivity:
@@ -18,6 +16,10 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
+
+    - name: Log Trigger Source
+      run: |
+        echo "Triggered by workflow: ${{ inputs.trigger_source }}"
 
     - name: Set up Python
       uses: actions/setup-python@v4
