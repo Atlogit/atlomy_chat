@@ -47,13 +47,29 @@ def stage_database_backup(
     Stage database backup from S3 without attempting restoration
     Prepares backup for future use during Docker deployment
     """
-    # Use environment variables with fallback to parameters and defaults
-    s3_bucket = s3_bucket or os.environ.get('S3_BACKUP_BUCKET', 'amta-app')
+    # Comprehensive environment variable logging
+    logger.info("Detailed Environment Variable Inspection:")
+    for key in ['S3_BACKUP_BUCKET', 'AWS_S3_BUCKET', 'BACKUP_BUCKET']:
+        value = os.environ.get(key)
+        logger.info(f"{key}: {value if value else 'NOT SET'}")
+    
+    # Additional logging for context
+    logger.info(f"Passed s3_bucket parameter: {s3_bucket}")
+
+    # Determine bucket name with multiple fallback strategies
+    s3_bucket = (
+        s3_bucket or 
+        os.environ.get('S3_BACKUP_BUCKET') or 
+        os.environ.get('AWS_S3_BUCKET') or 
+        os.environ.get('BACKUP_BUCKET') or 
+        'amta-app'
+    )
+
     deployment_mode = os.environ.get('DEPLOYMENT_MODE', 'production')
 
     logger.info(f"Starting database backup staging process")
     logger.info(f"Deployment Mode: {deployment_mode}")
-    logger.info(f"S3 Bucket: {s3_bucket}")
+    logger.info(f"Resolved S3 Bucket: {s3_bucket}")
     logger.info(f"S3 Prefix: {s3_prefix}")
 
     try:
@@ -71,6 +87,7 @@ def stage_database_backup(
             )
         except ClientError as e:
             logger.error(f"S3 ListObjects error: {e}")
+            logger.error(f"Bucket details - Name: {s3_bucket}, Prefix: {s3_prefix}")
             return False
         
         # Find the latest backup file
@@ -99,163 +116,6 @@ def stage_database_backup(
     
     except Exception as e:
         logger.error(f"Unexpected error during database backup staging: {e}")
-        return False
-
-def database_exists(db_name, db_user, db_password, host='localhost', port=5432):
-    """Check if a specific database exists with comprehensive error handling."""
-    logger.info(f"Checking database existence: {db_name} on {host}:{port}")
-    
-    # First, check if port is open
-    if not check_port_open(host, port):
-        logger.error(f"PostgreSQL port {port} on {host} is not accessible")
-        return False
-
-    try:
-        conn = psycopg2.connect(
-            dbname='postgres',
-            user=db_user,
-            password=db_password,
-            host=host,
-            port=port,
-            connect_timeout=10  # Add connection timeout
-        )
-        conn.autocommit = True
-        with conn.cursor() as cur:
-            cur.execute(f"SELECT 1 FROM pg_catalog.pg_database WHERE datname = '{db_name}'")
-            exists = cur.fetchone() is not None
-            logger.info(f"Database {db_name} exists: {exists}")
-            return exists
-    except psycopg2.Error as e:
-        logger.error(f"Database connection error: {e}")
-        logger.error(f"Connection details - Host: {host}, Port: {port}, User: {db_user}")
-        return False
-    except Exception as e:
-        logger.error(f"Unexpected error checking database: {e}")
-        return False
-    finally:
-        if 'conn' in locals():
-            conn.close()
-
-def restore_database_from_s3(
-    db_name=None, 
-    db_user=None, 
-    db_password=None,
-    db_host='localhost',
-    db_port=5432,
-    s3_bucket=None, 
-    s3_prefix='amta-db',
-    max_retries=3
-):
-    """Robust database restoration from S3 with improved error handling and configurability."""
-    # Use environment variables with fallback to parameters
-    db_name = db_name or get_env_var('DB_NAME', 'amta_greek')
-    db_user = db_user or get_env_var('DB_USER', 'atlomy')
-    db_password = db_password or get_env_var('DB_PASSWORD')
-    s3_bucket = s3_bucket or get_env_var('S3_BACKUP_BUCKET', 'amta-app')
-    db_host = get_env_var('DB_HOST', db_host)
-    
-    # Safely handle DB_PORT, defaulting to 5432 if not set or empty
-    try:
-        db_port = int(os.environ.get('DB_PORT', str(db_port)) or 5432)
-    except ValueError:
-        logger.warning(f"Invalid DB_PORT, defaulting to {db_port}")
-        db_port = 5432
-
-    logger.info(f"Starting database restoration process")
-    logger.info(f"Configuration - Host: {db_host}, Port: {db_port}, Database: {db_name}")
-
-    if not db_password:
-        logger.error("Database password is required")
-        return False
-
-    try:
-        # Check if database already exists
-        if database_exists(db_name, db_user, db_password, host=db_host, port=db_port):
-            logger.info(f"Database {db_name} already exists. Skipping restoration.")
-            return True
-        
-        # Stage backup first
-        if not stage_database_backup(s3_bucket, s3_prefix):
-            logger.error("Failed to stage database backup")
-            return False
-        
-        # Create S3 client with fallback mechanism
-        s3_client = create_s3_client()
-        if not s3_client:
-            logger.error("Failed to create S3 client")
-            return False
-        
-        # List objects in S3 bucket
-        try:
-            response = s3_client.list_objects_v2(
-                Bucket=s3_bucket,
-                Prefix=s3_prefix
-            )
-        except ClientError as e:
-            logger.error(f"S3 ListObjects error: {e}")
-            return False
-        
-        # Find the latest backup file
-        backups = [obj['Key'] for obj in response.get('Contents', []) 
-                   if obj['Key'].endswith('.tar.gz') or obj['Key'].endswith('.sql.gz')]
-        
-        if not backups:
-            logger.warning("No database backups found in S3.")
-            return False
-        
-        latest_backup = max(backups, key=lambda x: x.split('_')[-1])
-        
-        # Create local backup directory
-        os.makedirs('database_backups', exist_ok=True)
-        local_backup_path = os.path.join('database_backups', os.path.basename(latest_backup))
-        
-        # Prepare environment for authentication
-        env = os.environ.copy()
-        env['PGPASSWORD'] = db_password
-        
-        # Drop and recreate database commands
-        drop_db_cmd = [
-            'psql', 
-            '-h', db_host, 
-            '-p', str(db_port),
-            '-U', db_user, 
-            '-c', f'DROP DATABASE IF EXISTS "{db_name}";'
-        ]
-        
-        create_db_cmd = [
-            'psql', 
-            '-h', db_host, 
-            '-p', str(db_port),
-            '-U', db_user, 
-            '-c', f'CREATE DATABASE "{db_name}";'
-        ]
-        
-        # Restore command (different for .tar.gz and .sql.gz)
-        restore_cmd = [
-            'pg_restore' if local_backup_path.endswith('.tar.gz') else 'psql',
-            '-h', db_host,
-            '-p', str(db_port),
-            '-U', db_user,
-            '-d', db_name,
-            local_backup_path
-        ]
-        
-        # Execute database restoration commands
-        for cmd in [drop_db_cmd, create_db_cmd, restore_cmd]:
-            try:
-                result = subprocess.run(cmd, env=env, capture_output=True, text=True, check=True)
-                logger.info(f"Command executed successfully: {' '.join(cmd)}")
-            except subprocess.CalledProcessError as e:
-                logger.error(f"Command failed: {' '.join(cmd)}")
-                logger.error(f"STDOUT: {e.stdout}")
-                logger.error(f"STDERR: {e.stderr}")
-                return False
-        
-        logger.info(f"Database {db_name} restored successfully")
-        return True
-    
-    except Exception as e:
-        logger.error(f"Unexpected error during database restoration: {e}")
         return False
 
 def main():
