@@ -3,11 +3,49 @@
 import os
 import sys
 import logging
+import subprocess
 import boto3
 from botocore.exceptions import ClientError
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
+
+def transfer_to_ec2(local_backup_path):
+    """
+    Transfer backup to EC2 instance using AWS CLI
+    """
+    # Retrieve EC2 and S3 details from environment
+    ec2_instance_id = os.environ.get('EC2_INSTANCE_ID')
+    s3_bucket = os.environ.get('S3_BACKUP_BUCKET', 'amta-app')
+    
+    if not ec2_instance_id:
+        logger.warning("No EC2 instance ID provided. Skipping transfer.")
+        return False
+
+    try:
+        # Use AWS CLI to copy file to EC2 instance
+        transfer_cmd = [
+            'aws', 'ssm', 'send-command',
+            '--instance-ids', ec2_instance_id,
+            '--document-name', 'AWS-RunShellScript',
+            '--parameters', f'commands=["mkdir -p /opt/atlomy/database_backups", "aws s3 cp s3://{s3_bucket}/{os.path.basename(local_backup_path)} /opt/atlomy/database_backups/latest_backup.tar.gz"]'
+        ]
+        
+        result = subprocess.run(transfer_cmd, capture_output=True, text=True, check=True)
+        
+        logger.info("Backup transfer command sent successfully")
+        logger.info(f"Transfer output: {result.stdout}")
+        
+        return True
+    
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Transfer failed: {e}")
+        logger.error(f"STDOUT: {e.stdout}")
+        logger.error(f"STDERR: {e.stderr}")
+        return False
+    except Exception as e:
+        logger.error(f"Unexpected transfer error: {e}")
+        return False
 
 def stage_database_backup(
     s3_bucket='amta-app', 
@@ -21,11 +59,6 @@ def stage_database_backup(
     logger.info(f"S3 Bucket: {s3_bucket}")
     logger.info(f"S3 Prefix: {s3_prefix}")
     logger.info(f"Local Backup Directory: {backup_dir}")
-
-    # Log environment variables for debugging
-    logger.info("Environment Variables:")
-    logger.info(f"EC2_INSTANCE_IP: {os.environ.get('EC2_INSTANCE_IP', 'NOT SET')}")
-    logger.info(f"EC2_SSH_KEY_PATH: {os.environ.get('EC2_SSH_KEY_PATH', 'NOT SET')}")
 
     try:
         s3_client = boto3.client('s3')
@@ -55,19 +88,14 @@ def stage_database_backup(
         
         logger.info(f"Database backup downloaded: {local_backup_path}")
         
-        # Prepare for EC2 transfer (placeholder for actual transfer logic)
-        ec2_instance_ip = os.environ.get('EC2_INSTANCE_IP')
-        ec2_ssh_key_path = os.environ.get('EC2_SSH_KEY_PATH')
+        # Attempt to transfer to EC2
+        transfer_success = transfer_to_ec2(local_backup_path)
         
-        if ec2_instance_ip and ec2_ssh_key_path:
-            logger.info("Preparing to transfer backup to EC2 instance")
-            # TODO: Implement actual file transfer logic
-            # This could use scp, aws ssm, or other transfer methods
-            logger.warning("EC2 transfer not implemented in this version")
+        if transfer_success:
+            logger.info("Backup transferred to EC2 instance")
         else:
-            logger.warning("EC2 instance transfer details not provided")
+            logger.warning("Failed to transfer backup to EC2 instance")
         
-        logger.info("Backup ready for Docker deployment")
         return True
     
     except Exception as e:
