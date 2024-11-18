@@ -13,18 +13,6 @@ from botocore.config import Config
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
 
-def check_port_open(host, port, timeout=5):
-    """Check if a specific host:port is reachable."""
-    try:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(timeout)
-        result = sock.connect_ex((host, port))
-        sock.close()
-        return result == 0
-    except Exception as e:
-        logger.error(f"Port check error for {host}:{port}: {e}")
-        return False
-
 def create_s3_client():
     """
     Create S3 client with fallback to instance credentials
@@ -50,13 +38,6 @@ def create_s3_client():
             logger.error(f"S3 client creation failed: {default_error}")
             return None
 
-def get_env_var(name, default=None, required=False):
-    """Safely retrieve environment variables with optional defaults."""
-    value = os.environ.get(name, default)
-    if required and not value:
-        raise ValueError(f"Required environment variable {name} is not set")
-    return value
-
 def stage_database_backup(
     s3_bucket=None, 
     s3_prefix='amta-db',
@@ -66,9 +47,9 @@ def stage_database_backup(
     Stage database backup from S3 without attempting restoration
     Prepares backup for future use during Docker deployment
     """
-    # Use environment variables with fallback to parameters
-    s3_bucket = s3_bucket or get_env_var('S3_BACKUP_BUCKET', 'amta-app')
-    deployment_mode = get_env_var('DEPLOYMENT_MODE', 'production')
+    # Use environment variables with fallback to parameters and defaults
+    s3_bucket = s3_bucket or os.environ.get('S3_BACKUP_BUCKET', 'amta-app')
+    deployment_mode = os.environ.get('DEPLOYMENT_MODE', 'production')
 
     logger.info(f"Starting database backup staging process")
     logger.info(f"Deployment Mode: {deployment_mode}")
@@ -284,35 +265,19 @@ def main():
     """
     import argparse
     
-    parser = argparse.ArgumentParser(description='Restore database from S3')
-    parser.add_argument('--db-name', help='Database name')
-    parser.add_argument('--db-user', help='Database user')
-    parser.add_argument('--db-password', help='Database password')
-    parser.add_argument('--db-host', help='Database host')
-    parser.add_argument('--db-port', type=int, help='Database port')
+    parser = argparse.ArgumentParser(description='Stage database backup from S3')
     parser.add_argument('--s3-bucket', help='S3 bucket name')
-    parser.add_argument('--s3-prefix', help='S3 prefix/folder')
-    parser.add_argument('--stage-only', action='store_true', help='Only stage backup, do not restore')
+    parser.add_argument('--s3-prefix', help='S3 prefix/folder', default='amta-db')
+    parser.add_argument('--backup-dir', help='Local backup directory', default='database_backups')
     
     args = parser.parse_args()
     
-    # Determine whether to stage only or perform full restoration
-    if args.stage_only:
-        success = stage_database_backup(
-            s3_bucket=args.s3_bucket,
-            s3_prefix=args.s3_prefix or 'amta-db'
-        )
-    else:
-        # Use environment variables if not provided via arguments
-        success = restore_database_from_s3(
-            db_name=args.db_name,
-            db_user=args.db_user,
-            db_password=args.db_password,
-            db_host=args.db_host,
-            db_port=args.db_port,
-            s3_bucket=args.s3_bucket,
-            s3_prefix=args.s3_prefix
-        )
+    # Attempt to stage backup
+    success = stage_database_backup(
+        s3_bucket=args.s3_bucket,
+        s3_prefix=args.s3_prefix,
+        backup_dir=args.backup_dir
+    )
     
     sys.exit(0 if success else 1)
 
