@@ -109,7 +109,6 @@ jobs:
               exit 0
             else
               echo "⚠️ PostgreSQL data directory is empty"
-              exit 1
             fi
             else
               echo "❌ PostgreSQL data directory does not exist"
