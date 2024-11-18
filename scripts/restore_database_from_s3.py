@@ -7,8 +7,7 @@ import socket
 import boto3
 import psycopg2
 import subprocess
-from botocore.exceptions import ClientError, NoCredentialsError, PartnerNetworkConnectionError
-from botocore.config import Config
+from botocore.exceptions import ClientError, NoCredentialsError, BotoCoreError
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
@@ -75,6 +74,9 @@ def stage_database_backup(
         except ClientError as e:
             logger.error(f"S3 ListObjects error: {e}")
             logger.error(f"Verify bucket name '{s3_bucket}' and IAM permissions")
+            return False
+        except BotoCoreError as e:
+            logger.error(f"Boto3 core error during S3 interaction: {e}")
             return False
         
         # Find the latest backup file
