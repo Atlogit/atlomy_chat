@@ -33,9 +33,108 @@ jobs:
     with:
       deployment_mode: production
 
+  # Database Initialization and Setup
+  database-initialization:
+    needs: database-restoration
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Retrieve Database Secrets
+        id: get-database-secrets
+        run: |
+          secrets=$(aws secretsmanager get-secret-value --secret-id amta-production-secrets --query SecretString --output text)
+          
+          database_url=$(echo $secrets | jq -r '.DATABASE_URL')
+          postgres_host=$(echo $secrets | jq -r '.POSTGRES_HOST')
+          postgres_port=$(echo $secrets | jq -r '.POSTGRES_PORT')
+          postgres_db=$(echo $secrets | jq -r '.POSTGRES_DB')
+          postgres_user=$(echo $secrets | jq -r '.POSTGRES_USER')
+          
+          echo "::add-mask::$database_url"
+          echo "DATABASE_URL=$database_url" >> $GITHUB_OUTPUT
+          echo "POSTGRES_HOST=$postgres_host" >> $GITHUB_OUTPUT
+          echo "POSTGRES_PORT=$postgres_port" >> $GITHUB_OUTPUT
+          echo "POSTGRES_DB=$postgres_db" >> $GITHUB_OUTPUT
+          echo "POSTGRES_USER=$postgres_user" >> $GITHUB_OUTPUT
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install sqlalchemy psycopg2-binary alembic
+
+      - name: Database Initialization Check
+        env:
+          DATABASE_URL: ${{ steps.get-database-secrets.outputs.DATABASE_URL }}
+          POSTGRES_HOST: ${{ steps.get-database-secrets.outputs.POSTGRES_HOST }}
+          POSTGRES_PORT: ${{ steps.get-database-secrets.outputs.POSTGRES_PORT }}
+          POSTGRES_DB: ${{ steps.get-database-secrets.outputs.POSTGRES_DB }}
+          POSTGRES_USER: ${{ steps.get-database-secrets.outputs.POSTGRES_USER }}
+        run: |
+          python3 - << EOF
+          import os
+          import sqlalchemy
+          from sqlalchemy import create_engine, text
+          from sqlalchemy.exc import SQLAlchemyError, ProgrammingError
+
+          def check_database_exists(engine, database_name):
+              try:
+                  with engine.connect() as connection:
+                      result = connection.execute(
+                          text(f"SELECT 1 FROM pg_catalog.pg_database WHERE datname = '{database_name}'")
+                      )
+                      return result.scalar() is not None
+              except Exception as e:
+                  print(f"Error checking database: {e}")
+                  return False
+
+          def create_database(engine, database_name, user):
+              try:
+                  with engine.connect() as connection:
+                      connection.execute(text("commit"))
+                      connection.execute(text(f"CREATE DATABASE {database_name}"))
+                      connection.execute(text(f"GRANT ALL PRIVILEGES ON DATABASE {database_name} TO {user}"))
+                  print(f"Database {database_name} created successfully")
+                  return True
+              except Exception as e:
+                  print(f"Error creating database: {e}")
+                  return False
+
+          # Connection URL without specific database
+          base_url = os.environ['DATABASE_URL'].replace(f"/{os.environ['POSTGRES_DB']}", "/postgres")
+          
+          engine = create_engine(base_url)
+          
+          if not check_database_exists(engine, os.environ['POSTGRES_DB']):
+              print("Database does not exist. Creating...")
+              if create_database(engine, os.environ['POSTGRES_DB'], os.environ['POSTGRES_USER']):
+                  print("✅ Database initialization successful")
+              else:
+                  print("❌ Database initialization failed")
+                  exit(1)
+          else:
+              print("✅ Database already exists")
+          EOF
+
+      - name: Run Database Migrations
+        run: |
+          alembic upgrade head
+
   # Deployment Readiness Verification
   deployment-readiness:
-    needs: database-restoration
+    needs: database-initialization
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
