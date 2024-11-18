@@ -23,7 +23,7 @@ RUN node --version && \
 # Clear npm cache and install dependencies with maximum verbosity
 RUN npm cache clean --force && \
     npm install -g npm@latest && \
-    NODE_OPTIONS=--max_old_space_size=4096 npm ci --verbose --prefer-offline
+    NODE_OPTIONS=--max_old_space_size=4096 npm install --verbose
 
 # Copy the rest of the application code
 COPY . .
