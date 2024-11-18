@@ -6,6 +6,7 @@ services:
       context: .
       dockerfile: Dockerfile.backend
     container_name: amta-backend
+    network_mode: "host"  # Use host network for direct localhost access
     ports:
       - "8081:8081"
     volumes:
@@ -15,18 +16,17 @@ services:
       - .env
     environment:
       - PYTHONUNBUFFERED=1
-      - DEPLOYMENT_MODE=${DEPLOYMENT_MODE:-production}
+      - DEPLOYMENT_MODE=production
       - REDIS_URL=${REDIS_URL}
       - AWS_REGION=${AWS_REGION:-us-east-1}
       - BEDROCK_MODEL_ID=${BEDROCK_MODEL_ID}
       - DATABASE_URL=${DATABASE_URL}
+      - POSTGRES_HOST=localhost  # Explicitly set for host network mode
       - SERVER_HOST=0.0.0.0
       - SERVER_PORT=8081
     restart: unless-stopped
     depends_on:
       - redis
-    networks:
-      - amta_network
     extra_hosts:
       - "host.docker.internal:host-gateway"
     healthcheck:
@@ -41,16 +41,15 @@ services:
       context: ./next-app
       dockerfile: Dockerfile
     container_name: amta-frontend
+    network_mode: "host"
     ports:
       - "3000:3000"
     environment:
       - NODE_ENV=production
-      - BACKEND_URL=http://backend:8081
+      - BACKEND_URL=http://localhost:8081
     restart: unless-stopped
     depends_on:
       - backend
-    networks:
-      - amta_network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000"]
       interval: 30s
@@ -61,20 +60,15 @@ services:
   redis:
     image: redis:6.2-alpine
     container_name: amta-redis
+    network_mode: "host"
     volumes:
       - redis_data:/data
-    networks:
-      - amta_network
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 30s
       timeout: 10s
       retries: 3
-
-networks:
-  amta_network:
-    driver: bridge
 
 volumes:
   redis_data:
