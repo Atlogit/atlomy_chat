@@ -1,8 +1,5 @@
 /** @type {import('next').NextConfig} */
 module.exports = {
-  // Disable any experimental features
-  experimental: {},
-  
   // Configure rewrites to proxy API requests to the FastAPI backend
   async rewrites() {
     const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8081';
@@ -19,10 +16,13 @@ module.exports = {
     NEXT_PUBLIC_BACKEND_URL: process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8081',
   },
 
-  // Explicitly disable any potentially problematic optimizations
-  swcMinify: false,
-  
-  // Minimal webpack configuration
+  // Explicitly configure compiler options
+  compiler: {
+    // Remove Babel configuration and use SWC
+    removeConsole: process.env.NODE_ENV === 'production',
+  },
+
+  // Optional: Configure webpack if needed
   webpack: (config) => {
     return config;
   }
