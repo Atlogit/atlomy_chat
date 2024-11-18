@@ -3,6 +3,7 @@
 import os
 import sys
 import logging
+import socket
 import boto3
 import psycopg2
 import subprocess
@@ -11,6 +12,18 @@ from botocore.config import Config
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
+
+def check_port_open(host, port, timeout=5):
+    """Check if a specific host:port is reachable."""
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(timeout)
+        result = sock.connect_ex((host, port))
+        sock.close()
+        return result == 0
+    except Exception as e:
+        logger.error(f"Port check error for {host}:{port}: {e}")
+        return False
 
 def create_s3_client():
     """
@@ -45,21 +58,35 @@ def get_env_var(name, default=None, required=False):
     return value
 
 def database_exists(db_name, db_user, db_password, host='localhost', port=5432):
-    """Check if a specific database exists with improved error handling."""
+    """Check if a specific database exists with comprehensive error handling."""
+    logger.info(f"Checking database existence: {db_name} on {host}:{port}")
+    
+    # First, check if port is open
+    if not check_port_open(host, port):
+        logger.error(f"PostgreSQL port {port} on {host} is not accessible")
+        return False
+
     try:
         conn = psycopg2.connect(
             dbname='postgres',
             user=db_user,
             password=db_password,
             host=host,
-            port=port
+            port=port,
+            connect_timeout=10  # Add connection timeout
         )
         conn.autocommit = True
         with conn.cursor() as cur:
             cur.execute(f"SELECT 1 FROM pg_catalog.pg_database WHERE datname = '{db_name}'")
-            return cur.fetchone() is not None
+            exists = cur.fetchone() is not None
+            logger.info(f"Database {db_name} exists: {exists}")
+            return exists
     except psycopg2.Error as e:
         logger.error(f"Database connection error: {e}")
+        logger.error(f"Connection details - Host: {host}, Port: {port}, User: {db_user}")
+        return False
+    except Exception as e:
+        logger.error(f"Unexpected error checking database: {e}")
         return False
     finally:
         if 'conn' in locals():
@@ -83,6 +110,9 @@ def restore_database_from_s3(
     s3_bucket = s3_bucket or get_env_var('S3_BACKUP_BUCKET', 'amta-app')
     db_host = get_env_var('DB_HOST', db_host)
     db_port = int(get_env_var('DB_PORT', db_port))
+
+    logger.info(f"Starting database restoration process")
+    logger.info(f"Configuration - Host: {db_host}, Port: {db_port}, Database: {db_name}")
 
     if not db_password:
         logger.error("Database password is required")
