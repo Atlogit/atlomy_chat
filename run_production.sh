@@ -7,6 +7,10 @@ IFS=$'\n\t'
 # Get absolute path for script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Explicitly set BACKEND_URL for local development
+export BACKEND_URL=${BACKEND_URL:-http://localhost:8081}
+export NEXT_PUBLIC_BACKEND_URL=${NEXT_PUBLIC_BACKEND_URL:-$BACKEND_URL}
+
 # Run service preparation script in production mode
 if ! ./setup_services.sh production; then
     echo "Service preparation failed. Cannot start production environment."
@@ -65,6 +69,10 @@ trap cleanup EXIT INT TERM
 
 log "INFO" "Starting production environment setup..."
 
+# Explicitly log backend URL configuration
+log "INFO" "Backend URL configured as: $BACKEND_URL"
+log "INFO" "Next.js Public Backend URL: $NEXT_PUBLIC_BACKEND_URL"
+
 # Cleanup any existing processes
 cleanup
 
@@ -98,7 +106,7 @@ export PYTHONPATH="${PYTHONPATH:+${PYTHONPATH}:}$(pwd)"
 
 # Set default server configuration if not already set
 export SERVER_HOST=${SERVER_HOST:-0.0.0.0}
-export SERVER_PORT=${SERVER_PORT:-8000}
+export SERVER_PORT=${SERVER_PORT:-8081}
 
 # Log important settings
 log "INFO" "Production settings:"

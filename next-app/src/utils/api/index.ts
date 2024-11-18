@@ -1,16 +1,42 @@
-// Re-export types
-export * from './types/types';
-export * from './types/text';
-export * from './types/search';
-export * from './types/llm';
-export * from './types/citation';
-export * from './types/lexical';
+import { UUID } from './types/types';
+import { API } from './endpoints';
 
-// Re-export fetch utility
-export { fetchApi } from './fetch';
+// Get base URL from environment or default
+const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 
+                 process.env.BACKEND_URL || 
+                 'http://localhost:8081';
 
-// Re-export API endpoints
-export { API } from './endpoints';
+// Utility function to construct full API URL
+export const getApiUrl = (path: string) => `${BASE_URL}${path}`;
 
-// Explicitly re-export to resolve naming conflicts
-export type { QueryResponse } from './types/search';
+// Enhanced fetch function with dynamic base URL
+export const apiFetch = async (path: string, options: RequestInit = {}) => {
+  const url = getApiUrl(path);
+  
+  const defaultHeaders = {
+    'Content-Type': 'application/json',
+  };
+
+  const mergedOptions = {
+    ...options,
+    headers: {
+      ...defaultHeaders,
+      ...options.headers,
+    },
+  };
+
+  try {
+    const response = await fetch(url, mergedOptions);
+    
+    if (!response.ok) {
+      throw new Error(`API request failed: ${response.statusText}`);
+    }
+
+    return response;
+  } catch (error) {
+    console.error(`Error fetching ${url}:`, error);
+    throw error;
+  }
+};
+
+export { API };
