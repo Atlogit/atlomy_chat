@@ -17,29 +17,25 @@ def transfer_backup_via_ssh(local_backup_path):
     # Retrieve SSH connection details
     ec2_host = os.environ.get('EC2_HOST')
     ec2_user = os.environ.get('EC2_USER', 'ec2-user')
-    ssh_key_path = os.environ.get('EC2_SSH_PRIVATE_KEY_PATH', '/tmp/ec2_ssh_key')
+    ssh_key_content = os.environ.get('EC2_SSH_PRIVATE_KEY')
     
     if not ec2_host:
         logger.error("No EC2 host specified for SSH transfer")
         return False
     
-    # Ensure SSH key is available
-    if not os.path.exists(ssh_key_path):
-        try:
-            # Write SSH key from environment variable
-            ssh_key = os.environ.get('EC2_SSH_PRIVATE_KEY')
-            if not ssh_key:
-                logger.error("No SSH private key provided")
-                return False
-            
-            with open(ssh_key_path, 'w') as key_file:
-                key_file.write(ssh_key)
-            
-            # Set correct permissions for SSH key
-            os.chmod(ssh_key_path, 0o600)
-        except Exception as e:
-            logger.error(f"Failed to write SSH key: {e}")
-            return False
+    if not ssh_key_content:
+        logger.error("No SSH private key provided")
+        return False
+    
+    # Directly write SSH key to file
+    ssh_key_path = os.path.expanduser('~/.ssh/ec2_key')
+    os.makedirs(os.path.dirname(ssh_key_path), exist_ok=True)
+    
+    with open(ssh_key_path, 'w') as key_file:
+        key_file.write(ssh_key_content)
+    
+    # Set correct permissions for SSH key
+    os.chmod(ssh_key_path, 0o600)
     
     # Destination directory for database backup staging
     remote_backup_dir = '/opt/atlomy/database_backups'
@@ -209,7 +205,7 @@ def stage_database_backup(
         # Prepare for database restoration
         ec2_host = os.environ.get('EC2_HOST')
         ec2_user = os.environ.get('EC2_USER', 'ec2-user')
-        ssh_key_path = os.environ.get('EC2_SSH_PRIVATE_KEY_PATH', '/tmp/ec2_ssh_key')
+        ssh_key_path = os.path.expanduser('~/.ssh/ec2_key')
         
         prepare_success = prepare_database_restoration(ec2_host, ec2_user, ssh_key_path)
         
