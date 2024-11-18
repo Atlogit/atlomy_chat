@@ -109,7 +109,13 @@ def restore_database_from_s3(
     db_password = db_password or get_env_var('DB_PASSWORD')
     s3_bucket = s3_bucket or get_env_var('S3_BACKUP_BUCKET', 'amta-app')
     db_host = get_env_var('DB_HOST', db_host)
-    db_port = int(get_env_var('DB_PORT', db_port))
+    
+    # Safely handle DB_PORT, defaulting to 5432 if not set or empty
+    try:
+        db_port = int(get_env_var('DB_PORT', str(db_port)) or 5432)
+    except ValueError:
+        logger.warning(f"Invalid DB_PORT, defaulting to {db_port}")
+        db_port = 5432
 
     logger.info(f"Starting database restoration process")
     logger.info(f"Configuration - Host: {db_host}, Port: {db_port}, Database: {db_name}")
