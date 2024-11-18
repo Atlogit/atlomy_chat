@@ -26,64 +26,15 @@ def log_environment_context():
         value = os.environ.get(var, 'NOT SET')
         logger.info(f"{var}: {value}")
 
-def get_ec2_instance_id(hostname=None):
-    """
-    Retrieve EC2 instance ID with comprehensive logging and fallback
-    """
-    # Log environment context for debugging
-    log_environment_context()
-
-    # Use environment variable first
-    ec2_instance_id = os.environ.get('EC2_INSTANCE_ID')
-    if ec2_instance_id:
-        logger.info(f"Using EC2 Instance ID from environment: {ec2_instance_id}")
-        return ec2_instance_id
-
-    # If no hostname provided, use EC2_HOST from environment
-    if not hostname:
-        hostname = os.environ.get('EC2_HOST')
-    
-    if not hostname:
-        logger.error("No hostname or EC2_HOST provided to identify instance")
-        logger.warning("To resolve this:")
-        logger.warning("1. Set EC2_HOST in GitHub Actions secrets")
-        logger.warning("2. Set EC2_INSTANCE_ID in GitHub Actions secrets")
-        logger.warning("3. Ensure AWS credentials are correctly configured")
-        return None
-
-    try:
-        # Use boto3 to describe instances and find by hostname/private DNS
-        ec2_client = boto3.client('ec2')
-        
-        # Describe instances with the matching hostname
-        response = ec2_client.describe_instances(
-            Filters=[
-                {'Name': 'private-dns-name', 'Values': [hostname]},
-                # Optional: Add more filters if needed
-            ]
-        )
-        
-        # Extract instance ID
-        for reservation in response.get('Reservations', []):
-            for instance in reservation.get('Instances', []):
-                instance_id = instance.get('InstanceId')
-                if instance_id:
-                    logger.info(f"Found EC2 Instance ID for {hostname}: {instance_id}")
-                    return instance_id
-        
-        logger.error(f"No instance found with hostname: {hostname}")
-        return None
-    
-    except Exception as e:
-        logger.error(f"Error retrieving EC2 instance ID: {e}")
-        return None
-
 def transfer_to_ec2(local_backup_path):
     """
     Transfer backup to EC2 instance using AWS SSM
     """
+    # Log environment context
+    log_environment_context()
+
     # Retrieve EC2 instance ID
-    ec2_instance_id = get_ec2_instance_id()
+    ec2_instance_id = os.environ.get('EC2_INSTANCE_ID')
     s3_bucket = os.environ.get('S3_BACKUP_BUCKET', 'amta-app')
     
     if not ec2_instance_id:
