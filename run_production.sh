@@ -46,6 +46,9 @@ fi
 
 # Verify Node.js version
 CURRENT_VERSION=$(node --version | sed 's/v//')
+
+# Cleanup function
+cleanup() {
     # Check and kill FastAPI server
     if pgrep -f "uvicorn app.run_server:app" > /dev/null; then
         log "INFO" "Stopping FastAPI server..."
@@ -62,16 +65,37 @@ CURRENT_VERSION=$(node --version | sed 's/v//')
 # Set up trap for cleanup
 trap cleanup EXIT INT TERM
 
+# Directory for logs (using absolute path)
+LOG_DIR="${SCRIPT_DIR}/logs/production"
+FASTAPI_LOG="${LOG_DIR}/fastapi_production.log"
+NEXTJS_LOG="${LOG_DIR}/nextjs_production.log"
+NEXTJS_ERROR_LOG="${LOG_DIR}/nextjs_production_error.log"
+
+# Ensure logs directory exists with proper permissions
+mkdir -p "${LOG_DIR}"
+chmod 755 "${LOG_DIR}"
+
+# Initialize log files with proper permissions
+for log_file in "${FASTAPI_LOG}" "${NEXTJS_LOG}" "${NEXTJS_ERROR_LOG}"; do
+    touch "${log_file}"
+    chmod 644 "${log_file}"
+done
+
+# Function for timestamped logging
+log() {
+    local level=$1
+    local message=$2
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    echo "[${timestamp}] [${level}] ${message}"
+    echo "[${timestamp}] [${level}] ${message}" >> "${FASTAPI_LOG}"
+}
+
 # Clear existing log files
 > "${FASTAPI_LOG}"
 > "${NEXTJS_LOG}"
 > "${NEXTJS_ERROR_LOG}"
 
 log "INFO" "Starting production environment setup..."
-
-# Explicitly log backend URL configuration
-log "INFO" "Backend URL configured as: $BACKEND_URL"
-log "INFO" "Next.js Public Backend URL: $NEXT_PUBLIC_BACKEND_URL"
 
 # Cleanup any existing processes
 cleanup
