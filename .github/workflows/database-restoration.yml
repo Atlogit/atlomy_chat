@@ -115,7 +115,7 @@ jobs:
               -e POSTGRES_DB="$POSTGRES_DB" \
               -e POSTGRES_USER="$POSTGRES_USER" \
               -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
-              postgres:14 \
+              postgres:latest \
               bash -c "
                 # Initialize PostgreSQL data directory
                 initdb -D /var/lib/postgresql/data
@@ -144,7 +144,7 @@ jobs:
               if [ -r "/var/lib/postgresql/data" ] && [ -x "/var/lib/postgresql/data" ]; then
                 # Directory is accessible, count files
                 file_count=$(find /var/lib/postgresql/data -type f | wc -l)
-                if [ "\$file_count" -gt 0 ]; then
+                if [ "$file_count" -gt 0 ]; then
                   echo "✅ PostgreSQL data directory exists and contains files"
                   echo "postgres_data_status=populated" >> $GITHUB_OUTPUT
                 else
@@ -161,11 +161,20 @@ jobs:
               mkdir -p /var/lib/postgresql/data
               echo "⚠️ PostgreSQL data directory created"
               echo "postgres_data_status=empty" >> $GITHUB_OUTPUT
+            fi
           REMOTE_SCRIPT
-          
+        continue-on-error: true
+
+      - name: Set PostgreSQL Data Directory Status
+        id: set-postgres-data-status
+        env:
+          POSTGRES_DATA_STATUS: ${{ steps.check-postgres-data.outputs.postgres_data_status }}
+        run: |
+          echo "postgres_data_status=$POSTGRES_DATA_STATUS" >> "$GITHUB_OUTPUT"
+
       - name: Skip Restoration if Data Directory is Inaccessible
         id: skip-restoration-process
-        if: steps.check-postgres-data.outputs.postgres_data_status == 'access_denied'
+        if: steps.set-postgres-data-status.outputs.postgres_data_status == 'access_denied'
         run: |
           echo "⚠️ Data directory is already in use or inaccessible. Skipping restoration."
           exit 0
