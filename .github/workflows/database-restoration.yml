@@ -93,30 +93,28 @@ jobs:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
         run: |
-          SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=no"
+          ssh_opts="-o BatchMode=yes -o StrictHostKeyChecking=no"
           
-          ssh $SSH_OPTS -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << EOF
-          
+          ssh $ssh_opts -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << 'REMOTE_SCRIPT'
             # Ensure backup directory exists
             mkdir -p /opt/atlomy/database_backups
 
             # Remove existing data directory if problematic
             if [ -d "/var/lib/postgresql/data" ]; then
-            echo "Existing data directory is problematic"
               sudo rm -rf /var/lib/postgresql/data
             fi
 
             # Create data directory with correct permissions
             sudo mkdir -p /var/lib/postgresql/data
-            sudo chown -R postgres:postgres /var/lib/postgresql/data
+            sudo chown -R 999:999 /var/lib/postgresql/data
             sudo chmod 700 /var/lib/postgresql/data
 
             # Use Docker to initialize data directory
             docker run --rm \
               -v /var/lib/postgresql/data:/var/lib/postgresql/data \
-              -e POSTGRES_DB=$POSTGRES_DB \
-              -e POSTGRES_USER=$POSTGRES_USER \
-              -e POSTGRES_PASSWORD=$POSTGRES_PASSWORD \
+              -e POSTGRES_DB="$POSTGRES_DB" \
+              -e POSTGRES_USER="$POSTGRES_USER" \
+              -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
               postgres:latest \
               bash -c "
                 # Initialize PostgreSQL data directory
@@ -137,17 +135,14 @@ jobs:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
         run: |
-          SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=no"
+          ssh_opts="-o BatchMode=yes -o StrictHostKeyChecking=no"
           
-          # Connect to the remote host and inspect the PostgreSQL data directory
-          ssh $SSH_OPTS -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << 'REMOTE_SCRIPT'
-          
+          ssh $ssh_opts -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << 'REMOTE_SCRIPT'
             # Check if data directory exists
             if [ -d "/var/lib/postgresql/data" ]; then   
               # Check directory permissions
               if [ -r "/var/lib/postgresql/data" ] && [ -x "/var/lib/postgresql/data" ]; then
                 # Directory is accessible, count files
-
                 file_count=$(find /var/lib/postgresql/data -type f | wc -l)
                 if [ "\$file_count" -gt 0 ]; then
                   echo "✅ PostgreSQL data directory exists and contains files"
