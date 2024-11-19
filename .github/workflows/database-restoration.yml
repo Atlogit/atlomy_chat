@@ -93,14 +93,16 @@ jobs:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
         run: |
-          ssh_command="ssh -o BatchMode=yes -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST"
+          SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=no"
           
-          $ssh_command << 'REMOTE_SCRIPT'
+          ssh $SSH_OPTS -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << EOF
+          
             # Ensure backup directory exists
             mkdir -p /opt/atlomy/database_backups
 
             # Remove existing data directory if problematic
             if [ -d "/var/lib/postgresql/data" ]; then
+            echo "Existing data directory is problematic"
               sudo rm -rf /var/lib/postgresql/data
             fi
 
@@ -112,9 +114,9 @@ jobs:
             # Use Docker to initialize data directory
             docker run --rm \
               -v /var/lib/postgresql/data:/var/lib/postgresql/data \
-              -e POSTGRES_DB="$POSTGRES_DB" \
-              -e POSTGRES_USER="$POSTGRES_USER" \
-              -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+              -e POSTGRES_DB=$POSTGRES_DB \
+              -e POSTGRES_USER=$POSTGRES_USER \
+              -e POSTGRES_PASSWORD=$POSTGRES_PASSWORD \
               postgres:latest \
               bash -c "
                 # Initialize PostgreSQL data directory
@@ -135,35 +137,35 @@ jobs:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
         run: |
-          ssh_command="ssh -o BatchMode=yes -o StrictHostKeyChecking=no -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST"
+          SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=no"
           
-          $ssh_command << 'REMOTE_SCRIPT'
+          # Connect to the remote host and inspect the PostgreSQL data directory
+          ssh $SSH_OPTS -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << 'REMOTE_SCRIPT'
+          
             # Check if data directory exists
             if [ -d "/var/lib/postgresql/data" ]; then   
               # Check directory permissions
               if [ -r "/var/lib/postgresql/data" ] && [ -x "/var/lib/postgresql/data" ]; then
                 # Directory is accessible, count files
+
                 file_count=$(find /var/lib/postgresql/data -type f | wc -l)
-                if [ "$file_count" -gt 0 ]; then
-                  echo "PostgreSQL data directory exists and contains files"
-                  echo "postgres_data_status=populated"
+                if [ "\$file_count" -gt 0 ]; then
+                  echo "✅ PostgreSQL data directory exists and contains files"
+                  echo "postgres_data_status=populated" >> $GITHUB_OUTPUT
                 else
-                  echo "PostgreSQL data directory is empty"
-                  echo "postgres_data_status=empty"
+                  echo "⚠️ PostgreSQL data directory is empty"
+                  echo "postgres_data_status=empty" >> $GITHUB_OUTPUT
                 fi
               else
                 # Directory is inaccessible
-                echo "Access denied to /var/lib/postgresql/data"
-                echo "postgres_data_status=access_denied"
-                exit 1
+                echo "❌ Access denied to /var/lib/postgresql/data"
+                echo "postgres_data_status=access_denied" >> $GITHUB_OUTPUT
               fi
             else
-              echo "PostgreSQL data directory does not exist"
-              echo "postgres_data_status=not_found"
-              exit 1
-            fi
-          REMOTE_SCRIPT
-        continue-on-error: true
+              echo "❌ PostgreSQL data directory does not exist"
+              mkdir -p /var/lib/postgresql/data
+              echo "⚠️ PostgreSQL data directory created"
+              echo "postgres_data_status=empty" >> $GITHUB_OUTPUT
 
       - name: Skip Restoration if Data Directory is Inaccessible
         id: skip-restoration-process
