@@ -104,13 +104,26 @@ jobs:
               sudo rm -rf /var/lib/postgresql/data
             fi
 
+            # Ensure postgres user and group exist
+            if ! getent group postgres > /dev/null; then
+              sudo groupadd postgres
+            fi
+            
+            if ! id postgres > /dev/null 2>&1; then
+              sudo useradd -g postgres -m postgres
+            fi
+
+            # Set PostgreSQL environment
+            export PGPASSWORD="$POSTGRES_PASSWORD"
+            
             # Create data directory with correct permissions
             sudo mkdir -p /var/lib/postgresql/data
-            sudo chown -R 999:999 /var/lib/postgresql/data
+            sudo chown -R postgres:postgres /var/lib/postgresql/data
             sudo chmod 700 /var/lib/postgresql/data
 
-            # Use Docker to initialize data directory
+            # Use Docker to initialize data directory as postgres user
             docker run --rm \
+              -u postgres \
               -v /var/lib/postgresql/data:/var/lib/postgresql/data \
               -e POSTGRES_DB="$POSTGRES_DB" \
               -e POSTGRES_USER="$POSTGRES_USER" \
@@ -121,14 +134,13 @@ jobs:
                 initdb -D /var/lib/postgresql/data
                 
                 # Ensure correct permissions
-                chown -R postgres:postgres /var/lib/postgresql/data
+                chmod 700 /var/lib/postgresql/data
               "
 
             echo "PostgreSQL data directory initialized successfully"
           REMOTE_SCRIPT
         continue-on-error: false
 
-      # Remaining steps stay the same as in the previous workflow
       - name: Check PostgreSQL Data Directory
         id: check-postgres-data
         env:
