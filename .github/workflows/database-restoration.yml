@@ -216,72 +216,44 @@ jobs:
           
           ssh $SSH_OPTS -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << EOF
             export PGPASSWORD=$POSTGRES_PASSWORD
-            
-            # Check the data directory state
-            if [ "${{ steps.check-postgres-data.outputs.postgres_data_status }}" == 'empty' ]; then
-              if [ "${{ steps.check-backup-file.outputs.backup_file_status }}" == 'exists' ]; then
-                # Extract the backup file to the data directory
+            # Check if PostgreSQL data directory is initialized
+              if sudo -u postgres test -f "/var/lib/postgresql/data/PG_VERSION"; then
+              echo "✅ PostgreSQL data directory is initialized."
+              
+              # Verify if the database is populated
+              table_count=\$(sudo -u postgres psql -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -t -c \
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';")
+              
+              if [ "\$table_count" -gt 0 ]; then
+                echo "✅ Database is populated. Tables found: \$table_count"
+                echo "postgres_data_status=populated" >> $GITHUB_OUTPUT
+              else
+                echo "⚠️ Database directory exists but no tables are found."
+                echo "postgres_data_status=empty" >> $GITHUB_OUTPUT
+              fi
+            else
+              echo "⚠️ PostgreSQL data directory is not initialized or inaccessible."
+              echo "postgres_data_status=not_initialized" >> $GITHUB_OUTPUT
+            fi
+
+            # If database is empty, restore from backup
+            if [ "\${{ steps.check-postgres-data.outputs.postgres_data_status }}" = "empty" ]; then
+              if [ -f "/opt/atlomy/database_backups/latest_backup.tar.gz" ]; then
                 echo "Extracting backup file to /var/lib/postgresql/data..."
                 tar -xzf /opt/atlomy/database_backups/latest_backup.tar.gz -C /var/lib/postgresql/data
                 chown -R postgres:postgres /var/lib/postgresql/data
                 echo "✅ Backup extracted successfully"
+                
+                # Restore the database
+                echo "🔄 Restoring database..."
+                sudo -u postgres pg_restore -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -d "$POSTGRES_DB" /var/lib/postgresql/data/latest_backup.dump
+                echo "✅ Database restored successfully"
                 echo "postgres_data_status=populated" >> $GITHUB_OUTPUT
               else
-                echo "⚠️ No backup file found. Skipping extraction and restoration."
+                echo "⚠️ No backup file found. Skipping restoration."
                 exit 1
               fi
-            elif [ "${{ steps.check-postgres-data.outputs.postgres_data_status }}" == 'populated' ]; then
-              echo "Data directory already populated. Moving to extraction."
-            else
-              echo "⚠️ Unexpected data directory state. Exiting."
-              echo "postgres_data_status=error" >> $GITHUB_OUTPUT
-              exit 1
-            fi              
-            
-            # Proceed to DB restoration
-            echo "🔄 Restoring database..."
-            # List the extracted files to find the actual backup file
-            extracted_file=$(ls /var/lib/postgresql/data | grep -E "\.dump|\.sql")
-            # Check if a .dump or .sql file was extracted
-            if [[ -z "$extracted_file" ]]; then
-              echo "⚠️ No valid backup file found in the extracted archive."
-              exit 1
             fi
-            
-            # Restore the database using pg_restore (if it's a .dump file)
-            if [[ "$extracted_file" =~ \.dump$ ]]; then
-              echo "Restoring database from custom format dump..."
-              # Drop existing database
-              psql -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -c "DROP DATABASE IF EXISTS \"$POSTGRES_DB\";"
-            
-              # Create new database
-              psql -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -c "CREATE DATABASE \"$POSTGRES_DB\";"
-              
-              # Restore backup
-              pg_restore -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -d "$POSTGRES_DB" "/var/lib/postgresql/data/$extracted_file"
-
-            # If it's a plain SQL file, use psql instead
-            elif [[ "$extracted_file" =~ \.sql$ ]]; then
-              echo "Restoring database from plain SQL dump..."
-              # Drop existing database
-              psql -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -c "DROP DATABASE IF EXISTS \"$POSTGRES_DB\";"
-            
-              # Create new database
-              psql -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -c "CREATE DATABASE \"$POSTGRES_DB\";"
-
-              # Restore backup
-              psql -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -f "/var/lib/postgresql/data/$extracted_file"
-            fi
-            
-            # Verify restoration
-            table_count=$(psql -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';")
-            
-            if [ "\$table_count" -eq 0 ]; then
-              echo "❌ Database restoration failed: No tables found"
-              exit 1
-            fi
-            
-            echo "✅ Database restored successfully. Tables found: \$table_count"
           EOF
 
   notify-status:
