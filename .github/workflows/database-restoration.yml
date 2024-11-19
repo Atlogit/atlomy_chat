@@ -115,7 +115,7 @@ jobs:
               -e POSTGRES_DB="$POSTGRES_DB" \
               -e POSTGRES_USER="$POSTGRES_USER" \
               -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
-              postgres:latest \
+              postgres:14 \
               bash -c "
                 # Initialize PostgreSQL data directory
                 initdb -D /var/lib/postgresql/data
@@ -161,7 +161,8 @@ jobs:
               mkdir -p /var/lib/postgresql/data
               echo "⚠️ PostgreSQL data directory created"
               echo "postgres_data_status=empty" >> $GITHUB_OUTPUT
-
+          REMOTE_SCRIPT
+          
       - name: Skip Restoration if Data Directory is Inaccessible
         id: skip-restoration-process
         if: steps.check-postgres-data.outputs.postgres_data_status == 'access_denied'
