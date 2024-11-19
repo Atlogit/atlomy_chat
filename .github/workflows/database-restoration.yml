@@ -77,12 +77,6 @@ jobs:
           echo "POSTGRES_USER=$postgres_user" >> $GITHUB_OUTPUT
           echo "POSTGRES_PASSWORD=$postgres_password" >> $GITHUB_OUTPUT
 
-          echo "🔍 Database Connection Details:"
-          echo "  Host: $postgres_host"
-          echo "  Port: $postgres_port"
-          echo "  Database: $postgres_db"
-          echo "  User: $postgres_user"
-
       - name: Prepare SSH Key
         env:
           EC2_SSH_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
@@ -91,6 +85,49 @@ jobs:
           echo "$EC2_SSH_KEY" > ~/.ssh/ec2_key
           chmod 600 ~/.ssh/ec2_key
 
+      - name: Initialize PostgreSQL Data Directory
+        env:
+          POSTGRES_DB: ${{ steps.get-database-secrets.outputs.POSTGRES_DB }}
+          POSTGRES_USER: ${{ steps.get-database-secrets.outputs.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ steps.get-database-secrets.outputs.POSTGRES_PASSWORD }}
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+        run: |
+          SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=no"
+          
+          ssh $SSH_OPTS -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << EOF
+            # Ensure backup directory exists
+            mkdir -p /opt/atlomy/database_backups
+
+            # Remove existing data directory if it's problematic
+            if [ -d "/var/lib/postgresql/data" ]; then
+              sudo rm -rf /var/lib/postgresql/data
+            fi
+
+            # Create data directory with correct permissions
+            sudo mkdir -p /var/lib/postgresql/data
+            sudo chown -R 999:999 /var/lib/postgresql/data
+            sudo chmod 700 /var/lib/postgresql/data
+
+            # Initialize data directory using Docker
+            docker run --rm \
+              -v /var/lib/postgresql/data:/var/lib/postgresql/data \
+              -e POSTGRES_DB=$POSTGRES_DB \
+              -e POSTGRES_USER=$POSTGRES_USER \
+              -e POSTGRES_PASSWORD=$POSTGRES_PASSWORD \
+              postgres:latest \
+              bash -c "
+                # Initialize PostgreSQL data directory
+                initdb -D /var/lib/postgresql/data
+                
+                # Ensure correct permissions
+                chown -R postgres:postgres /var/lib/postgresql/data
+              "
+
+            echo "✅ PostgreSQL data directory initialized successfully"
+          EOF
+
+      # Rest of the existing workflow remains the same (Check PostgreSQL Data Directory, etc.)
       - name: Check PostgreSQL Data Directory
         id: check-postgres-data
         env:

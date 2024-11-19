@@ -1,32 +1,55 @@
 version: '3.8'
 
 services:
+  postgres:
+    image: postgres:13-alpine
+    container_name: amta-postgres
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    network_mode: "host"
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
   backend:
     build: 
       context: .
       dockerfile: Dockerfile.backend
     container_name: amta-backend
-    network_mode: "host"  # Use host network for direct localhost access
+    network_mode: "host"
     ports:
       - "8081:8081"
     volumes:
       - ./logs:/atlomy_chat/logs
       - ./.env:/atlomy_chat/.env
+      - ./alembic:/atlomy_chat/alembic  # Mount Alembic migrations
     env_file:
       - .env
     environment:
       - PYTHONUNBUFFERED=1
-      - DEPLOYMENT_MODE=production
+      - DEPLOYMENT_MODE=${DEPLOYMENT_MODE}
       - REDIS_URL=${REDIS_URL}
-      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - AWS_REGION=${AWS_REGION}
       - BEDROCK_MODEL_ID=${BEDROCK_MODEL_ID}
       - DATABASE_URL=${DATABASE_URL}
-      - POSTGRES_HOST=localhost  # Explicitly set for host network mode
+      - POSTGRES_HOST=${POSTGRES_HOST}
+      - POSTGRES_PORT=${POSTGRES_PORT}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
       - SERVER_HOST=0.0.0.0
       - SERVER_PORT=8081
     restart: unless-stopped
     depends_on:
-      - redis
+      - postgres
     extra_hosts:
       - "host.docker.internal:host-gateway"
     healthcheck:
@@ -71,4 +94,5 @@ services:
       retries: 3
 
 volumes:
+  postgres_data:
   redis_data:
