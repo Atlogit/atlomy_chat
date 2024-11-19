@@ -17,6 +17,7 @@ on:
         default: 'amta-app'
       s3_backup_prefix:
         description: 'S3 Prefix for Database Backups'
+        type: string
         required: true
         default: 'amta-db'
   workflow_call:
@@ -152,16 +153,16 @@ jobs:
               if [ -f "/opt/atlomy/database_backups/latest_backup.tar.gz" ]; then
                 echo "✅ Backup file exists in /opt/atlomy/database_backups"
                 echo "backup_file_status=exists" >> $GITHUB_OUTPUT
+              else
+                echo "❌ No backup file in /opt/atlomy/database_backups"
+                echo "backup_file_status=missing" >> $GITHUB_OUTPUT
+              fi
             else
-              echo "❌ No backup file in /opt/atlomy/database_backups"
+              echo "Backup folder is missing"
+              mkdir -p /opt/atlomy/database_backups
+              echo "Created backup database_backups folder"
               echo "backup_file_status=missing" >> $GITHUB_OUTPUT
             fi
-          else
-            echo "Backup folder is missing"
-            mkdir -p /opt/atlomy/database_backups
-            echo "Creatd backup database_backups folder"
-            echo "backup_file_status=missing" >> $GITHUB_OUTPUT
-          fi
           REMOTE_SCRIPT
         continue-on-error: false
 
@@ -202,6 +203,7 @@ jobs:
           REMOTE_SCRIPT
 
       - name: Restore PostgreSQL Database
+        id: restore-postgres-data
         env:
           POSTGRES_HOST: ${{ steps.get-database-secrets.outputs.POSTGRES_HOST }}
           POSTGRES_DB: ${{ steps.get-database-secrets.outputs.POSTGRES_DB }}
@@ -216,27 +218,27 @@ jobs:
             export PGPASSWORD=$POSTGRES_PASSWORD
             
             # Check the data directory state
-            if steps.check-postgres-data.outputs.postgres_data_status == 'empty'; then
-              if steps.check-backup-file.outputs.backup_file_status == 'exists'; then
+            if [ "${{ steps.check-postgres-data.outputs.postgres_data_status }}" == 'empty' ]; then
+              if [ "${{ steps.check-backup-file.outputs.backup_file_status }}" == 'exists' ]; then
                 # Extract the backup file to the data directory
                 echo "Extracting backup file to /var/lib/postgresql/data..."
                 tar -xzf /opt/atlomy/database_backups/latest_backup.tar.gz -C /var/lib/postgresql/data
                 chown -R postgres:postgres /var/lib/postgresql/data
                 echo "✅ Backup extracted successfully"
-                postgres_data_status=populated
+                echo "postgres_data_status=populated" >> $GITHUB_OUTPUT
               else
                 echo "⚠️ No backup file found. Skipping extraction and restoration."
                 exit 1
               fi
-            elif steps.check-postgres-data.outputs.postgres_data_status == 'populated'; then
+            elif [ "${{ steps.check-postgres-data.outputs.postgres_data_status }}" == 'populated' ]; then
               echo "Data directory already populated. Moving to extraction."
             else
               echo "⚠️ Unexpected data directory state. Exiting."
-              echo "postgres_data_status=error" >> $GITHUB_ENV
+              echo "postgres_data_status=error" >> $GITHUB_OUTPUT
               exit 1
             fi              
             
-            #Proceed to DB restoration
+            # Proceed to DB restoration
             echo "🔄 Restoring database..."
             # List the extracted files to find the actual backup file
             extracted_file=$(ls /var/lib/postgresql/data | grep -E "\.dump|\.sql")
@@ -271,20 +273,15 @@ jobs:
               psql -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -f "/var/lib/postgresql/data/$extracted_file"
             fi
             
-            else
-              echo "⚠️ No backup file found. Skipping restoration."
-            fi
-            exit 1
-
-          # Verify restoration
-          table_count=$(psql -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';")
-          
-          if [ "\$table_count" -eq 0 ]; then
-            echo "❌ Database restoration failed: No tables found"
-            exit 1
-          fi
+            # Verify restoration
+            table_count=$(psql -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';")
             
-          echo "✅ Database restored successfully. Tables found: \$table_count"
+            if [ "\$table_count" -eq 0 ]; then
+              echo "❌ Database restoration failed: No tables found"
+              exit 1
+            fi
+            
+            echo "✅ Database restored successfully. Tables found: \$table_count"
           EOF
 
   notify-status:
@@ -294,7 +291,7 @@ jobs:
     steps:
       - name: Determine Workflow Status
         run: |
-          if [[ "${{ needs.database-restoration.result }}" == "success" ]]; then
+          if [[ "${{ needs.database-restoration.result }}" == 'success' ]]; then
             echo "✅ Database Restoration Completed Successfully"
           else
             echo "❌ Database Restoration Failed"
