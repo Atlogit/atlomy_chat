@@ -269,19 +269,22 @@ jobs:
             set -e
             
             # Define directories using the current user
-
-            POSTGRES_DATA_DIR="/home/$USER/amta/postgresql/data"
-            DATABASE_BACKUP_DIR="/home/$USER/amta/database_backups"
-
             echo "🔄 Starting PostgreSQL initialization in $POSTGRES_DATA_DIR..."
             
             # Create directories with correct ownership
             sudo mkdir -p "$POSTGRES_DATA_DIR"
             sudo mkdir -p "$DATABASE_BACKUP_DIR"
             
-            # Set ownership to EC2 user
-            sudo chown -R $EC2_USER:$EC2_USER "$POSTGRES_DATA_DIR"
-            sudo chown -R $EC2_USER:$EC2_USER "$DATABASE_BACKUP_DIR"
+            # Create postgres user and group if they don't exist
+            sudo groupadd -f postgres
+            if ! id postgres &>/dev/null; then
+              sudo useradd -r -g postgres postgres
+            fi
+
+            # Set ownership to postgres user
+            sudo chown -R postgres:postgres "$POSTGRES_DATA_DIR"
+            sudo chown -R postgres:postgres "$DATABASE_BACKUP_DIR"
+
             
             # Set correct permissions
             sudo chmod 700 "$POSTGRES_DATA_DIR"
