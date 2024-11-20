@@ -173,14 +173,14 @@ jobs:
 
             export POSTGRES_DATA_DIR="$POSTGRES_DATA_DIR"
             echo "Checking PostgreSQL data directory: \${POSTGRES_DATA_DIR}"
-            ls -la "$POSTGRES_DATA_DIR"
-            ls -la "$POSTGRES_DATA_DIR/PG_VERSION"
+            sudo ls -la "$POSTGRES_DATA_DIR"
             # Check if PostgreSQL data directory exists and contains PG_VERSION
-            if [ ! -f "\${POSTGRES_DATA_DIR}/PG_VERSION" ]; then
+            if ! sudo test -f "\${POSTGRES_DATA_DIR}/PG_VERSION"; then
               echo "Database not initialized. Restoration required."
               echo "restore_needed=true" >> $GITHUB_OUTPUT
             else
               echo "Database directory exists."
+              sudo ls -la "\${POSTGRES_DATA_DIR}/PG_VERSION"  # Debug output with sudo
               echo "restore_needed=false" >> $GITHUB_OUTPUT
             fi
           REMOTE_SCRIPT
