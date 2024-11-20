@@ -11,6 +11,14 @@ on:
         options:
           - production
           - development
+      postgres_data_dir:
+        description: 'PostgreSQL Data Directory'
+        required: false
+        default: '/home/ec2-user/amta/data'
+      database_backup_dir:
+        description: 'Database Backup Directory'
+        required: false
+        default: '/home/ec2-user/amta/database_backups'
       force_restore:
         description: 'Force database restoration'
         type: boolean
@@ -31,6 +39,16 @@ on:
         type: string
         required: false
         default: 'production'
+      postgres_data_dir:
+        description: 'PostgreSQL Data Directory'
+        type: string
+        required: false
+        default: '/home/ec2-user/amta/data'
+      database_backup_dir:
+        description: 'Database Backup Directory'
+        type: string
+        required: false
+        default: '/home/ec2-user/amta/database_backups'
       force_restore:
         description: 'Force database restoration'
         type: boolean
@@ -47,10 +65,10 @@ on:
         default: 'amta-db'
 
 env:
-  # Use environment variable for PostgreSQL data directory with default
-  POSTGRES_DATA_DIR: ${POSTGRES_DATA_DIR:-/home/ec2-user/amta/data}
-  # Use environment variable for database backups directory with default
-  DATABASE_BACKUP_DIR: ${DATABASE_BACKUP_DIR:-/home/ec2-user/amta/database_backups}
+  # Use workflow input for PostgreSQL data directory
+  POSTGRES_DATA_DIR: ${{ inputs.postgres_data_dir }}
+  # Use workflow input for database backups directory
+  DATABASE_BACKUP_DIR: ${{ inputs.database_backup_dir }}
 
 permissions:
   id-token: write
@@ -71,34 +89,22 @@ jobs:
           role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
           aws-region: us-east-1
 
-      - name: Load Environment Variables
+      - name: Validate Paths
         run: |
-          # Copy .env.production to ensure we use its values
-          cp .env.production .env
-          
-          # Extract POSTGRES_DATA_DIR and DATABASE_BACKUP_DIR
-          POSTGRES_DATA_DIR=$(grep '^POSTGRES_DATA_DIR=' .env | cut -d '=' -f2)
-          DATABASE_BACKUP_DIR=$(grep '^DATABASE_BACKUP_DIR=' .env | cut -d '=' -f2)
+          echo "📍 PostgreSQL Data Directory: $POSTGRES_DATA_DIR"
+          echo "📦 Database Backup Directory: $DATABASE_BACKUP_DIR"
           
           # Validate paths are not empty
           if [ -z "$POSTGRES_DATA_DIR" ]; then
-            echo "❌ POSTGRES_DATA_DIR is not set in .env.production"
+            echo "❌ POSTGRES_DATA_DIR must be set"
             exit 1
           fi
           
           if [ -z "$DATABASE_BACKUP_DIR" ]; then
-            echo "❌ DATABASE_BACKUP_DIR is not set in .env.production"
+            echo "❌ DATABASE_BACKUP_DIR must be set"
             exit 1
           fi
           
-          # Set environment variables for subsequent steps
-          echo "POSTGRES_DATA_DIR=$POSTGRES_DATA_DIR" >> $GITHUB_ENV
-          echo "DATABASE_BACKUP_DIR=$DATABASE_BACKUP_DIR" >> $GITHUB_ENV
-          
-          # Log the paths for verification
-          echo "📍 PostgreSQL Data Directory: $POSTGRES_DATA_DIR"
-          echo "📦 Database Backup Directory: $DATABASE_BACKUP_DIR"
-
       - name: Retrieve Database Secrets
         id: get-database-secrets
         run: |
@@ -394,7 +400,7 @@ jobs:
           ssh $ssh_opts -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" << 'REMOTE_SCRIPT'
             set -e
             
-            echo "🔄 Starting database restoration process..."
+            echo "� Starting database restoration process..."
             
             # Ensure PostgreSQL is stopped before restoration
             sudo systemctl stop postgresql || true
@@ -414,7 +420,7 @@ jobs:
             trap 'rm -rf "$TEMP_DIR"' EXIT
             
             # Extract backup
-            echo "📂 Extracting backup..."
+            echo "� Extracting backup..."
             sudo tar xzf "$DATABASE_BACKUP_DIR/latest_backup.tar.gz" -C "$TEMP_DIR"
             
             # Determine backup type
