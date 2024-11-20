@@ -209,6 +209,7 @@ jobs:
           LATEST_BACKUP: ${{ steps.discover-backup.outputs.latest_backup }}
           BACKUP_TIMESTAMP: ${{ steps.discover-backup.outputs.backup_timestamp }}
           CHECK_DATABASE_RESTORE_NEEDED: ${{ steps.check-database.outputs.restore_needed }}
+          POSTGRES_DATA_DIR: ${{ inputs.postgres_data_dir }}
         run: |
           ssh_opts="-o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10"
           
@@ -223,15 +224,27 @@ jobs:
           ssh $ssh_opts -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" << REMOTE_SCRIPT
             set -e
             
+            # Check if PG_VERSION exists
+            if [ ! -f "$POSTGRES_DATA_DIR/PG_VERSION" ]; then
+              echo "No existing database found. Restoration needed."
+              echo "restore_needed=true" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+
             # Get local database timestamp
-            local_timestamp=$(stat -c %y "$POSTGRES_DATA_DIR/PG_VERSION")
-            
+            # Check if PG_VERSION exists
+            if [ ! -f "$POSTGRES_DATA_DIR/PG_VERSION" ]; then
+              echo "No existing database found. Restoration needed."
+              echo "restore_needed=true" >> $GITHUB_OUTPUT
+              exit 0
+            fi        
+
             # Convert timestamps to seconds since epoch
-            backup_seconds=$(date -d "$BACKUP_TIMESTAMP" +%s)
-            local_seconds=$(date -d "$local_timestamp" +%s)
-            
+            backup_seconds=\$(date -d "$BACKUP_TIMESTAMP" +%s)
+            local_seconds=\$(date -d "\$local_timestamp" +%s)
+      
             # Compare timestamps
-            if [ "$backup_seconds" -gt "$local_seconds" ] || [ "${{ inputs.force_restore }}" = "true" ]; then
+            if [ "\$backup_seconds" -gt "\$local_seconds" ] || [ "${{ inputs.force_restore }}" = "true" ]; then
               echo "Backup is newer than local database or force restore requested."
               echo "restore_needed=true" >> $GITHUB_OUTPUT
             else
