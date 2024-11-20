@@ -1,15 +1,14 @@
 version: '3.8'
-
 services:
   postgres:
-    image: postgres:13-alpine
+    image: postgres:13
     container_name: amta-postgres
     environment:
       - POSTGRES_DB=${POSTGRES_DB}
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ${POSTGRES_DATA_DIR:-/var/lib/postgresql/data}:/var/lib/postgresql/data
     network_mode: "host"
     ports:
       - "${POSTGRES_PORT}:5432"
@@ -35,6 +34,7 @@ services:
     env_file:
       - .env
     environment:
+      - POSTGRES_DATA_DIR=${POSTGRES_DATA_DIR:-/var/lib/postgresql/data}
       - PYTHONUNBUFFERED=1
       - DEPLOYMENT_MODE=${DEPLOYMENT_MODE}
       - REDIS_URL=${REDIS_URL}

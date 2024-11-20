@@ -7,6 +7,10 @@ on:
         description: 'Deployment mode (development/production)'
         required: false
         default: 'production'
+        type: choice
+        options:
+          - production
+          - development
       force_restore:
         description: 'Force database restoration'
         type: boolean
@@ -42,6 +46,12 @@ on:
         required: false
         default: 'amta-db'
 
+env:
+  # Use environment variable for PostgreSQL data directory with default
+  POSTGRES_DATA_DIR: ${POSTGRES_DATA_DIR:-/var/lib/postgresql/data}
+  # Use environment variable for database backups directory with default
+  DATABASE_BACKUP_DIR: ${DATABASE_BACKUP_DIR:-/opt/atlomy/database_backups}
+
 permissions:
   id-token: write
   contents: read
@@ -49,6 +59,8 @@ permissions:
 jobs:
   database-restoration:
     runs-on: ubuntu-latest
+    environment: ${{ inputs.deployment_mode }}
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -62,30 +74,121 @@ jobs:
       - name: Retrieve Database Secrets
         id: get-database-secrets
         run: |
-          secrets=$(aws secretsmanager get-secret-value --secret-id amta-production-secrets --query SecretString --output text)
+          if ! secrets=$(aws secretsmanager get-secret-value --secret-id amta-${{ inputs.deployment_mode }}-secrets --query SecretString --output text); then
+            echo "Failed to retrieve secrets from AWS Secrets Manager"
+            exit 1
+          fi
           
+          # Parse database connection details
           database_url=$(echo "$secrets" | jq -r '.DATABASE_URL')
+          if [ -z "$database_url" ]; then
+            echo "DATABASE_URL not found in secrets"
+            exit 1
+          fi
+          
+          # Extract database connection parameters
           postgres_host=$(echo "$database_url" | sed -E 's|postgresql\+asyncpg://[^:]+:[^@]+@([^:/]+).*|\1|')
           postgres_port=$(echo "$database_url" | sed -E 's|postgresql\+asyncpg://[^:]+:[^@]+@[^:/]+:?([0-9]+)?.*|\1|' || echo "5432")
           postgres_db=$(echo "$database_url" | sed -E 's|postgresql\+asyncpg://[^:]+:[^@]+@[^:/]+:?[0-9]*/([^?]+).*|\1|')
           postgres_user=$(echo "$database_url" | sed -E 's|postgresql\+asyncpg://([^:]+):.*|\1|')
           postgres_password=$(echo "$secrets" | jq -r '.POSTGRES_PASSWORD')
+          
+          # Validate extracted values
+          for var in postgres_host postgres_db postgres_user postgres_password; do
+            if [ -z "${!var}" ]; then
+              echo "Failed to extract $var"
+              exit 1
+            fi
+          done
 
-          echo "POSTGRES_HOST=$postgres_host" >> "$GITHUB_OUTPUT"
-          echo "POSTGRES_PORT=$postgres_port" >> "$GITHUB_OUTPUT"
-          echo "POSTGRES_DB=$postgres_db" >> "$GITHUB_OUTPUT"
-          echo "POSTGRES_USER=$postgres_user" >> "$GITHUB_OUTPUT"
-          echo "POSTGRES_PASSWORD=$postgres_password" >> "$GITHUB_OUTPUT"
+          # Set outputs
+          {
+            echo "POSTGRES_HOST=$postgres_host"
+            echo "POSTGRES_PORT=$postgres_port"
+            echo "POSTGRES_DB=$postgres_db"
+            echo "POSTGRES_USER=$postgres_user"
+            echo "POSTGRES_PASSWORD=$postgres_password"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Prepare SSH Key
         env:
           EC2_SSH_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
         run: |
+          if [ -z "$EC2_SSH_KEY" ]; then
+            echo "EC2 SSH key is not set"
+            exit 1
+          fi
+          
           mkdir -p ~/.ssh
           echo "$EC2_SSH_KEY" > ~/.ssh/ec2_key
           chmod 600 ~/.ssh/ec2_key
 
+      - name: Discover Latest S3 Backup
+        id: discover-backup
+        env:
+          S3_BACKUP_BUCKET: ${{ inputs.s3_backup_bucket }}
+          S3_BACKUP_PREFIX: ${{ inputs.s3_backup_prefix }}
+        run: |
+          # List and sort backups by date, get the latest
+          latest_backup=$(aws s3 ls "s3://$S3_BACKUP_BUCKET/$S3_BACKUP_PREFIX/" \
+            | grep '\.tar\.gz$' \
+            | sort -k1,2 \
+            | tail -n 1 \
+            | awk '{print $4}')
+          
+          if [ -z "$latest_backup" ]; then
+            echo "❌ No backup files found in S3"
+            exit 1
+          fi
+
+          # Get backup timestamp
+          backup_timestamp=$(aws s3 ls "s3://$S3_BACKUP_BUCKET/$S3_BACKUP_PREFIX/$latest_backup" | awk '{print $1 " " $2}')
+          
+          echo "Latest backup: $latest_backup"
+          echo "Backup timestamp: $backup_timestamp"
+          echo "latest_backup=$latest_backup" >> $GITHUB_OUTPUT
+          echo "backup_timestamp=$backup_timestamp" >> $GITHUB_OUTPUT
+
+      - name: Compare Backup Timestamp
+        id: compare-timestamp
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          LATEST_BACKUP: ${{ steps.discover-backup.outputs.latest_backup }}
+          BACKUP_TIMESTAMP: ${{ steps.discover-backup.outputs.backup_timestamp }}
+        run: |
+          ssh_opts="-o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10"
+          
+          ssh $ssh_opts -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << REMOTE_SCRIPT
+            set -e
+            
+            # Check if local database exists
+            if [ ! -f "$POSTGRES_DATA_DIR/PG_VERSION" ]; then
+              echo "Local database not initialized. Restoration required."
+              echo "restore_needed=true" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+            
+            # Get local database timestamp
+            local_timestamp=$(stat -c %y "$POSTGRES_DATA_DIR/PG_VERSION")
+            
+            # Convert timestamps to seconds since epoch
+            backup_seconds=$(date -d "$BACKUP_TIMESTAMP" +%s)
+            local_seconds=$(date -d "$local_timestamp" +%s)
+            
+            # Compare timestamps
+            if [ "$backup_seconds" -gt "$local_seconds" ] || [ "${{ inputs.force_restore }}" = "true" ]; then
+              echo "Backup is newer than local database or force restore requested."
+              echo "restore_needed=true" >> $GITHUB_OUTPUT
+            else
+              echo "Local database is up to date."
+              echo "restore_needed=false" >> $GITHUB_OUTPUT
+            fi
+          REMOTE_SCRIPT
+
       - name: Initialize PostgreSQL Data Directory
+        id: init-postgres
+        if: steps.compare-timestamp.outputs.restore_needed == 'true'
         env:
           POSTGRES_DB: ${{ steps.get-database-secrets.outputs.POSTGRES_DB }}
           POSTGRES_USER: ${{ steps.get-database-secrets.outputs.POSTGRES_USER }}
@@ -93,222 +196,232 @@ jobs:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
         run: |
-          ssh_opts="-o BatchMode=yes -o StrictHostKeyChecking=no"
+          ssh_opts="-o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10"
           
-          ssh $ssh_opts -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << 'REMOTE_SCRIPT'
-            # Ensure backup directory exists
-            mkdir -p /opt/atlomy/database_backups
-
-            # Remove existing data directory if problematic
-            if [ -d "/var/lib/postgresql/data" ]; then
-              sudo rm -rf /var/lib/postgresql/data
+          # Verify environment variables
+          for var in POSTGRES_DB POSTGRES_USER POSTGRES_PASSWORD EC2_HOST EC2_USER; do
+            if [ -z "${!var}" ]; then
+              echo "Error: $var is not set"
+              exit 1
             fi
+          done
 
-            # Ensure postgres user and group exist
+          # Execute remote initialization
+          ssh $ssh_opts -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << REMOTE_SCRIPT
+            set -e
+            
+            echo "🔄 Starting PostgreSQL initialization in $POSTGRES_DATA_DIR..."
+            
+            # Backup existing data if present
+            if [ -d "$POSTGRES_DATA_DIR" ]; then
+              timestamp=$(date +%Y%m%d_%H%M%S)
+              sudo mkdir -p "$DATABASE_BACKUP_DIR"
+              echo "📦 Backing up existing data..."
+              sudo tar czf "${DATABASE_BACKUP_DIR}/pg_data_backup_${timestamp}.tar.gz" -C "$(dirname "$POSTGRES_DATA_DIR")" "$(basename "$POSTGRES_DATA_DIR")"
+              sudo rm -rf "$POSTGRES_DATA_DIR"
+            fi
+          
+            # Setup postgres user and group
             if ! getent group postgres > /dev/null; then
               sudo groupadd postgres
             fi
-            
+
             if ! id postgres > /dev/null 2>&1; then
               sudo useradd -g postgres -m postgres
             fi
 
-            # Set PostgreSQL environment
-            export PGPASSWORD="$POSTGRES_PASSWORD"
-            
-            # Create data directory with correct permissions
-            sudo mkdir -p /var/lib/postgresql/data
-            sudo chown -R postgres:postgres /var/lib/postgresql/data
-            sudo chmod 700 /var/lib/postgresql/data
+            # Initialize data directory
+            echo "📁 Creating data directory: $POSTGRES_DATA_DIR"
+            sudo mkdir -p "$POSTGRES_DATA_DIR"
+            sudo chown -R postgres:postgres "$POSTGRES_DATA_DIR"
+            sudo chmod 700 "$POSTGRES_DATA_DIR"
 
-            # Use Docker to initialize data directory as postgres user
+            # Verify Docker
+            if ! command -v docker &> /dev/null || ! docker info &> /dev/null; then
+              echo "❌ Docker is not available"
+              exit 1
+            fi
+
+            echo "🐳 Initializing PostgreSQL using Docker..."
             docker run --rm \
               -u postgres \
-              -v /var/lib/postgresql/data:/var/lib/postgresql/data \
+              -v "$POSTGRES_DATA_DIR:$POSTGRES_DATA_DIR" \
               -e POSTGRES_DB="$POSTGRES_DB" \
               -e POSTGRES_USER="$POSTGRES_USER" \
               -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
-              postgres:latest \
-              bash -c "
-                # Initialize PostgreSQL data directory
-                initdb -D /var/lib/postgresql/data
+              postgres:14 \
+              bash -c '
+                set -e
                 
-                # Ensure correct permissions
-                chmod 700 /var/lib/postgresql/data
-              "
-
-            echo "PostgreSQL data directory initialized successfully"
-          REMOTE_SCRIPT
-        continue-on-error: false
-
-      - name: Check PostgreSQL Data Directory
-        id: check-postgres-data
-        env:
-          EC2_HOST: ${{ secrets.EC2_HOST }}
-          EC2_USER: ${{ secrets.EC2_USER }}
-        run: |
-          ssh_opts="-o BatchMode=yes -o StrictHostKeyChecking=no"
-          
-          ssh $ssh_opts -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << 'REMOTE_SCRIPT'
-            # Check if data directory exists
-            if [ -d "/var/lib/postgresql/data" ]; then   
-              # Check directory permissions
-              if [ -r "/var/lib/postgresql/data" ] && [ -x "/var/lib/postgresql/data" ]; then
-                # Directory is accessible, count files
-                file_count=$(find /var/lib/postgresql/data -type f | wc -l)
-                if [ "$file_count" -gt 0 ]; then
-                  echo "✅ PostgreSQL data directory exists and contains files"
-                  echo "postgres_data_status=populated" >> $GITHUB_OUTPUT
-                else
-                  echo "⚠️ PostgreSQL data directory is empty"
-                  echo "postgres_data_status=empty" >> $GITHUB_OUTPUT
+                if [ ! -w "'"$POSTGRES_DATA_DIR"'" ]; then
+                  echo "❌ Data directory is not writable"
+                  exit 1
                 fi
-              else
-                # Directory is inaccessible
-                echo "❌ Access denied to /var/lib/postgresql/data"
-                echo "postgres_data_status=access_denied" >> $GITHUB_OUTPUT
-              fi
-            else
-              echo "❌ PostgreSQL data directory does not exist"
-              mkdir -p /var/lib/postgresql/data
-              echo "⚠️ PostgreSQL data directory created"
-              echo "postgres_data_status=empty" >> $GITHUB_OUTPUT
+                
+                echo "🔧 Running initdb..."
+                initdb -D "'"$POSTGRES_DATA_DIR"'"
+                
+                echo "🔒 Setting permissions..."
+                chmod 700 "'"$POSTGRES_DATA_DIR"'"
+              '
+              
+            # Verify initialization
+            if [ ! -f "${POSTGRES_DATA_DIR}/PG_VERSION" ]; then
+              echo "❌ PostgreSQL initialization failed"
+              exit 1
             fi
+            
+            echo "✅ PostgreSQL initialization completed successfully"
           REMOTE_SCRIPT
-        continue-on-error: true
 
-      - name: Set PostgreSQL Data Directory Status
-        id: set-postgres-data-status
-        env:
-          POSTGRES_DATA_STATUS: ${{ steps.check-postgres-data.outputs.postgres_data_status }}
-        run: |
-          echo "postgres_data_status=$POSTGRES_DATA_STATUS" >> "$GITHUB_OUTPUT"
-
-      - name: Skip Restoration if Data Directory is Inaccessible
-        id: skip-restoration-process
-        if: steps.set-postgres-data-status.outputs.postgres_data_status == 'access_denied'
-        run: |
-          echo "⚠️ Data directory is already in use or inaccessible. Skipping restoration."
-          exit 0
-
-      - name: Check Backup File Availability
-        id: check-backup-file
-        if: steps.check-postgres-data.outputs.postgres_data_status == 'empty'
-        env:
-          EC2_HOST: ${{ secrets.EC2_HOST }}
-          EC2_USER: ${{ secrets.EC2_USER }}
-        run: |
-          SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=no"
-          # Check backup file in /opt/atlomy/database_backups
-          ssh $SSH_OPTS -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << 'REMOTE_SCRIPT'
-            # Ensure backup directory exists
-            if [ -d "/opt/atlomy/database_backups" ]; then            
-              # Check for backup file
-              if [ -f "/opt/atlomy/database_backups/latest_backup.tar.gz" ]; then
-                echo "✅ Backup file exists in /opt/atlomy/database_backups"
-                echo "backup_file_status=exists" >> $GITHUB_OUTPUT
-              else
-                echo "❌ No backup file in /opt/atlomy/database_backups"
-                echo "backup_file_status=missing" >> $GITHUB_OUTPUT
-              fi
-            else
-              echo "Backup folder is missing"
-              mkdir -p /opt/atlomy/database_backups
-              echo "Created backup database_backups folder"
-              echo "backup_file_status=missing" >> $GITHUB_OUTPUT
-            fi
-          REMOTE_SCRIPT
-        continue-on-error: false
-
-      - name: Download Backup from S3
+      - name: Download Latest Backup
         id: download-backup
-        if: steps.check-backup-file.outputs.backup_file_status == 'missing'
+        if: steps.compare-timestamp.outputs.restore_needed == 'true'
         env:
-          S3_BACKUP_BUCKET: ${{ inputs.s3_backup_bucket || 'amta-app' }}
-          S3_BACKUP_PREFIX: ${{ inputs.s3_backup_prefix || 'amta-db' }}
+          S3_BACKUP_BUCKET: ${{ inputs.s3_backup_bucket }}
+          S3_BACKUP_PREFIX: ${{ inputs.s3_backup_prefix }}
+          LATEST_BACKUP: ${{ steps.discover-backup.outputs.latest_backup }}
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
         run: |
-          echo "📋 Discovering Latest Backup"
-          latest_backup=$(aws s3 ls "s3://$S3_BACKUP_BUCKET/$S3_BACKUP_PREFIX/" | grep '.tar.gz' | sort | tail -n 1 | awk '{print $4}')
+          echo "🔍 Downloading backup: $LATEST_BACKUP"
           
-          if [ -z "$latest_backup" ]; then
-            echo "❌ Error: No backup files found in S3 bucket"
-            exit 1
-          fi
-
-          echo "🏷️ Latest Backup: $latest_backup"
-          SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=no"
-          echo "backup_file_status=exists" >> $GITHUB_OUTPUT
-
-          # Transfer backup to EC2
-          ssh $SSH_OPTS -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << REMOTE_SCRIPT
-          aws s3 cp "s3://$S3_BACKUP_BUCKET/$S3_BACKUP_PREFIX/$latest_backup" /opt/atlomy/database_backups/latest_backup.tar.gz  
-          # Verify download
-          if [ -f "/opt/atlomy/database_backups/latest_backup.tar.gz" ]; then
-            echo "✅ Backup downloaded successfully"
-            echo "download_status=success" >> $GITHUB_OUTPUT
-            echo "backup_file_status=exists" >> $GITHUB_OUTPUT
-          else
-            echo "❌ Backup download failed"
-            echo "download_status=failed" >> $GITHUB_OUTPUT
-            exit 1
-          fi
+          ssh_opts="-o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10"
+          
+          # Transfer and verify backup
+          ssh $ssh_opts -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << REMOTE_SCRIPT
+            set -e
+            
+            # Ensure backup directory exists
+            sudo mkdir -p "$DATABASE_BACKUP_DIR"
+            sudo chown -R $USER:$USER "$DATABASE_BACKUP_DIR"
+            
+            echo "⬇️ Downloading backup from S3..."
+            aws s3 cp "s3://$S3_BACKUP_BUCKET/$S3_BACKUP_PREFIX/$LATEST_BACKUP" \
+              "$DATABASE_BACKUP_DIR/latest_backup.tar.gz"
+            
+            if [ ! -f "$DATABASE_BACKUP_DIR/latest_backup.tar.gz" ]; then
+              echo "❌ Backup download failed"
+              exit 1
+            fi
+            
+            # Verify backup integrity and structure
+            backup_contents=$(tar tzf $DATABASE_BACKUP_DIR/latest_backup.tar.gz)
+            
+            # Check if the backup contains a PostgreSQL data directory
+            if ! echo "$backup_contents" | grep -q "PG_VERSION"; then
+              echo "❌ Backup does not appear to be a valid PostgreSQL data directory"
+              exit 1
+            fi
+            
+            # Additional checks for PostgreSQL directory structure
+            if ! echo "$backup_contents" | grep -q "base/"; then
+              echo "❌ Backup is missing essential PostgreSQL data subdirectories"
+              exit 1
+            fi
+            
+            echo "✅ Backup downloaded and verified successfully"
           REMOTE_SCRIPT
 
-      - name: Restore PostgreSQL Database
-        id: restore-postgres-data
+      - name: Restore Database
+        id: restore-database
+        if: steps.download-backup.outcome == 'success'
         env:
           POSTGRES_HOST: ${{ steps.get-database-secrets.outputs.POSTGRES_HOST }}
+          POSTGRES_PORT: ${{ steps.get-database-secrets.outputs.POSTGRES_PORT }}
           POSTGRES_DB: ${{ steps.get-database-secrets.outputs.POSTGRES_DB }}
           POSTGRES_USER: ${{ steps.get-database-secrets.outputs.POSTGRES_USER }}
           POSTGRES_PASSWORD: ${{ steps.get-database-secrets.outputs.POSTGRES_PASSWORD }}
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
         run: |
-          SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=no"
+          ssh_opts="-o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10"
           
-          ssh $SSH_OPTS -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << EOF
-            export PGPASSWORD=$POSTGRES_PASSWORD
-            # Check if PostgreSQL data directory is initialized
-              if sudo -u postgres test -f "/var/lib/postgresql/data/PG_VERSION"; then
-              echo "✅ PostgreSQL data directory is initialized."
-              
-              # Verify if the database is populated
-              table_count=\$(sudo -u postgres psql -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -t -c \
-                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';")
-              
-              if [ "\$table_count" -gt 0 ]; then
-                echo "✅ Database is populated. Tables found: \$table_count"
-                echo "postgres_data_status=populated" >> $GITHUB_OUTPUT
-              else
-                echo "⚠️ Database directory exists but no tables are found."
-                echo "postgres_data_status=empty" >> $GITHUB_OUTPUT
-              fi
-            else
-              echo "⚠️ PostgreSQL data directory is not initialized or inaccessible."
-              echo "postgres_data_status=not_initialized" >> $GITHUB_OUTPUT
+          ssh $ssh_opts -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << 'REMOTE_SCRIPT'
+            set -e
+            
+            echo "🔄 Starting database restoration process..."
+            
+            # Ensure PostgreSQL is stopped before restoration
+            sudo systemctl stop postgresql || true
+            
+            # Remove existing data directory
+            if [ -d "$POSTGRES_DATA_DIR" ]; then
+              sudo rm -rf "$POSTGRES_DATA_DIR"
             fi
-
-            # If database is empty, restore from backup
-            if [ "\${{ steps.check-postgres-data.outputs.postgres_data_status }}" = "empty" ]; then
-              if [ -f "/opt/atlomy/database_backups/latest_backup.tar.gz" ]; then
-                echo "Extracting backup file to /var/lib/postgresql/data..."
-                tar -xzf /opt/atlomy/database_backups/latest_backup.tar.gz -C /var/lib/postgresql/data
-                chown -R postgres:postgres /var/lib/postgresql/data
-                echo "✅ Backup extracted successfully"
-                
-                # Restore the database
-                echo "🔄 Restoring database..."
-                sudo -u postgres pg_restore -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -d "$POSTGRES_DB" /var/lib/postgresql/data/latest_backup.dump
-                echo "✅ Database restored successfully"
-                echo "postgres_data_status=populated" >> $GITHUB_OUTPUT
-              else
-                echo "⚠️ No backup file found. Skipping restoration."
+            
+            # Create clean data directory
+            sudo mkdir -p "$POSTGRES_DATA_DIR"
+            sudo chown -R postgres:postgres "$POSTGRES_DATA_DIR"
+            sudo chmod 700 "$POSTGRES_DATA_DIR"
+            
+            # Create temporary directory for extraction
+            TEMP_DIR=$(mktemp -d)
+            trap 'rm -rf "$TEMP_DIR"' EXIT
+            
+            # Extract backup
+            echo "📂 Extracting backup..."
+            sudo tar xzf "$DATABASE_BACKUP_DIR/latest_backup.tar.gz" -C "$TEMP_DIR"
+            
+            # Determine backup type
+            DUMP_FILE=$(find "$TEMP_DIR" -name "*.dump" -type f)
+            PG_VERSION_FILE=$(find "$TEMP_DIR" -name "PG_VERSION" -type f)
+            
+            if [ -n "$PG_VERSION_FILE" ]; then
+              echo "🗂️ Full PostgreSQL data directory backup detected"
+              
+              # Copy entire data directory
+              sudo cp -R "$TEMP_DIR"/* "$POSTGRES_DATA_DIR"              
+              # Ensure correct ownership and permissions
+              sudo chown -R postgres:postgres "$POSTGRES_DATA_DIR"
+              sudo chmod 700 "$POSTGRES_DATA_DIR"
+              
+              # Verify PostgreSQL data directory
+              if [ ! -f "$POSTGRES_DATA_DIR/PG_VERSION" ]; then
+                echo "❌ PostgreSQL data directory restoration failed"
                 exit 1
               fi
+            
+            elif [ -n "$DUMP_FILE" ]; then
+              echo "📄 Database dump file detected"
+              
+              # Ensure PostgreSQL data directory is initialized
+              sudo -u postgres initdb -D "$POSTGRES_DATA_DIR"
+              
+              # Drop existing connections
+              export PGPASSWORD="$POSTGRES_PASSWORD"
+              psql -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$POSTGRES_DB' AND pid <> pg_backend_pid();"
+              
+              # Restore the database from dump
+              pg_restore --clean --if-exists --no-owner --no-privileges -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -d "$POSTGRES_DB" "$DUMP_FILE"
+              
+              # Verify restoration
+              if ! psql -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';" | grep -q '[1-9]'; then
+                echo "❌ Database restoration from dump failed or resulted in empty database"
+                exit 1
+              fi
+            
+            else
+              echo "❌ No valid backup found: neither PostgreSQL data directory nor dump file detected"
+              exit 1
             fi
-          EOF
+            
+            # Restart PostgreSQL to apply changes
+            sudo systemctl start postgresql
+            
+            # Wait for PostgreSQL to start
+            sleep 10
+            
+            # Verify database connectivity
+            export PGPASSWORD="$POSTGRES_PASSWORD"
+            if ! psql -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT 1" &> /dev/null; then
+              echo "❌ Unable to connect to restored database"
+              exit 1
+            fi
+            
+            echo "✅ Database restored successfully"
+            echo "restore_status=success" >> $GITHUB_OUTPUT
+          REMOTE_SCRIPT
 
   notify-status:
     if: always()

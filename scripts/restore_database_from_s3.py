@@ -153,7 +153,8 @@ def stage_database_backup(
     s3_bucket='amta-app', 
     s3_prefix='amta-db',
     backup_dir='/tmp/database_backups',
-    postgres_data_dir='/var/lib/postgresql/data'
+    postgres_data_dir = os.getenv('POSTGRES_DATA_DIR', '/var/lib/postgresql/data')
+
 ):
     """
     Stage database backup from S3
