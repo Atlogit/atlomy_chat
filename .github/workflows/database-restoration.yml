@@ -407,7 +407,7 @@ jobs:
 
             # Ensure backup directory exists
             sudo mkdir -p "\$DATABASE_BACKUP_DIR"
-            sudo chown -R \$USER:\$USER "\$DATABASE_BACKUP_DIR"
+            sudo chown -R "\$EC2_USER:\$EC2_USER" "\$DATABASE_BACKUP_DIR"
             
             echo "⬇️ Downloading backup from S3..."
             aws s3 cp "s3://$S3_BACKUP_BUCKET/$S3_BACKUP_PREFIX/$LATEST_BACKUP" \
