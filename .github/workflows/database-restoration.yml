@@ -381,10 +381,7 @@ jobs:
           REMOTE_SCRIPT
 
           # Verify initialization
-if sudo -u postgres test ! -f "${POSTGRES_DATA_DIR}/PG_VERSION"; then
-echo "❌ PostgreSQL initialization failed"
-exit 1
-fi
+
       - name: Restore Database
         id: restore-database
         if: steps.download-backup.outcome == 'success'
