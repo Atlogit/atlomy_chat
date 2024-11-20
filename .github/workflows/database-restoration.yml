@@ -249,6 +249,9 @@ jobs:
           POSTGRES_PASSWORD: ${{ steps.get-database-secrets.outputs.POSTGRES_PASSWORD }}
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
+          POSTGRES_DATA_DIR: ${{ inputs.postgres_data_dir }}
+          DATABASE_BACKUP_DIR: ${{ inputs.database_backup_dir }}
+      
         run: |
           # Define directories using the current user
           POSTGRES_DATA_DIR="/home/$USER/amta/postgresql/data"
@@ -275,25 +278,25 @@ jobs:
 
             echo "🔄 Starting PostgreSQL initialization in $POSTGRES_DATA_DIR..."
             
-             # Create directories with correct ownership
+            # Create directories with correct ownership
             sudo mkdir -p "$POSTGRES_DATA_DIR"
             sudo mkdir -p "$DATABASE_BACKUP_DIR"
             
-            # Set ownership to current user
-            sudo chown -R $USER:$USER "$POSTGRES_DATA_DIR"
-            sudo chown -R $USER:$USER "$DATABASE_BACKUP_DIR"
+            # Set ownership to EC2 user
+            sudo chown -R $EC2_USER:$EC2_USER "$POSTGRES_DATA_DIR"
+            sudo chown -R $EC2_USER:$EC2_USER "$DATABASE_BACKUP_DIR"
             
             # Set correct permissions
             sudo chmod 700 "$POSTGRES_DATA_DIR"
             sudo chmod 755 "$DATABASE_BACKUP_DIR"
             
             # Backup existing data if present
-            if [ -d "$POSTGRES_DATA_DIR" ] && [ "$(ls -A "$POSTGRES_DATA_DIR")" ]; then
-              timestamp=$(date +%Y%m%d_%H%M%S)
+            if [ -d "$POSTGRES_DATA_DIR" ] && [ "\$(ls -A "$POSTGRES_DATA_DIR")" ]; then
+              timestamp=\$(date +%Y%m%d_%H%M%S)
               echo "📦 Backing up existing data..."
-              tar czf "${DATABASE_BACKUP_DIR}/pg_data_backup_${timestamp}.tar.gz" \
-                -C "$(dirname "$POSTGRES_DATA_DIR")" "$(basename "$POSTGRES_DATA_DIR")"
-              rm -rf "$POSTGRES_DATA_DIR"/*
+              sudo tar czf "${DATABASE_BACKUP_DIR}/pg_data_backup_\${timestamp}.tar.gz" \
+                -C "\$(dirname "$POSTGRES_DATA_DIR")" "\$(basename "$POSTGRES_DATA_DIR")"
+              sudo rm -rf "$POSTGRES_DATA_DIR"/*
             fi
 
             # Verify Docker is available
@@ -302,21 +305,19 @@ jobs:
               exit 1
             fi
 
-            # Get current user's UID and GID
-            CURRENT_UID=$(id -u)
-            CURRENT_GID=$(id -g)
-
             # Run Docker initialization
             echo "🐳 Initializing PostgreSQL using Docker..."
-            docker run --rm \
+            sudo docker run --rm \
               -v "$POSTGRES_DATA_DIR:$POSTGRES_DATA_DIR" \
               -e POSTGRES_DB="$POSTGRES_DB" \
               -e POSTGRES_USER="$POSTGRES_USER" \
               -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
-              -u "$CURRENT_UID:$CURRENT_GID" \
               postgres:14 \
-              initdb -D \"$POSTGRES_DATA_DIR\"
+              initdb -D "$POSTGRES_DATA_DIR"
               
+            # Set proper ownership after Docker initialization
+            sudo chown -R $EC2_USER:$EC2_USER "$POSTGRES_DATA_DIR"
+            
             # Verify initialization
             if [ ! -f "${POSTGRES_DATA_DIR}/PG_VERSION" ]; then
               echo "❌ PostgreSQL initialization failed"
