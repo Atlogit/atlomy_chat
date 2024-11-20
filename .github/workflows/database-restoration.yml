@@ -230,6 +230,10 @@ jobs:
           ssh $ssh_opts -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << REMOTE_SCRIPT
             set -e
             
+            # Expand the variable with a default, ensuring it's a valid path
+            POSTGRES_DATA_DIR="${POSTGRES_DATA_DIR:-/home/ec2-user/amta/data}"
+            DATABASE_BACKUP_DIR="${DATABASE_BACKUP_DIR:-/home/ec2-user/database_backups}"
+            
             echo "🔄 Starting PostgreSQL initialization in $POSTGRES_DATA_DIR..."
             
             # Backup existing data if present and not empty
@@ -270,28 +274,30 @@ jobs:
             fi
 
             echo "🐳 Initializing PostgreSQL using Docker..."
-            docker run --rm \
-              -u "$POSTGRES_UID:$POSTGRES_GID" \
-              -v "$POSTGRES_DATA_DIR:$POSTGRES_DATA_DIR" \
-              -e POSTGRES_DB="$POSTGRES_DB" \
-              -e POSTGRES_USER="$POSTGRES_USER" \
-              -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
-              postgres:14 \
-              bash -c '
-                set -e
-                
-                # Verify directory permissions
-                if [ ! -w "'"$POSTGRES_DATA_DIR"'" ]; then
-                  echo "❌ Data directory is not writable"
-                  exit 1
-                fi
-                
-                echo "🔧 Running initdb..."
-                initdb -D "'"$POSTGRES_DATA_DIR"'"
-                
-                echo "🔒 Setting permissions..."
-                chmod 700 "'"$POSTGRES_DATA_DIR"'"
-              '
+            # Use su to run as postgres user to avoid root initialization
+            sudo -u postgres bash -c '
+              docker run --rm \
+                -v "$POSTGRES_DATA_DIR:$POSTGRES_DATA_DIR" \
+                -e POSTGRES_DB="$POSTGRES_DB" \
+                -e POSTGRES_USER="$POSTGRES_USER" \
+                -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+                postgres:14 \
+                bash -c "
+                  set -e
+                  
+                  # Verify directory permissions
+                  if [ ! -w \"$POSTGRES_DATA_DIR\" ]; then
+                    echo \"❌ Data directory is not writable\"
+                    exit 1
+                  fi
+                  
+                  echo \"🔧 Running initdb...\"
+                  initdb -D \"$POSTGRES_DATA_DIR\"
+                  
+                  echo \"🔒 Setting permissions...\"
+                  chmod 700 \"$POSTGRES_DATA_DIR\"
+                "
+            '
               
             # Verify initialization
             if [ ! -f "${POSTGRES_DATA_DIR}/PG_VERSION" ]; then
