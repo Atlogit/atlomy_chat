@@ -276,12 +276,6 @@ jobs:
             # Define directories using the current user
             echo "🔄 Starting PostgreSQL initialization in $POSTGRES_DATA_DIR..."
             
-            # Create postgres user and group if they don't exist
-            sudo groupadd -f postgres || true
-            if ! id postgres &>/dev/null; then
-              sudo useradd -r -g postgres postgres || true
-            fi
-
             # Create parent directories with EC2 user ownership
             sudo mkdir -p "\$(dirname \$POSTGRES_DATA_DIR)"
             sudo mkdir -p "\$(dirname \$DATABASE_BACKUP_DIR)"
@@ -312,10 +306,6 @@ jobs:
               exit 1
             fi
 
-            # Get postgres UID and GID
-            POSTGRES_UID=\$(id -u postgres)
-            POSTGRES_GID=\$(id -g postgres)
-
             # Run Docker initialization
             echo "🐳 Initializing PostgreSQL using Docker..."
             sudo docker run --rm \
@@ -325,17 +315,23 @@ jobs:
               -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
               --user "\$POSTGRES_UID:\$POSTGRES_GID" \
               postgres:14 \
-              /bin/bash -c "chmod 700 \$POSTGRES_DATA_DIR && initdb -D \$POSTGRES_DATA_DIR"
+              bash -c "initdb -D \$POSTGRES_DATA_DIR && chmod -R 700 \$POSTGRES_DATA_DIR"
             
+            # Create postgres user and group if they don't exist
+            sudo groupadd -f postgres || true
+            if ! id postgres &>/dev/null; then
+              sudo useradd -r -g postgres postgres || true
+            fi
+
+            # Set proper ownership after initialization
+            sudo chown -R postgres:postgres "\$POSTGRES_DATA_DIR"
+            sudo chmod 700 "\$POSTGRES_DATA_DIR"
+
               # Verify initialization
             if sudo -u postgres test ! -f "${POSTGRES_DATA_DIR}/PG_VERSION"; then
               echo "❌ PostgreSQL initialization failed"
               exit 1
             fi
-          
-            # Set proper ownership after initialization
-            sudo chown -R postgres:postgres "\$POSTGRES_DATA_DIR"
-            sudo chmod 700 "\$POSTGRES_DATA_DIR"
 
             echo "✅ PostgreSQL initialization completed successfully"
           REMOTE_SCRIPT
