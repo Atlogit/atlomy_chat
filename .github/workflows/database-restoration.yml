@@ -321,7 +321,7 @@ jobs:
               -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
               --user 999:999 \
               postgres:14 \
-              bash -c "chmod 700 \$POSTGRES_DATA_DIR && initdb -D \$POSTGRES_DATA_DIR"
+              initdb -D "\$POSTGRES_DATA_DIR"
             
               # Verify initialization
             if sudo -u postgres test ! -f "${POSTGRES_DATA_DIR}/PG_VERSION"; then
@@ -329,6 +329,10 @@ jobs:
               exit 1
             fi
 
+            # Ensure final permissions are correct
+            sudo chown -R 999:999 "\$POSTGRES_DATA_DIR"
+            sudo chmod 0700 "\$POSTGRES_DATA_DIR"
+            
             echo "✅ PostgreSQL initialization completed successfully"
           REMOTE_SCRIPT
 
