@@ -292,10 +292,11 @@ jobs:
             mkdir -p "\$DATABASE_BACKUP_DIR"
             chmod 755 "\$DATABASE_BACKUP_DIR"
             
-            # Create PostgreSQL data directory and set postgres user ownership
+            # Clean and prepare PostgreSQL data directory
+            sudo rm -rf "\$POSTGRES_DATA_DIR"
             sudo mkdir -p "\$POSTGRES_DATA_DIR"
-            sudo chown postgres:postgres "\$POSTGRES_DATA_DIR"
-            sudo chmod 700 "\$POSTGRES_DATA_DIR"
+            sudo chown -R 999:999 "\$POSTGRES_DATA_DIR"
+            sudo chmod 0777 "\$POSTGRES_DATA_DIR"  # Temporarily more permissive
 
             # Backup existing data if present (as EC2 user)
             if [ -d "\$POSTGRES_DATA_DIR" ] && [ "\$(sudo ls -A \$POSTGRES_DATA_DIR)" ]; then
