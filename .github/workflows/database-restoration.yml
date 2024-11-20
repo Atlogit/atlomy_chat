@@ -250,10 +250,6 @@ jobs:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
         run: |
-          # Get current user's UID and GID
-          CURRENT_UID=$(id -u)
-          CURRENT_GID=$(id -g)
-
           ssh_opts="-o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10"
           
           # Verify environment variables
@@ -270,46 +266,33 @@ jobs:
             
             echo "🔄 Starting PostgreSQL initialization in $POSTGRES_DATA_DIR..."
             
+            # Prepare data directory
+            mkdir -p "$POSTGRES_DATA_DIR"
+            chmod 755 "$POSTGRES_DATA_DIR"
+            
             # Backup existing data if present and not empty
             if [ -d "$POSTGRES_DATA_DIR" ] && [ "$(ls -A "$POSTGRES_DATA_DIR")" ]; then
               timestamp=$(date +%Y%m%d_%H%M%S)
-              sudo mkdir -p "$DATABASE_BACKUP_DIR"
+              mkdir -p "$DATABASE_BACKUP_DIR"
               echo "📦 Backing up existing data..."
-              sudo tar czf "${DATABASE_BACKUP_DIR}/pg_data_backup_${timestamp}.tar.gz" -C "$(dirname "$POSTGRES_DATA_DIR")" "$(basename "$POSTGRES_DATA_DIR")"
-              sudo rm -rf "$POSTGRES_DATA_DIR"
+              tar czf "${DATABASE_BACKUP_DIR}/pg_data_backup_${timestamp}.tar.gz" -C "$(dirname "$POSTGRES_DATA_DIR")" "$(basename "$POSTGRES_DATA_DIR")"
+              rm -rf "$POSTGRES_DATA_DIR"
             elif [ -d "$POSTGRES_DATA_DIR" ]; then
               echo "📁 Existing data directory is empty. Removing without backup."
               sudo rm -rf "$POSTGRES_DATA_DIR"
-            fi
-          
-            # Setup postgres user and group
-            if ! getent group postgres > /dev/null; then
-              sudo groupadd postgres
+              mkdir -p "$POSTGRES_DATA_DIR"
+              chmod 755 "$POSTGRES_DATA_DIR"
             fi
 
-            if ! id postgres > /dev/null 2>&1; then
-              sudo useradd -g postgres -m postgres
-            fi
-
-            # Initialize data directory with explicit permissions
-            echo "📁 Creating data directory: $POSTGRES_DATA_DIR"
-            sudo mkdir -p "$POSTGRES_DATA_DIR"
-            sudo chown -R postgres:postgres "$POSTGRES_DATA_DIR"
-            sudo chmod 700 "$POSTGRES_DATA_DIR"
-
-            # Verify Docker
-            if ! command -v docker &> /dev/null || ! docker info &> /dev/null; then
-              echo "❌ Docker is not available"
+            # Verify Docker is available
+            if ! command -v docker &> /dev/null; then
+              echo "❌ Docker is not installed"
               exit 1
             fi
 
-            # Add current user to docker group to resolve socket permissions
-            sudo usermod -aG docker $USER
-
+            # Run Docker initialization
             echo "🐳 Initializing PostgreSQL using Docker..."
-            # Use explicit user mapping and volume permissions
             docker run --rm \
-              -u "$CURRENT_UID:$CURRENT_GID" \
               -v "$POSTGRES_DATA_DIR:$POSTGRES_DATA_DIR" \
               -e POSTGRES_DB="$POSTGRES_DB" \
               -e POSTGRES_USER="$POSTGRES_USER" \
@@ -327,7 +310,7 @@ jobs:
                 echo \"🔧 Running initdb...\"
                 initdb -D \"$POSTGRES_DATA_DIR\"
                 
-                echo \"🔒 Setting permissions...\"
+                echo \"� Setting permissions...\"
                 chmod 700 \"$POSTGRES_DATA_DIR\"
               "
               
