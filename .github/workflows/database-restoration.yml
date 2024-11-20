@@ -436,7 +436,7 @@ jobs:
             
             # Extract backup
             echo "� Extracting backup..."
-            sudo tar xzf "\$DATABASE_BACKUP_DIR/latest_backup.tar.gz" -C "\$TEMP_DIR"
+            sudo tar xzf "\$DATABASE_BACKUP_DIR/latest_backup.tar.gz" -C "\$TEMP_DIR" --strip-components=1
             
             # Determine backup type
             DUMP_FILE=\$(sudo find "\$TEMP_DIR" -name "*.dump" -type f)
