@@ -399,27 +399,32 @@ jobs:
             export AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY"
             export AWS_SESSION_TOKEN="$AWS_SESSION_TOKEN"
             export AWS_DEFAULT_REGION="$AWS_DEFAULT_REGION"
-      
+            
+            # Export variables for use in the script
+            export EC2_USER="$EC2_USER"
+            export POSTGRES_DATA_DIR="$POSTGRES_DATA_DIR"
+            export DATABASE_BACKUP_DIR="$DATABASE_BACKUP_DIR"
+
             # Ensure backup directory exists
-            sudo mkdir -p "$DATABASE_BACKUP_DIR"
-            sudo chown -R \$USER:\$USER "$DATABASE_BACKUP_DIR"
+            sudo mkdir -p "\$DATABASE_BACKUP_DIR"
+            sudo chown -R \$USER:\$USER "\$DATABASE_BACKUP_DIR"
             
             echo "⬇️ Downloading backup from S3..."
             aws s3 cp "s3://$S3_BACKUP_BUCKET/$S3_BACKUP_PREFIX/$LATEST_BACKUP" \
               "$DATABASE_BACKUP_DIR/latest_backup.tar.gz"
             
-            if [ ! -f "$DATABASE_BACKUP_DIR/latest_backup.tar.gz" ]; then
+            if [ ! -f "\${DATABASE_BACKUP_DIR}/latest_backup.tar.gz" ]; then
               echo "❌ Backup download failed"
               exit 1
             fi
             
             # Verify backup integrity and structure
-            if ! tar tzf "$DATABASE_BACKUP_DIR/latest_backup.tar.gz" > /dev/null 2>&1; then
+            if ! tar tzf "\${DATABASE_BACKUP_DIR}/latest_backup.tar.gz" > /dev/null 2>&1; then
               echo "❌ Backup file is not a valid tar archive"
               exit 1
             fi
 
-            backup_contents=$(tar tzf $DATABASE_BACKUP_DIR/latest_backup.tar.gz)
+            backup_contents=$(tar tzf \${DATABASE_BACKUP_DIR}/latest_backup.tar.gz)
             
             # Check if the backup contains a PostgreSQL data directory
             if ! echo "$backup_contents" | grep -q "PG_VERSION"; then
@@ -501,7 +506,7 @@ jobs:
             TEMP_DIR=\$(mktemp -d)
             trap 'sudo rm -rf "\$TEMP_DIR"' EXIT
             
-            sudo tar xzf "\$DATABASE_BACKUP_DIR/latest_backup.tar.gz" -C "\$TEMP_DIR" --strip-components=1
+            sudo tar xzf "\${DATABASE_BACKUP_DIR}/latest_backup.tar.gz" -C "\$TEMP_DIR" --strip-components=1
             
             # Determine backup type
             DUMP_FILE=\$(sudo find "\$TEMP_DIR" -name "*.dump" -type f)
@@ -520,7 +525,7 @@ jobs:
               echo "🐳 Starting temporary PostgreSQL to verify data..."
               docker run -d \
                 --name postgres-temp-restore \
-                -v "$POSTGRES_DATA_DIR:/var/lib/postgresql/data" \
+                -v "\$POSTGRES_DATA_DIR:\$POSTGRES_DATA_DIR" \
                 -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
                 -p 5433:5432 \
                 --user 999:999 \
@@ -551,7 +556,7 @@ jobs:
               echo "🐳 Starting temporary PostgreSQL for restoration..."
               docker run -d \
                 --name postgres-temp-restore \
-                -v "$POSTGRES_DATA_DIR:/var/lib/postgresql/data" \
+                -v "\$POSTGRES_DATA_DIR:\$POSTGRES_DATA_DIR" \
                 -e POSTGRES_DB="$POSTGRES_DB" \
                 -e POSTGRES_USER="$POSTGRES_USER" \
                 -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
