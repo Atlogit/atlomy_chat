@@ -253,9 +253,6 @@ jobs:
           DATABASE_BACKUP_DIR: ${{ inputs.database_backup_dir }}
       
         run: |
-          # Define directories using the current user
-          POSTGRES_DATA_DIR="/home/$USER/amta/postgresql/data"
-          DATABASE_BACKUP_DIR="/home/$USER/amta/database_backups"
 
           ssh_opts="-o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10"
           
