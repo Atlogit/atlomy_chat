@@ -267,7 +267,12 @@ jobs:
           # Execute remote initialization
           ssh $ssh_opts -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" << REMOTE_SCRIPT
             set -e
-            
+                  
+            # Export variables for use in the script
+            export EC2_USER="$EC2_USER"
+            export POSTGRES_DATA_DIR="$POSTGRES_DATA_DIR"
+            export DATABASE_BACKUP_DIR="$DATABASE_BACKUP_DIR"
+      
             # Define directories using the current user
             echo "🔄 Starting PostgreSQL initialization in $POSTGRES_DATA_DIR..."
             
@@ -278,31 +283,27 @@ jobs:
             fi
 
             # Create parent directories with EC2 user ownership
-            sudo mkdir -p "$(dirname $POSTGRES_DATA_DIR)"
-            sudo mkdir -p "$(dirname $DATABASE_BACKUP_DIR)"
-            sudo chown -R $EC2_USER:$EC2_USER "$(dirname $POSTGRES_DATA_DIR)"
-            sudo chown -R $EC2_USER:$EC2_USER "$(dirname $DATABASE_BACKUP_DIR)"
+            sudo mkdir -p "\$(dirname \$POSTGRES_DATA_DIR)"
+            sudo mkdir -p "\$(dirname \$DATABASE_BACKUP_DIR)"
+            sudo chown -R "\$EC2_USER:\$EC2_USER" "\$(dirname \$POSTGRES_DATA_DIR)"
+            sudo chown -R "\$EC2_USER:\$EC2_USER" "\$(dirname \$DATABASE_BACKUP_DIR)"
             
             # Create backup directory with EC2 user ownership
-            mkdir -p "$DATABASE_BACKUP_DIR"
-            chmod 755 "$DATABASE_BACKUP_DIR"
-
-            # Create backup directory with EC2 user ownership
-            mkdir -p "$DATABASE_BACKUP_DIR"
-            chmod 755 "$DATABASE_BACKUP_DIR"
-
+            mkdir -p "\$DATABASE_BACKUP_DIR"
+            chmod 755 "\$DATABASE_BACKUP_DIR"
+            
             # Create PostgreSQL data directory and set postgres user ownership
-            sudo mkdir -p "$POSTGRES_DATA_DIR"
-            sudo chown postgres:postgres "$POSTGRES_DATA_DIR"
-            sudo chmod 700 "$POSTGRES_DATA_DIR"
+            sudo mkdir -p "\$POSTGRES_DATA_DIR"
+            sudo chown postgres:postgres "\$POSTGRES_DATA_DIR"
+            sudo chmod 700 "\$POSTGRES_DATA_DIR"
 
             # Backup existing data if present (as EC2 user)
-            if [ -d "$POSTGRES_DATA_DIR" ] && [ "$(sudo ls -A "$POSTGRES_DATA_DIR")" ]; then
-              timestamp=$(date +%Y%m%d_%H%M%S)
+            if [ -d "\$POSTGRES_DATA_DIR" ] && [ "\$(sudo ls -A \$POSTGRES_DATA_DIR)" ]; then
+              timestamp=\$(date +%Y%m%d_%H%M%S)
               echo "📦 Backing up existing data..."
-              sudo tar czf "${DATABASE_BACKUP_DIR}/pg_data_backup_${timestamp}.tar.gz" \
-                -C "$(dirname "$POSTGRES_DATA_DIR")" "$(basename "$POSTGRES_DATA_DIR")"
-              sudo rm -rf "$POSTGRES_DATA_DIR"/*
+              sudo tar czf "\${DATABASE_BACKUP_DIR}/pg_data_backup_\${timestamp}.tar.gz" \
+                -C "\$(dirname \$POSTGRES_DATA_DIR)" "\$(basename \$POSTGRES_DATA_DIR)"
+              sudo rm -rf "\$POSTGRES_DATA_DIR"/*
             fi
 
             # Verify Docker is available
@@ -311,26 +312,30 @@ jobs:
               exit 1
             fi
 
+            # Get postgres UID and GID
+            POSTGRES_UID=\$(id -u postgres)
+            POSTGRES_GID=\$(id -g postgres)
+
             # Run Docker initialization
             echo "🐳 Initializing PostgreSQL using Docker..."
             sudo docker run --rm \
-              -v "$POSTGRES_DATA_DIR:$POSTGRES_DATA_DIR" \
+              -v "\$POSTGRES_DATA_DIR:\$POSTGRES_DATA_DIR" \
               -e POSTGRES_DB="$POSTGRES_DB" \
               -e POSTGRES_USER="$POSTGRES_USER" \
               -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
-              --user "$POSTGRES_UID:$POSTGRES_GID" \
+              --user "\$POSTGRES_UID:\$POSTGRES_GID" \
               postgres:14 \
-              /bin/bash -c "chmod 700 $POSTGRES_DATA_DIR && initdb -D $POSTGRES_DATA_DIR"
-
-            # Verify initialization
+              /bin/bash -c "chmod 700 \$POSTGRES_DATA_DIR && initdb -D \$POSTGRES_DATA_DIR"
+            
+              # Verify initialization
             if sudo -u postgres test ! -f "${POSTGRES_DATA_DIR}/PG_VERSION"; then
               echo "❌ PostgreSQL initialization failed"
               exit 1
             fi
           
             # Set proper ownership after initialization
-            sudo chown -R postgres:postgres "$POSTGRES_DATA_DIR"
-            sudo chmod 700 "$POSTGRES_DATA_DIR"
+            sudo chown -R postgres:postgres "\$POSTGRES_DATA_DIR"
+            sudo chmod 700 "\$POSTGRES_DATA_DIR"
 
             echo "✅ PostgreSQL initialization completed successfully"
           REMOTE_SCRIPT
