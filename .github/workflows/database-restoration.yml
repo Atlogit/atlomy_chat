@@ -232,12 +232,15 @@ jobs:
             
             echo "🔄 Starting PostgreSQL initialization in $POSTGRES_DATA_DIR..."
             
-            # Backup existing data if present
-            if [ -d "$POSTGRES_DATA_DIR" ]; then
+            # Backup existing data if present and not empty
+            if [ -d "$POSTGRES_DATA_DIR" ] && [ "$(ls -A "$POSTGRES_DATA_DIR")" ]; then
               timestamp=$(date +%Y%m%d_%H%M%S)
               sudo mkdir -p "$DATABASE_BACKUP_DIR"
               echo "📦 Backing up existing data..."
               sudo tar czf "${DATABASE_BACKUP_DIR}/pg_data_backup_${timestamp}.tar.gz" -C "$(dirname "$POSTGRES_DATA_DIR")" "$(basename "$POSTGRES_DATA_DIR")"
+              sudo rm -rf "$POSTGRES_DATA_DIR"
+            elif [ -d "$POSTGRES_DATA_DIR" ]; then
+              echo "📁 Existing data directory is empty. Removing without backup."
               sudo rm -rf "$POSTGRES_DATA_DIR"
             fi
           
