@@ -221,19 +221,14 @@ jobs:
           fi
           
           # Perform timestamp comparison only if database exists
-          ssh $ssh_opts -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" << 'REMOTE_SCRIPT'
+          ssh $ssh_opts -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" << REMOTE_SCRIPT
             set -e
             
-            # Check if PG_VERSION exists
-            if [ ! -f "$POSTGRES_DATA_DIR/PG_VERSION" ]; then
-              echo "No existing database found. Restoration needed."
-              echo "restore_needed=true" >> $GITHUB_OUTPUT
-              exit 0
-            fi
+            export POSTGRES_DATA_DIR="$POSTGRES_DATA_DIR"
 
             # Get local database timestamp
             # Check if PG_VERSION exists
-            if [ ! -f "$POSTGRES_DATA_DIR/PG_VERSION" ]; then
+            if [ ! -f "\${DATABASE_BACKUP_DIR}/PG_VERSION" ]; then
               echo "No existing database found. Restoration needed."
               echo "restore_needed=true" >> $GITHUB_OUTPUT
               exit 0
