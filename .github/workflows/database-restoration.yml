@@ -50,7 +50,7 @@ env:
   # Use environment variable for PostgreSQL data directory with default
   POSTGRES_DATA_DIR: ${POSTGRES_DATA_DIR:-/home/ec2-user/amta/data}
   # Use environment variable for database backups directory with default
-  DATABASE_BACKUP_DIR: ${DATABASE_BACKUP_DIR:-/home/ec2-user/database_backups}
+  DATABASE_BACKUP_DIR: ${DATABASE_BACKUP_DIR:-/home/ec2-user/amta/database_backups}
 
 permissions:
   id-token: write
@@ -216,6 +216,18 @@ jobs:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
         run: |
+          # Validate POSTGRES_DATA_DIR is set
+          if [ -z "$POSTGRES_DATA_DIR" ]; then
+            echo "❌ POSTGRES_DATA_DIR must be explicitly set"
+            exit 1
+          fi
+
+          # Validate DATABASE_BACKUP_DIR is set
+          if [ -z "$DATABASE_BACKUP_DIR" ]; then
+            echo "❌ DATABASE_BACKUP_DIR must be explicitly set"
+            exit 1
+          fi
+
           ssh_opts="-o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10"
           
           # Verify environment variables
@@ -229,10 +241,6 @@ jobs:
           # Execute remote initialization
           ssh $ssh_opts -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << REMOTE_SCRIPT
             set -e
-            
-            # Expand the variable with a default, ensuring it's a valid path
-            POSTGRES_DATA_DIR="${POSTGRES_DATA_DIR:-/home/ec2-user/amta/data}"
-            DATABASE_BACKUP_DIR="${DATABASE_BACKUP_DIR:-/home/ec2-user/database_backups}"
             
             echo "🔄 Starting PostgreSQL initialization in $POSTGRES_DATA_DIR..."
             
@@ -257,14 +265,10 @@ jobs:
               sudo useradd -g postgres -m postgres
             fi
 
-            # Get postgres user and group IDs
-            POSTGRES_UID=$(id -u postgres)
-            POSTGRES_GID=$(id -g postgres)
-
             # Initialize data directory with explicit permissions
             echo "📁 Creating data directory: $POSTGRES_DATA_DIR"
             sudo mkdir -p "$POSTGRES_DATA_DIR"
-            sudo chown -R "$POSTGRES_UID:$POSTGRES_GID" "$POSTGRES_DATA_DIR"
+            sudo chown -R postgres:postgres "$POSTGRES_DATA_DIR"
             sudo chmod 700 "$POSTGRES_DATA_DIR"
 
             # Verify Docker
