@@ -250,6 +250,10 @@ jobs:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
         run: |
+          # Explicitly set the full path to avoid variable expansion issues
+          POSTGRES_DATA_DIR="/home/ec2-user/amta/data"
+          DATABASE_BACKUP_DIR="/home/ec2-user/amta/database_backups"
+
           ssh_opts="-o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10"
           
           # Verify environment variables
@@ -266,23 +270,24 @@ jobs:
             
             echo "🔄 Starting PostgreSQL initialization in $POSTGRES_DATA_DIR..."
             
-            # Prepare data directory
-            mkdir -p "$POSTGRES_DATA_DIR"
-            chmod 755 "$POSTGRES_DATA_DIR"
+            # Ensure the exact directory exists with correct permissions
+            sudo mkdir -p "$POSTGRES_DATA_DIR"
+            sudo chown ec2-user:ec2-user "$POSTGRES_DATA_DIR"
+            sudo chmod 755 "$POSTGRES_DATA_DIR"
             
             # Backup existing data if present and not empty
             if [ -d "$POSTGRES_DATA_DIR" ] && [ "$(ls -A "$POSTGRES_DATA_DIR")" ]; then
               timestamp=$(date +%Y%m%d_%H%M%S)
-              mkdir -p "$DATABASE_BACKUP_DIR"
+              sudo mkdir -p "$DATABASE_BACKUP_DIR"
               echo "📦 Backing up existing data..."
-              tar czf "${DATABASE_BACKUP_DIR}/pg_data_backup_${timestamp}.tar.gz" -C "$(dirname "$POSTGRES_DATA_DIR")" "$(basename "$POSTGRES_DATA_DIR")"
-              rm -rf "$POSTGRES_DATA_DIR"
-            elif [ -d "$POSTGRES_DATA_DIR" ]; then
-              echo "📁 Existing data directory is empty. Removing without backup."
+              sudo tar czf "${DATABASE_BACKUP_DIR}/pg_data_backup_${timestamp}.tar.gz" -C "$(dirname "$POSTGRES_DATA_DIR")" "$(basename "$POSTGRES_DATA_DIR")"
               sudo rm -rf "$POSTGRES_DATA_DIR"
-              mkdir -p "$POSTGRES_DATA_DIR"
-              chmod 755 "$POSTGRES_DATA_DIR"
             fi
+
+            # Recreate directory with explicit permissions
+            sudo mkdir -p "$POSTGRES_DATA_DIR"
+            sudo chown ec2-user:ec2-user "$POSTGRES_DATA_DIR"
+            sudo chmod 755 "$POSTGRES_DATA_DIR"
 
             # Verify Docker is available
             if ! command -v docker &> /dev/null; then
