@@ -48,9 +48,9 @@ on:
 
 env:
   # Use environment variable for PostgreSQL data directory with default
-  POSTGRES_DATA_DIR: ${POSTGRES_DATA_DIR:-/home/ec2-user/amta/data}
+  POSTGRES_DATA_DIR: ${POSTGRES_DATA_DIR}
   # Use environment variable for database backups directory with default
-  DATABASE_BACKUP_DIR: ${DATABASE_BACKUP_DIR:-/home/ec2-user/amta/database_backups}
+  DATABASE_BACKUP_DIR: ${DATABASE_BACKUP_DIR}
 
 permissions:
   id-token: write
