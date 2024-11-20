@@ -391,7 +391,7 @@ jobs:
           ssh_opts="-o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10"
           
           # Transfer and verify backup
-          ssh $ssh_opts -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" << 'REMOTE_SCRIPT'
+          ssh $ssh_opts -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" << REMOTE_SCRIPT
             set -e
             
             # Export AWS credentials in the remote session
