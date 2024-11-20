@@ -267,7 +267,24 @@ jobs:
           # Execute remote initialization
           ssh $ssh_opts -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" << REMOTE_SCRIPT
             set -e
-                  
+            
+            cleanup() {
+            echo "🧹 Cleaning up..."
+            # Stop any running postgres containers
+            docker ps -q --filter "name=postgres" --filter "ancestor=postgres" | xargs -r docker stop || true
+            # Remove any stopped postgres containers
+            docker ps -aq --filter "name=postgres" --filter "ancestor=postgres" | xargs -r docker rm || true
+            # Remove any dangling volumes
+            docker volume ls -q --filter "dangling=true" | xargs -r docker volume rm || true
+          }
+          
+          # Set up cleanup trap for script exit
+          trap cleanup EXIT
+          
+          # Initial cleanup
+          echo "🧹 Initial cleanup of any existing Docker resources..."
+          cleanup
+
             # Export variables for use in the script
             export EC2_USER="$EC2_USER"
             export POSTGRES_DATA_DIR="$POSTGRES_DATA_DIR"
@@ -315,15 +332,18 @@ jobs:
 
             # Run Docker initialization
             echo "🐳 Initializing PostgreSQL using Docker..."
-            sudo docker run --rm \
+            # Set timeout for Docker command
+            timeout 300 sudo docker run --rm \
               -v "\$POSTGRES_DATA_DIR:\$POSTGRES_DATA_DIR" \
               -e POSTGRES_DB="$POSTGRES_DB" \
               -e POSTGRES_USER="$POSTGRES_USER" \
               -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
               --user 999:999 \
               postgres:14 \
-              initdb -D "\$POSTGRES_DATA_DIR"
-            
+              initdb -D "\$POSTGRES_DATA_DIR" || {
+                echo "❌ Docker initialization timed out or failed"
+                exit 1}
+      
             # Ensure final permissions are correct
             sudo chown -R 999:999 "\$POSTGRES_DATA_DIR"
             sudo chmod 0700 "\$POSTGRES_DATA_DIR"
