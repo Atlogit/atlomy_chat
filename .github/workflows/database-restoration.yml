@@ -14,7 +14,7 @@ on:
       postgres_data_dir:
         description: 'PostgreSQL Data Directory'
         required: false
-        default: '/home/ec2-user/amta/data'
+        default: '/home/ec2-user/amta/postgresql/data'
       database_backup_dir:
         description: 'Database Backup Directory'
         required: false
@@ -43,7 +43,7 @@ on:
         description: 'PostgreSQL Data Directory'
         type: string
         required: false
-        default: '/home/ec2-user/amta/data'
+        default: '/home/ec2-user/amta/postgresql/data'
       database_backup_dir:
         description: 'Database Backup Directory'
         type: string
@@ -251,8 +251,8 @@ jobs:
           EC2_USER: ${{ secrets.EC2_USER }}
         run: |
           # Explicitly set the full path to avoid variable expansion issues
-          POSTGRES_DATA_DIR="/home/ec2-user/amta/data"
-          DATABASE_BACKUP_DIR="/home/ec2-user/amta/database_backups"
+          POSTGRES_DATA_DIR="/home/$EC2_USER/amta/postgresql/data"
+          DATABASE_BACKUP_DIR="/home/$EC2_USER/amta/database_backups"
 
           ssh_opts="-o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10"
           
@@ -272,8 +272,8 @@ jobs:
             
             # Ensure the exact directory exists with correct permissions
             sudo mkdir -p "$POSTGRES_DATA_DIR"
-            sudo chown ec2-user:ec2-user "$POSTGRES_DATA_DIR"
-            sudo chmod 755 "$POSTGRES_DATA_DIR"
+            sudo chown -R $USER:$USER "$POSTGRES_DATA_DIR"
+            sudo chmod 700 "$POSTGRES_DATA_DIR"
             
             # Backup existing data if present and not empty
             if [ -d "$POSTGRES_DATA_DIR" ] && [ "$(ls -A "$POSTGRES_DATA_DIR")" ]; then
@@ -286,8 +286,8 @@ jobs:
 
             # Recreate directory with explicit permissions
             sudo mkdir -p "$POSTGRES_DATA_DIR"
-            sudo chown ec2-user:ec2-user "$POSTGRES_DATA_DIR"
-            sudo chmod 755 "$POSTGRES_DATA_DIR"
+            sudo chown -R $USER:$USER "$POSTGRES_DATA_DIR"
+            sudo chmod 700 "$POSTGRES_DATA_DIR"
 
             # Verify Docker is available
             if ! command -v docker &> /dev/null; then
@@ -302,22 +302,9 @@ jobs:
               -e POSTGRES_DB="$POSTGRES_DB" \
               -e POSTGRES_USER="$POSTGRES_USER" \
               -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+              -u "$(id -u):$(id -g)" \
               postgres:14 \
-              bash -c "
-                set -e
-                
-                # Verify directory permissions
-                if [ ! -w \"$POSTGRES_DATA_DIR\" ]; then
-                  echo \"❌ Data directory is not writable\"
-                  exit 1
-                fi
-                
-                echo \"🔧 Running initdb...\"
-                initdb -D \"$POSTGRES_DATA_DIR\"
-                
-                echo \"� Setting permissions...\"
-                chmod 700 \"$POSTGRES_DATA_DIR\"
-              "
+              initdb -D \"$POSTGRES_DATA_DIR\"
               
             # Verify initialization
             if [ ! -f "${POSTGRES_DATA_DIR}/PG_VERSION" ]; then
