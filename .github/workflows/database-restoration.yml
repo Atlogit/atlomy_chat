@@ -280,8 +280,8 @@ jobs:
             # Create parent directories with EC2 user ownership
             sudo mkdir -p "$(dirname $POSTGRES_DATA_DIR)"
             sudo mkdir -p "$(dirname $DATABASE_BACKUP_DIR)"
-            sudo chown -R $USER:$USER "$(dirname $POSTGRES_DATA_DIR)"
-            sudo chown -R $USER:$USER "$(dirname $DATABASE_BACKUP_DIR)"
+            sudo chown -R $EC2_USER:$EC2_USER "$(dirname $POSTGRES_DATA_DIR)"
+            sudo chown -R $EC2_USER:$EC2_USER "$(dirname $DATABASE_BACKUP_DIR)"
             
             # Create backup directory with EC2 user ownership
             mkdir -p "$DATABASE_BACKUP_DIR"
@@ -355,7 +355,7 @@ jobs:
             
             # Ensure backup directory exists
             sudo mkdir -p "$DATABASE_BACKUP_DIR"
-            sudo chown -R $USER:$USER "$DATABASE_BACKUP_DIR"
+            sudo chown -R $EC2_USER:$EC2_USER "$DATABASE_BACKUP_DIR"
             
             echo "⬇️ Downloading backup from S3..."
             aws s3 cp "s3://$S3_BACKUP_BUCKET/$S3_BACKUP_PREFIX/$LATEST_BACKUP" \
