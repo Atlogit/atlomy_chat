@@ -172,7 +172,7 @@ jobs:
             set -e
 
             export POSTGRES_DATA_DIR="$POSTGRES_DATA_DIR"
-            echo "Checking PostgreSQL data directory: \$POSTGRES_DATA_DIR"
+            echo "Checking PostgreSQL data directory: $POSTGRES_DATA_DIR"
 
             # Check if PostgreSQL data directory exists and contains PG_VERSION
             if [ ! -f "$POSTGRES_DATA_DIR/PG_VERSION" ]; then
