@@ -48,7 +48,7 @@ on:
 
 env:
   # Use environment variable for PostgreSQL data directory with default
-  POSTGRES_DATA_DIR: ${POSTGRES_DATA_DIR:-/var/lib/postgresql/data}
+  POSTGRES_DATA_DIR: ${POSTGRES_DATA_DIR:-/home/ec2-user/amta/data}
   # Use environment variable for database backups directory with default
   DATABASE_BACKUP_DIR: ${DATABASE_BACKUP_DIR:-/home/ec2-user/database_backups}
 
