@@ -169,7 +169,7 @@ jobs:
 
           # Check if PostgreSQL data directory exists and contains PG_VERSION
           if ssh $ssh_opts -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" \
-             "[ ! -f '\${DATABASE_BACKUP_DIR}/PG_VERSION' ]"; then
+             "[ ! -f '\${POSTGRES_DATA_DIR}/PG_VERSION' ]"; then
             echo "Database not initialized. Restoration required."
             echo "restore_needed=true" >> $GITHUB_OUTPUT
           else
@@ -421,7 +421,7 @@ jobs:
               exit 1
             fi
 
-            backup_contents=$(tar tzf \${DATABASE_BACKUP_DIR}/latest_backup.tar.gz)
+            backup_contents=$(tar tzf \${DATABASE_BACKUP_DIR}/latest_backup.tar.gz | cut -d'/' -f2-)
             
             # Check if the backup contains a PostgreSQL data directory
             if ! echo "$backup_contents" | grep -q "PG_VERSION"; then
