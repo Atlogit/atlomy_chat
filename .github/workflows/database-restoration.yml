@@ -172,10 +172,11 @@ jobs:
             set -e
 
             export POSTGRES_DATA_DIR="$POSTGRES_DATA_DIR"
-            echo "Checking PostgreSQL data directory: $POSTGRES_DATA_DIR"
-
+            echo "Checking PostgreSQL data directory: \${POSTGRES_DATA_DIR}"
+            ls -la "$POSTGRES_DATA_DIR"
+            ls -la "$POSTGRES_DATA_DIR/PG_VERSION"
             # Check if PostgreSQL data directory exists and contains PG_VERSION
-            if [ ! -f "$POSTGRES_DATA_DIR/PG_VERSION" ]; then
+            if [ ! -f "\${POSTGRES_DATA_DIR}/PG_VERSION" ]; then
               echo "Database not initialized. Restoration required."
               echo "restore_needed=true" >> $GITHUB_OUTPUT
             else
