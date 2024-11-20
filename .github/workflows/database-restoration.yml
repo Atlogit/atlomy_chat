@@ -162,21 +162,28 @@ jobs:
         env:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
+          POSTGRES_DATA_DIR: ${{ inputs.postgres_data_dir }}
+          DATABASE_BACKUP_DIR: ${{ inputs.database_backup_dir }}
+
         run: |
           ssh_opts="-o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10"
           
-          export POSTGRES_DATA_DIR="$POSTGRES_DATA_DIR"
+          ssh $ssh_opts -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" << REMOTE_SCRIPT
+            set -e
 
-          # Check if PostgreSQL data directory exists and contains PG_VERSION
-          if ssh $ssh_opts -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" \
-             "[ ! -f '\${POSTGRES_DATA_DIR}/PG_VERSION' ]"; then
-            echo "Database not initialized. Restoration required."
-            echo "restore_needed=true" >> $GITHUB_OUTPUT
-          else
-            echo "Database directory exists."
-            echo "restore_needed=false" >> $GITHUB_OUTPUT
-          fi
+            export POSTGRES_DATA_DIR="$POSTGRES_DATA_DIR"
+            echo "Checking PostgreSQL data directory: \$POSTGRES_DATA_DIR"
 
+            # Check if PostgreSQL data directory exists and contains PG_VERSION
+            if [ ! -f "\$POSTGRES_DATA_DIR/PG_VERSION" ]; then
+              echo "Database not initialized. Restoration required."
+              echo "restore_needed=true" >> $GITHUB_OUTPUT
+            else
+              echo "Database directory exists."
+              echo "restore_needed=false" >> $GITHUB_OUTPUT
+            fi
+          REMOTE_SCRIPT
+          
       - name: Discover Latest S3 Backup
         id: discover-backup
         env:
@@ -212,6 +219,8 @@ jobs:
           BACKUP_TIMESTAMP: ${{ steps.discover-backup.outputs.backup_timestamp }}
           CHECK_DATABASE_RESTORE_NEEDED: ${{ steps.check-database.outputs.restore_needed }}
           POSTGRES_DATA_DIR: ${{ inputs.postgres_data_dir }}
+          DATABASE_BACKUP_DIR: ${{ inputs.database_backup_dir }}
+
         run: |
           ssh_opts="-o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10"
           
@@ -226,11 +235,11 @@ jobs:
           ssh $ssh_opts -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" << REMOTE_SCRIPT
             set -e
             
-            export POSTGRES_DATA_DIR="$POSTGRES_DATA_DIR"
+            export DATABASE_BACKUP_DIR="$DATABASE_BACKUP_DIR"
 
             # Get local database timestamp
             # Check if PG_VERSION exists
-            if [ ! -f "\${DATABASE_BACKUP_DIR}/PG_VERSION" ]; then
+            if [ ! -f "\$DATABASE_BACKUP_DIR/PG_VERSION" ]; then
               echo "No existing database found. Restoration needed."
               echo "restore_needed=true" >> $GITHUB_OUTPUT
               exit 0
