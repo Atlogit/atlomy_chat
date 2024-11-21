@@ -168,7 +168,7 @@ jobs:
         run: |
           ssh_opts="-o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10"
           
-          ssh $ssh_opts -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" << 'REMOTE_SCRIPT'
+          CHECK_OUTPUT=$(ssh $ssh_opts -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" << REMOTE_SCRIPT
             set -e
 
             export POSTGRES_DATA_DIR="$POSTGRES_DATA_DIR"
@@ -177,13 +177,26 @@ jobs:
             # Check if PostgreSQL data directory exists and contains PG_VERSION
             if ! sudo test -f "$POSTGRES_DATA_DIR/PG_VERSION"; then
               echo "Database not initialized. Restoration required."
-              echo "${{ inputs.force_restore }}=true"
+              exit 2
             else
               echo "Database directory exists."
-              echo "${{ inputs.force_restore }}=false"
+              exit 0
             fi
           REMOTE_SCRIPT
-
+            )
+            # Capture the exit code
+            SSH_EXIT_CODE=$?
+            
+            # Print the output for logging
+            echo "$CHECK_OUTPUT"
+            
+            # Set the GitHub output based on exit code
+            if [ $SSH_EXIT_CODE -eq 2 ]; then
+              echo "restore_needed=true" >> $GITHUB_OUTPUT
+            else
+              echo "restore_needed=false" >> $GITHUB_OUTPUT
+            fi
+            
       - name: Discover Latest S3 Backup
         id: discover-backup
         env:
@@ -232,17 +245,16 @@ jobs:
           fi
           
           # Perform timestamp comparison only if database exists
-          ssh $ssh_opts -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" << REMOTE_SCRIPT
+          CHECK_OUTPUT=$ssh $ssh_opts -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" << REMOTE_SCRIPT
             set -e
             
             export DATABASE_BACKUP_DIR="$DATABASE_BACKUP_DIR"
 
             # Get local database timestamp
             # Check if PG_VERSION exists
-            if [ ! -f "\$DATABASE_BACKUP_DIR/PG_VERSION" ]; then
+            if ! sudo test -f "$DATABASE_BACKUP_DIR/PG_VERSION" ]; then
               echo "No existing database found. Restoration needed."
-              echo "restore_needed=true" >> $GITHUB_OUTPUT
-              exit 0
+              exit 2
             fi        
 
             # Convert timestamps to seconds since epoch
@@ -252,13 +264,27 @@ jobs:
             # Compare timestamps
             if [ "\$backup_seconds" -gt "\$local_seconds" ] || [ "${{ inputs.force_restore }}" = "true" ]; then
               echo "Backup is newer than local database or force restore requested."
-              echo "restore_needed=true" >> $GITHUB_OUTPUT
+              exit 2
             else
               echo "Local database is up to date."
-              echo "restore_needed=false" >> $GITHUB_OUTPUT
+              exit 0
             fi
           REMOTE_SCRIPT
 
+          )
+            # Capture the exit code
+            SSH_EXIT_CODE=$?
+            
+            # Print the output for logging
+            echo "$CHECK_OUTPUT"
+            
+            # Set the GitHub output based on exit code
+            if [ $SSH_EXIT_CODE -eq 2 ]; then
+              echo "restore_needed=true" >> $GITHUB_OUTPUT
+            else
+              echo "restore_needed=false" >> $GITHUB_OUTPUT
+            fi
+            
       - name: Initialize PostgreSQL Data Directory
         id: init-postgres
         if: steps.compare-timestamp.outputs.restore_needed == 'true'
