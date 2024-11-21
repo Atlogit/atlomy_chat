@@ -20,9 +20,10 @@ services:
       retries: 3
 
   backend:
-    build: 
-      context: .
-      dockerfile: Dockerfile.backend
+    image: ghcr.io/atlogit/atlomy_chat-backend:latest
+    #build: 
+    #  context: .
+    #  dockerfile: Dockerfile.backend
     container_name: amta-backend
     network_mode: "host"
     ports:
@@ -60,9 +61,10 @@ services:
       start_period: 40s
 
   frontend:
-    build:
-      context: ./next-app
-      dockerfile: Dockerfile
+    image: ghcr.io/atlogit/atlomy_chat-frontend:latest
+    #build:
+    #  context: ./next-app
+    #  dockerfile: Dockerfile
     container_name: amta-frontend
     network_mode: "host"
     ports:
