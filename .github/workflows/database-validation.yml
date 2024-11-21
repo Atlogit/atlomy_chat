@@ -1,0 +1,98 @@
+name: Database Validation Workflow
+
+on:
+  workflow_dispatch:
+    inputs:
+      deployment_mode:
+        description: 'Deployment mode (development/production)'
+        required: false
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - development
+  workflow_call:
+    inputs:
+      deployment_mode:
+        description: 'Deployment mode (development/production)'
+        type: string
+        required: false
+        default: 'production'
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  validate-ec2-database:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.deployment_mode }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Retrieve Database Secrets
+        id: get-database-secrets
+        run: |
+          secrets=$(aws secretsmanager get-secret-value --secret-id amta-${{ inputs.deployment_mode }}-secrets --query SecretString --output text)
+          
+          postgres_host=$(echo "$secrets" | jq -r '.POSTGRES_HOST')
+          postgres_db=$(echo "$secrets" | jq -r '.POSTGRES_DB')
+          postgres_user=$(echo "$secrets" | jq -r '.POSTGRES_USER')
+          postgres_password=$(echo "$secrets" | jq -r '.POSTGRES_PASSWORD')
+          postgres_data_dir=$(echo "$secrets" | jq -r '.POSTGRES_DATA_DIR // "/home/ec2-user/amta/postgresql/data"')
+          
+          echo "POSTGRES_HOST=$postgres_host" >> $GITHUB_OUTPUT
+          echo "POSTGRES_DB=$postgres_db" >> $GITHUB_OUTPUT
+          echo "POSTGRES_USER=$postgres_user" >> $GITHUB_OUTPUT
+          echo "POSTGRES_PASSWORD=$postgres_password" >> $GITHUB_OUTPUT
+          echo "POSTGRES_DATA_DIR=$postgres_data_dir" >> $GITHUB_OUTPUT
+
+      - name: Prepare SSH Key
+        env:
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$EC2_SSH_KEY" > ~/.ssh/ec2_key
+          chmod 600 ~/.ssh/ec2_key
+
+      - name: Validate EC2 Database Docker Container
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          POSTGRES_HOST: ${{ steps.get-database-secrets.outputs.POSTGRES_HOST }}
+          POSTGRES_DB: ${{ steps.get-database-secrets.outputs.POSTGRES_DB }}
+          POSTGRES_USER: ${{ steps.get-database-secrets.outputs.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ steps.get-database-secrets.outputs.POSTGRES_PASSWORD }}
+          POSTGRES_DATA_DIR: ${{ steps.get-database-secrets.outputs.POSTGRES_DATA_DIR }}
+        run: |
+          chmod +x scripts/validate_ec2_database.sh
+          
+          ./scripts/validate_ec2_database.sh \
+            "$EC2_HOST" \
+            "$EC2_USER" \
+            "$POSTGRES_DATA_DIR" \
+            "$POSTGRES_DB" \
+            "$POSTGRES_USER" \
+            "$POSTGRES_PASSWORD"
+
+  notify-status:
+    if: always()
+    needs: [validate-ec2-database]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determine Workflow Status
+        run: |
+          if [[ "${{ needs.validate-ec2-database.result }}" == 'success' ]]; then
+            echo "✅ EC2 Database Docker Container Validation Completed Successfully"
+          else
+            echo "❌ EC2 Database Docker Container Validation Failed"
+            exit 1
+          fi
