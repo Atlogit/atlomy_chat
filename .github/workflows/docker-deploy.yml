@@ -7,7 +7,6 @@ on:
     paths:
       # Backend Application
       - 'Dockerfile'
-      - 'docker-compose.yml'
       - 'requirements.txt'
       - 'pyproject.toml'
       - '.github/workflows/docker-deploy.yml'
