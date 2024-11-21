@@ -246,6 +246,8 @@ jobs:
           EC2_SSH_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+
         run: |
           mkdir -p ~/.ssh
           echo "$EC2_SSH_KEY" > ~/.ssh/ec2_key
@@ -266,20 +268,22 @@ jobs:
 
           # Copy deployment files
           scp $SSH_OPTS -i ~/.ssh/ec2_key \
-              docker-compose.yml .env \
-              $EC2_USER@$EC2_HOST:~/amta/
+            docker-compose.yml .env \
+            $EC2_USER@$EC2_HOST:~/amta/
 
+          # Get GitHub credentials and perform docker login on EC2
           ssh $SSH_OPTS -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << AUTH_EOF
             # Get credentials from Secrets Manager
             GITHUB_CREDS=\$(aws secretsmanager get-secret-value \
+              --region ${AWS_DEFAULT_REGION} \
               --secret-id amta-github-container-registry \
               --query SecretString \
               --output text)
-            
+
             # Extract username and token
-            GITHUB_USERNAME=\$(echo \$GITHUB_CREDS | jq -r .username)
-            GITHUB_TOKEN=\$(echo \$GITHUB_CREDS | jq -r .token)
-            
+            GITHUB_USERNAME=\$(echo "\$GITHUB_CREDS" | jq -r '.username')
+            GITHUB_TOKEN=\$(echo "\$GITHUB_CREDS" | jq -r '.token')
+
             # Login to GitHub Container Registry
             echo "\$GITHUB_TOKEN" | docker login ghcr.io -u "\$GITHUB_USERNAME" --password-stdin
           AUTH_EOF
