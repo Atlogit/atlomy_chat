@@ -48,7 +48,6 @@ services:
       - POSTGRES_USER=${POSTGRES_USER}
       - SERVER_HOST=0.0.0.0
       - SERVER_PORT=8081
-      - NODE_ENV=${NODE_ENV:-development}
     restart: unless-stopped
     depends_on:
       - postgres
@@ -62,7 +61,7 @@ services:
       start_period: 40s
 
   frontend:
-    image: ghcr.io/atlogit/atlomy_chat-frontend:$production-frontend-bf3bf80
+    image: ghcr.io/atlogit/atlomy_chat-frontend:production-frontend-bf3bf80
     #build:
     #  context: ./next-app
     #  dockerfile: Dockerfile
@@ -73,7 +72,6 @@ services:
     environment:
       - NODE_ENV=production
       - BACKEND_URL=http://localhost:8081
-      - NODE_ENV=${NODE_ENV:-development}
     restart: unless-stopped
     depends_on:
       - backend
