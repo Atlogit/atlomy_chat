@@ -245,7 +245,7 @@ jobs:
           fi
           
           # Perform timestamp comparison only if database exists
-          CHECK_OUTPUT=$ssh $ssh_opts -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" << REMOTE_SCRIPT
+          CHECK_OUTPUT=$(ssh $ssh_opts -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" << REMOTE_SCRIPT
             set -e
             
             export DATABASE_BACKUP_DIR="$DATABASE_BACKUP_DIR"
@@ -270,7 +270,6 @@ jobs:
               exit 0
             fi
           REMOTE_SCRIPT
-
           )
             # Capture the exit code
             SSH_EXIT_CODE=$?
