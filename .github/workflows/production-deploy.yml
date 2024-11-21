@@ -152,6 +152,9 @@ jobs:
           bedrock_model_id=$(echo "$secrets" | jq -r '.BEDROCK_MODEL_ID')
           aws_bedrock_region=$(echo "$secrets" | jq -r '.AWS_BEDROCK_REGION')
           
+          github_username=$(echo "$secrets" | jq -r '.GITHUB_USERNAME')
+          github_token=$(echo "$secrets" | jq -r '.GITHUB_TOKEN')
+
           # Mask sensitive values
           echo "::add-mask::$database_url"
           echo "::add-mask::$postgres_host"
@@ -159,7 +162,9 @@ jobs:
           echo "::add-mask::$postgres_db"
           echo "::add-mask::$postgres_user"
           echo "::add-mask::$postgres_password"
-          
+          echo "::add-mask::$github_username"
+          echo "::add-mask::$github_token"
+
           # Output to GitHub Actions environment
           echo "DATABASE_URL=$database_url" >> $GITHUB_OUTPUT
           echo "POSTGRES_HOST=$postgres_host" >> $GITHUB_OUTPUT
@@ -176,10 +181,16 @@ jobs:
           
           echo "BEDROCK_MODEL_ID=$bedrock_model_id" >> $GITHUB_OUTPUT
           echo "AWS_BEDROCK_REGION=$aws_bedrock_region" >> $GITHUB_OUTPUT
+          
+          echo "GITHUB_USERNAME=$github_username" >> $GITHUB_OUTPUT
+          echo "GITHUB_TOKEN=$github_token" >> $GITHUB_OUTPUT
 
       - name: Prepare Deployment Configuration
         env:
           # Secrets from AWS
+          GITHUB_USERNAME: ${{ steps.get-secrets.outputs.GITHUB_USERNAME }}
+          GITHUB_TOKEN: ${{ steps.get-secrets.outputs.GITHUB_TOKEN }}
+
           DATABASE_URL: ${{ steps.get-secrets.outputs.DATABASE_URL }}
           POSTGRES_HOST: ${{ steps.get-secrets.outputs.POSTGRES_HOST }}
           POSTGRES_PORT: ${{ steps.get-secrets.outputs.POSTGRES_PORT }}
@@ -246,7 +257,9 @@ jobs:
           EC2_SSH_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
-          AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+          BEDROCK_MODEL_ID: ${{ steps.get-secrets.outputs.BEDROCK_MODEL_ID }}
+          GITHUB_USERNAME: ${{ steps.get-secrets.outputs.GITHUB_USERNAME }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
         run: |
           mkdir -p ~/.ssh
@@ -271,25 +284,13 @@ jobs:
             docker-compose.yml .env \
             $EC2_USER@$EC2_HOST:~/amta/
 
-          # Get GitHub credentials and perform docker login on EC2
-          ssh $SSH_OPTS -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << AUTH_EOF
-            # Get credentials from Secrets Manager
-            GITHUB_CREDS=\$(aws secretsmanager get-secret-value \
-              --region ${AWS_DEFAULT_REGION} \
-              --secret-id amta-github-container-registry \
-              --query SecretString \
-              --output text)
-
-            # Extract username and token
-            GITHUB_USERNAME=\$(echo "\$GITHUB_CREDS" | jq -r '.username')
-            GITHUB_TOKEN=\$(echo "\$GITHUB_CREDS" | jq -r '.token')
-
             # Login to GitHub Container Registry
-            echo "\$GITHUB_TOKEN" | docker login ghcr.io -u "\$GITHUB_USERNAME" --password-stdin
-          AUTH_EOF
-          
-          # Deploy services using Docker Compose
           ssh $SSH_OPTS -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << DEPLOY_EOF
+            export GITHUB_USERNAME="$GITHUB_USERNAME"
+            export GITHUB_TOKEN="$GITHUB_TOKEN"
+            
+            echo "$GITHUB_TOKEN" | docker login ghcr.io -u "\$GITHUB_USERNAME" --password-stdin
+          
             HOME_DIR=\$(eval echo ~$EC2_USER)
             cd \$HOME_DIR/amta
             
