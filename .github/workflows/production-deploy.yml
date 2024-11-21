@@ -82,7 +82,7 @@ jobs:
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install sqlalchemy psycopg2-binary asyncpg
+          pip install sqlalchemy psycopg2-binary asyncpg pandas
 
       - name: Validate Restored Database
         env:
@@ -94,34 +94,120 @@ jobs:
         run: |
           python3 - << EOF
           import os
+          import time
           import sqlalchemy
-          from sqlalchemy import create_engine, text
+          from sqlalchemy import create_engine, text, inspect
           from sqlalchemy.exc import SQLAlchemyError
-          import asyncpg
-          
+          import pandas as pd
+
+          def validate_database_schema(engine):
+              inspector = inspect(engine)
+              validation_results = {
+                  'tables': {},
+                  'indexes': {},
+                  'constraints': {}
+              }
+
+              # Critical tables to validate based on our models
+              critical_tables = [
+                  'texts', 'authors', 'text_divisions', 
+                  'lemmas', 'lemma_analyses', 'sentences', 
+                  'text_lines', 'lexical_values'
+              ]
+              
+              with engine.connect() as connection:
+                  for table in critical_tables:
+                      try:
+                          # Check table existence
+                          table_exists = connection.execute(
+                              text(f"SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = '{table}' AND table_schema = 'public')")
+                          ).scalar()
+                          validation_results['tables'][table] = table_exists
+
+                          if table_exists:
+                              # Check table columns
+                              columns = inspector.get_columns(table, schema='public')
+                              validation_results['tables'][f'{table}_columns'] = len(columns)
+
+                              # Check indexes
+                              indexes = inspector.get_indexes(table, schema='public')
+                              validation_results['indexes'][table] = len(indexes)
+
+                              # Check primary key
+                              pk = inspector.get_primary_keys(table, schema='public')
+                              validation_results['constraints'][f'{table}_pk'] = len(pk) > 0
+
+                      except Exception as e:
+                          print(f"❌ Error validating table {table}: {e}")
+                          validation_results['tables'][table] = False
+
+              return validation_results
+
+          def performance_baseline(engine):
+              performance_metrics = {}
+              
+              with engine.connect() as connection:
+                  # Measure query performance for critical tables
+                  critical_tables = [
+                      'texts', 'authors', 'text_divisions', 
+                      'lemmas', 'lemma_analyses', 'sentences', 
+                      'text_lines', 'lexical_values'
+                  ]
+                  
+                  for table in critical_tables:
+                      start_time = time.time()
+                      try:
+                          result = connection.execute(text(f"SELECT COUNT(*) FROM {table}")).scalar()
+                          query_time = time.time() - start_time
+                          
+                          performance_metrics[table] = {
+                              'row_count': result,
+                              'query_time_ms': query_time * 1000
+                          }
+                      except Exception as e:
+                          print(f"⚠️ Performance check failed for {table}: {e}")
+                          performance_metrics[table] = {'error': str(e)}
+
+              return performance_metrics
+
           def validate_database(engine, database_name):
               try:
+                  # Schema Validation
+                  schema_validation = validate_database_schema(engine)
+                  print("📋 Schema Validation Results:")
+                  for category, results in schema_validation.items():
+                      print(f"{category.capitalize()}: {results}")
+
+                  # Performance Baseline
+                  performance_results = performance_baseline(engine)
+                  print("\n⏱️ Performance Baseline:")
+                  for table, metrics in performance_results.items():
+                      print(f"{table}: {metrics}")
+
+                  # Comprehensive Validation Checks
                   with engine.connect() as connection:
-                      # Check total number of tables
+                      # Total table count
                       table_count = connection.execute(
                           text("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public'")
                       ).scalar()
-                      
-                      print(f"✅ Database '{database_name}' contains {table_count} tables")
-                      
-                      # Optional: Add more specific validation checks
-                      # For example, check for specific critical tables
-                      critical_tables = ['users', 'texts', 'lemmas']
-                      for table in critical_tables:
-                          try:
-                              table_exists = connection.execute(
-                                  text(f"SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = '{table}' AND table_schema = 'public')")
-                              ).scalar()
-                              print(f"{'✅' if table_exists else '❌'} Critical table '{table}' {'exists' if table_exists else 'missing'}")
-                          except Exception as e:
-                              print(f"⚠️ Error checking table {table}: {e}")
-                      
-                      return table_count > 0
+                      print(f"\n✅ Database '{database_name}' contains {table_count} tables")
+
+                  # Validate critical tables exist and have data
+                  critical_tables_valid = all(
+                      schema_validation['tables'].get(table, False) 
+                      for table in [
+                          'texts', 'authors', 'text_divisions', 
+                          'lemmas', 'sentences', 'text_lines'
+                      ]
+                  )
+
+                  performance_valid = all(
+                      metrics.get('row_count', 0) > 0 
+                      for metrics in performance_results.values()
+                  )
+
+                  return critical_tables_valid and performance_valid
+
               except Exception as e:
                   print(f"❌ Database validation failed: {e}")
                   return False
