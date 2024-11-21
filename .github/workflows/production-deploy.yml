@@ -241,4 +241,224 @@ jobs:
               exit(1)
           EOF
 
-  # Remaining workflow steps stay the same...
+  # Deployment Readiness Verification
+  deployment-readiness:
+    needs: database-validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: production
+          fetch-depth: 0
+
+      - name: Set up deployment environment
+        run: |
+          chmod +x deployment_readiness.sh verify_deployment.sh
+
+      - name: Run Deployment Readiness Checks
+        run: |
+          ./deployment_readiness.sh production
+        env:
+          DEPLOYMENT_MODE: production
+
+  # Remaining workflow steps stay the same as in the previous version
+  deploy-to-ec2:
+    needs: deployment-readiness
+    if: |
+      github.event_name == 'workflow_dispatch' || 
+      (github.event.workflow_run.conclusion == 'success' && 
+      github.event.workflow_run.name == 'Docker Build and Registry Push' && 
+      contains(github.event.workflow_run.head_branch, 'production'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: production
+          fetch-depth: 0
+
+      - name: Prepare Deployment Logs
+        run: |
+          mkdir -p deployment_logs
+          chmod 777 deployment_logs
+          echo "Workflow initiated at $(date)" > deployment_logs/workflow_start.log
+          echo "Repository: ${{ github.repository }}" >> deployment_logs/workflow_start.log
+          echo "Workflow Run ID: ${{ github.run_id }}" >> deployment_logs/workflow_start.log
+          ls -la deployment_logs
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull Backend Docker Image
+        run: |
+          BACKEND_REPO_LOWER=$(echo "${{ env.BACKEND_IMAGE_NAME }}" | tr '[:upper:]' '[:lower:]')
+          docker pull ghcr.io/$BACKEND_REPO_LOWER:production || true
+
+      - name: Pull Frontend Docker Image
+        run: |
+          FRONTEND_REPO_LOWER=$(echo "${{ env.FRONTEND_IMAGE_NAME }}" | tr '[:upper:]' '[:lower:]')
+          docker pull ghcr.io/$FRONTEND_REPO_LOWER:production || true
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Retrieve Production Secrets
+        id: get-secrets
+        run: |
+          secrets=$(aws secretsmanager get-secret-value --secret-id amta-production-secrets --query SecretString --output text)
+          
+          redis_url=$(echo $secrets | jq -r '.REDIS_URL')
+          bedrock_model_id=$(echo $secrets | jq -r '.BEDROCK_MODEL_ID')
+          
+          echo "::add-mask::$redis_url"
+          echo "::add-mask::$bedrock_model_id"
+          
+          echo "REDIS_URL=$redis_url" >> $GITHUB_OUTPUT
+          echo "BEDROCK_MODEL_ID=$bedrock_model_id" >> $GITHUB_OUTPUT
+
+      - name: Prepare Deployment Configuration
+        env:
+          REDIS_URL: ${{ steps.get-secrets.outputs.REDIS_URL }}
+          BEDROCK_MODEL_ID: ${{ steps.get-secrets.outputs.BEDROCK_MODEL_ID }}
+        run: |
+          echo "DEPLOYMENT_MODE=production" > .env
+          echo "REDIS_URL=$REDIS_URL" >> .env
+          echo "BEDROCK_MODEL_ID=$BEDROCK_MODEL_ID" >> .env
+          echo "AWS_REGION=us-east-1" >> .env
+          chmod 600 .env
+
+      - name: Deploy to EC2
+        env:
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$EC2_SSH_KEY" > ~/.ssh/ec2_key
+          chmod 600 ~/.ssh/ec2_key
+
+          SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=no"
+
+          # Setup EC2 environment
+          ssh $SSH_OPTS -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << SETUP_EOF
+            HOME_DIR=\$(eval echo ~$EC2_USER)
+            mkdir -p \$HOME_DIR/atlomy_chat/logs
+            chmod 750 \$HOME_DIR/atlomy_chat/logs
+            echo "Deployment initiated at \$(date)" > \$HOME_DIR/atlomy_chat/logs/deployment.log
+          SETUP_EOF
+
+          # Copy deployment files
+          scp $SSH_OPTS -i ~/.ssh/ec2_key \
+              docker-compose.yml .env \
+              $EC2_USER@$EC2_HOST:~/atlomy_chat/
+
+          # Deploy services
+          ssh $SSH_OPTS -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << DEPLOY_EOF
+            HOME_DIR=\$(eval echo ~$EC2_USER)
+            cd \$HOME_DIR/atlomy_chat
+            
+            # Pull latest images
+            docker pull ghcr.io/$(echo "${{ env.BACKEND_IMAGE_NAME }}" | tr '[:upper:]' '[:lower:]'):production
+            docker pull ghcr.io/$(echo "${{ env.FRONTEND_IMAGE_NAME }}" | tr '[:upper:]' '[:lower:]'):production
+            
+            # Stop and remove existing containers
+            docker-compose down || true
+            
+            # Start new deployment
+            docker-compose up -d
+            
+            # Log container status
+            docker-compose ps
+            docker-compose logs --tail=100
+          DEPLOY_EOF
+
+      - name: Verify Deployment
+        run: |
+          # Run comprehensive deployment verification
+          ./verify_deployment.sh
+
+      - name: Verify Deployment Health
+        env:
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+        run: |
+          SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=no"
+          
+          ssh $SSH_OPTS -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << HEALTH_EOF
+            HOME_DIR=\$(eval echo ~$EC2_USER)
+            cd \$HOME_DIR/atlomy_chat
+            
+            max_attempts=3
+            attempt=0
+            
+            while [ \$attempt -lt \$max_attempts ]; do
+              echo "Health Check Attempt \$((attempt + 1))"
+              
+              backend_response=\$(curl -s -w "%{http_code}" http://localhost:8081/health)
+              frontend_response=\$(curl -s -w "%{http_code}" http://localhost:3000)
+              
+              backend_status=\${backend_response: -3}
+              frontend_status=\${frontend_response: -3}
+              
+              if [ "\$backend_status" = "200" ] && [ "\$frontend_status" = "200" ]; then
+                echo "Successful Health Check: Both Backend and Frontend are Operational"
+                exit 0
+              fi
+              
+              echo "Health Check Failed. Backend Status: \$backend_status, Frontend Status: \$frontend_status"
+              docker-compose logs --tail=100
+              
+              attempt=\$((attempt + 1))
+              sleep 15
+            done
+            
+            echo "Critical: Health Checks Failed After \$max_attempts Attempts"
+            exit 1
+          HEALTH_EOF
+
+      - name: Preserve Deployment Logs
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: deployment-logs
+          path: |
+            deployment_logs/
+            ${{ github.workspace }}/deployment_logs/
+          retention-days: 7
+
+      - name: Generate Fallback Logs
+        if: failure()
+        run: |
+          mkdir -p deployment_logs
+          echo "Workflow Failed" > deployment_logs/workflow_failure.log
+          echo "Workflow Run ID: ${{ github.run_id }}" >> deployment_logs/workflow_failure.log
+          echo "Repository: ${{ github.repository }}" >> deployment_logs/workflow_failure.log
+          env >> deployment_logs/environment_vars.log
+
+  notify-status:
+    if: always()
+    needs: [deploy-to-ec2]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determine Workflow Status
+        run: |
+          if [[ "${{ needs.deploy-to-ec2.result }}" == "success" ]]; then
+            echo "✅ Production Deployment Completed Successfully"
+          else
+            echo "❌ Production Deployment Failed"
+            exit 1
+          fi
