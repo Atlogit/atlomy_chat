@@ -74,17 +74,25 @@ jobs:
           # secret extraction
           database_url=$(echo "$secrets" | jq -r '.DATABASE_URL')
           postgres_host=$(echo "$secrets" | jq -r '.POSTGRES_HOST')
-          postgres_port=$(echo "$secrets" | jq -r '.POSTGRES_PORT')
           postgres_db=$(echo "$secrets" | jq -r '.POSTGRES_DB')
           postgres_user=$(echo "$secrets" | jq -r '.POSTGRES_USER')
           postgres_password=$(echo "$secrets" | jq -r '.POSTGRES_PASSWORD')
-          
+          postgres_port=$(echo "$database_url" | sed -E 's|postgresql\+asyncpg://[^:]+:[^@]+@[^:/]+:?([0-9]+)?/.*|\1|')
+          if [ -z "$postgres_port" ]; then
+              postgres_port="5432"
+          fi
           redis_url=$(echo "$secrets" | jq -r '.REDIS_URL')
-          redis_host=$(echo "$secrets" | jq -r '.REDIS_HOST')
-          redis_port=$(echo "$secrets" | jq -r '.REDIS_PORT')
-          redis_db=$(echo "$secrets" | jq -r '.REDIS_DB')
-          redis_password=$(echo "$secrets" | jq -r '.REDIS_PASSWORD')
-          
+          redis_db=$(echo "$secrets" | jq -r '.REDIS_DB'  || echo "0")
+          redis_host=$(echo "$redis_url" | sed -E 's|redis://(:[^@]+@)?([^:]+):?.*|\2|')
+          redis_port=$(echo "$redis_url" | sed -E 's|redis://([^:]+@)?[^:]+:([0-9]+).*|\2|')
+          redis_password=$(echo "$redis_url" | sed -E 's|redis://:([^@]+)@.*|\1|')
+
+          if [ -z "$redis_port" ]; then
+              redis_port="6379"
+          fi
+          if [ -z "$redis_host" ]; then
+              redis_host="localhost"
+          fi
           bedrock_model_id=$(echo "$secrets" | jq -r '.BEDROCK_MODEL_ID')
           aws_bedrock_region=$(echo "$secrets" | jq -r '.AWS_BEDROCK_REGION')
           

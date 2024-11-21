@@ -28,9 +28,9 @@ services:
     ports:
       - "8081:8081"
     volumes:
-      - ./logs:/atlomy_chat/logs
-      - ./.env:/atlomy_chat/.env
-      - ./alembic:/atlomy_chat/alembic  # Mount Alembic migrations
+      - ./logs:/amta/logs
+      - ./.env:/amta/.env
+      - ./alembic:/amta/alembic  # Mount Alembic migrations
     env_file:
       - .env
     environment:

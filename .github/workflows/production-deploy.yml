@@ -120,11 +120,13 @@ jobs:
           
           # Extract database connection parameters using dynamic parsing
           postgres_host=$(echo "$database_url" | sed -E 's|postgresql\+asyncpg://[^:]+:[^@]+@([^:/]+).*|\1|')
-          postgres_port=$(echo "$database_url" | sed -E 's|postgresql\+asyncpg://[^:]+:[^@]+@[^:/]+:?([0-9]+)?.*|\1|' || echo "5432")
           postgres_db=$(echo "$database_url" | sed -E 's|postgresql\+asyncpg://[^:]+:[^@]+@[^:/]+:?[0-9]*/([^?]+).*|\1|')
           postgres_user=$(echo "$database_url" | sed -E 's|postgresql\+asyncpg://([^:]+):.*|\1|')
           postgres_password=$(echo "$secrets" | jq -r '.POSTGRES_PASSWORD')
-          
+          postgres_port=$(echo "$database_url" | sed -E 's|postgresql\+asyncpg://[^:]+:[^@]+@[^:/]+:?([0-9]+)?/.*|\1|')
+          if [ -z "$postgres_port" ]; then
+              postgres_port="5432"
+          fi
           # Validate extracted components
           for var in postgres_host postgres_db postgres_user postgres_password; do
             if [ -z "${!var}" ]; then
@@ -135,11 +137,18 @@ jobs:
           
           # Additional secrets extraction
           redis_url=$(echo "$secrets" | jq -r '.REDIS_URL')
-          redis_host=$(echo "$secrets" | jq -r '.REDIS_HOST')
-          redis_port=$(echo "$secrets" | jq -r '.REDIS_PORT')
-          redis_db=$(echo "$secrets" | jq -r '.REDIS_DB')
-          redis_password=$(echo "$secrets" | jq -r '.REDIS_PASSWORD')
-          
+          redis_db=$(echo "$secrets" | jq -r '.REDIS_DB  || echo "0"')
+          redis_host=$(echo "$redis_url" | sed -E 's|redis://(:[^@]+@)?([^:]+):?.*|\2|')
+          redis_port=$(echo "$redis_url" | sed -E 's|redis://([^:]+@)?[^:]+:([0-9]+).*|\2|')
+          redis_password=$(echo "$redis_url" | sed -E 's|redis://:([^@]+)@.*|\1|')
+
+          if [ -z "$redis_port" ]; then
+              redis_port="6379"
+          fi
+          if [ -z "$redis_host" ]; then
+              redis_host="localhost"
+          fi
+
           bedrock_model_id=$(echo "$secrets" | jq -r '.BEDROCK_MODEL_ID')
           aws_bedrock_region=$(echo "$secrets" | jq -r '.AWS_BEDROCK_REGION')
           
@@ -247,20 +256,20 @@ jobs:
           # Setup EC2 environment
           ssh $SSH_OPTS -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << SETUP_EOF
             HOME_DIR=\$(eval echo ~$EC2_USER)
-            mkdir -p \$HOME_DIR/atlomy_chat/logs
-            chmod 750 \$HOME_DIR/atlomy_chat/logs
-            echo "Deployment initiated at \$(date)" > \$HOME_DIR/atlomy_chat/logs/deployment.log
+            mkdir -p \$HOME_DIR/amta/logs
+            chmod 750 \$HOME_DIR/amta/logs
+            echo "Deployment initiated at \$(date)" > \$HOME_DIR/amta/logs/deployment.log
           SETUP_EOF
 
           # Copy deployment files
           scp $SSH_OPTS -i ~/.ssh/ec2_key \
               docker-compose.yml .env \
-              $EC2_USER@$EC2_HOST:~/atlomy_chat/
+              $EC2_USER@$EC2_HOST:~/amta/
 
           # Deploy services using Docker Compose
           ssh $SSH_OPTS -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << DEPLOY_EOF
             HOME_DIR=\$(eval echo ~$EC2_USER)
-            cd \$HOME_DIR/atlomy_chat
+            cd \$HOME_DIR/amta
             
             # Pull latest images
             docker-compose pull
@@ -291,7 +300,7 @@ jobs:
           
           ssh $SSH_OPTS -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << HEALTH_EOF
             HOME_DIR=\$(eval echo ~$EC2_USER)
-            cd \$HOME_DIR/atlomy_chat
+            cd \$HOME_DIR/amta
             
             max_attempts=3
             attempt=0

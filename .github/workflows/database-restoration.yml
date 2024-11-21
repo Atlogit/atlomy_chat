@@ -122,11 +122,13 @@ jobs:
           
           # Extract database connection parameters
           postgres_host=$(echo "$database_url" | sed -E 's|postgresql\+asyncpg://[^:]+:[^@]+@([^:/]+).*|\1|')
-          postgres_port=$(echo "$database_url" | sed -E 's|postgresql\+asyncpg://[^:]+:[^@]+@[^:/]+:?([0-9]+)?.*|\1|' || echo "5432")
           postgres_db=$(echo "$database_url" | sed -E 's|postgresql\+asyncpg://[^:]+:[^@]+@[^:/]+:?[0-9]*/([^?]+).*|\1|')
           postgres_user=$(echo "$database_url" | sed -E 's|postgresql\+asyncpg://([^:]+):.*|\1|')
           postgres_password=$(echo "$secrets" | jq -r '.POSTGRES_PASSWORD')
-          
+          postgres_port=$(echo "$database_url" | sed -E 's|postgresql\+asyncpg://[^:]+:[^@]+@[^:/]+:?([0-9]+)?/.*|\1|')
+          if [ -z "$postgres_port" ]; then
+              postgres_port="5432"
+          fi
           # Validate extracted values
           for var in postgres_host postgres_db postgres_user postgres_password; do
             if [ -z "${!var}" ]; then
