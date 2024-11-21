@@ -16,6 +16,14 @@ on:
         required: false
         type: boolean
         default: false
+      frontend_tag:
+        description: 'Frontend image tag (default: from Docker Build)'
+        required: false
+        type: string
+      backend_tag:
+        description: 'Backend image tag (default: from Docker Build)'
+        required: false
+        type: string
   workflow_run:
     workflows: ["Docker Build and Registry Push"]
     types:
@@ -281,8 +289,11 @@ jobs:
 
           # Copy deployment files
           scp $SSH_OPTS -i ~/.ssh/ec2_key \
-            docker-compose.yml .env \
+            docker-compose.yml .env verify_deployment.sh test_db_connection.py \
             $EC2_USER@$EC2_HOST:~/amta/
+
+            # Make verification script executable
+            chmod +x verify_deployment.sh
 
             # Login to GitHub Container Registry
           ssh $SSH_OPTS -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << DEPLOY_EOF
@@ -308,11 +319,6 @@ jobs:
             docker-compose logs --tail=100
           DEPLOY_EOF
 
-      - name: Verify Deployment
-        run: |
-          # Run comprehensive deployment verification
-          ./verify_deployment.sh
-
       - name: Verify Deployment Health
         env:
           EC2_SSH_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
@@ -325,9 +331,19 @@ jobs:
             HOME_DIR=\$(eval echo ~$EC2_USER)
             cd \$HOME_DIR/amta
             
+            # Color codes for better visibility
+            GREEN='\033[0;32m'
+            YELLOW='\033[1;33m'
+            RED='\033[0;31m'
+            NC='\033[0m'
+
             max_attempts=3
             attempt=0
             
+             # Quick check if containers are running
+            echo -e "\${YELLOW}Checking Docker containers status...${NC}"
+            docker-compose ps
+
             while [ \$attempt -lt \$max_attempts ]; do
               echo "Health Check Attempt \$((attempt + 1))"
               
@@ -338,20 +354,47 @@ jobs:
               frontend_status=\${frontend_response: -3}
               
               if [ "\$backend_status" = "200" ] && [ "\$frontend_status" = "200" ]; then
-                echo "Successful Health Check: Both Backend and Frontend are Operational"
+                echo -e "\${GREEN}Successful Health Check: Both Backend and Frontend are Operational${NC}"
+
+                # Log successful deployment version
+                echo "Deployed versions:"
+                echo "Frontend: \$(docker-compose ps frontend | grep -o 'frontend:.*')"
+                echo "Backend: \$(docker-compose ps backend | grep -o 'backend:.*')"
                 exit 0
               fi
+
+              echo -e "\${RED}Health Check Failed. Backend Status: \$backend_status, Frontend Status: \$frontend_status${NC}"
+              # More detailed failure information
+              echo "Container Status:"
+              docker-compose ps
               
-              echo "Health Check Failed. Backend Status: \$backend_status, Frontend Status: \$frontend_status"
+              echo "Recent Logs:"
               docker-compose logs --tail=100
               
+              # Check container resource usage
+              echo "Container Resources:"
+              docker stats --no-stream
+              
               attempt=\$((attempt + 1))
-              sleep 15
+              
+              if [ \$attempt -lt \$max_attempts ]; then
+                echo -e "\${YELLOW}Waiting 15 seconds before next attempt...${NC}"
+                sleep 15
+              fi
             done
             
-            echo "Critical: Health Checks Failed After \$max_attempts Attempts"
+            echo -e "\${RED}Critical: Health Checks Failed After \$max_attempts Attempts${NC}"
+            # Collect additional debugging information
+            echo "Full container logs:"
+            docker-compose logs > deployment_failure.log
+            
             exit 1
           HEALTH_EOF
+
+          if [ $? -ne 0 ]; then
+            echo "::error::Deployment health check failed"
+            exit 1
+          fi
 
       - name: Preserve Deployment Logs
         if: always()
