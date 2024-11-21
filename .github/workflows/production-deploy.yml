@@ -258,6 +258,9 @@ jobs:
             HOME_DIR=\$(eval echo ~$EC2_USER)
             mkdir -p \$HOME_DIR/amta/logs
             chmod 750 \$HOME_DIR/amta/logs
+            mkdir -p \$HOME_DIR/amta/next-app
+            chmod 750 \$HOME_DIR/amta/logs
+
             echo "Deployment initiated at \$(date)" > \$HOME_DIR/amta/logs/deployment.log
           SETUP_EOF
 
@@ -265,6 +268,11 @@ jobs:
           scp $SSH_OPTS -i ~/.ssh/ec2_key \
               docker-compose.yml .env \
               $EC2_USER@$EC2_HOST:~/amta/
+
+          # If you have build artifacts to copy, add them here
+          #scp $SSH_OPTS -i ~/.ssh/ec2_key -r \
+          #    ./build/* \
+          #    $EC2_USER@$EC2_HOST:~/amta/next-app/ 
 
           # Deploy services using Docker Compose
           ssh $SSH_OPTS -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << DEPLOY_EOF
