@@ -203,9 +203,15 @@ jobs:
             cp .env.example .env
             echo "Created .env file from .env.example"
           fi
-
-          # Run configuration validator
+      
+      # Configuration Validation
+      - name: Run configuration validator
+        run: |
           python config_validator.py .env
+        env:
+          DEPLOYMENT_MODE: production
+          AWS_DEFAULT_REGION: us-east-1
+
           
       - name: Deploy to EC2
         env:

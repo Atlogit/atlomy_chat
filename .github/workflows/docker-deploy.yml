@@ -239,7 +239,7 @@ jobs:
       # Configuration Validation
       - name: Run configuration validator
         run: |
-          python config_validator.py .env.production
+          python config_validator.py .env
         env:
           DEPLOYMENT_MODE: production
           AWS_DEFAULT_REGION: us-east-1
