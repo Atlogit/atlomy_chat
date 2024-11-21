@@ -46,213 +46,15 @@ jobs:
 
   database-validation:
     needs: database-restoration
-    runs-on: ubuntu-latest
-    container:
-      image: postgres:13
-    services:
-      postgres:
-        image: postgres:13
-        env:
-          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
-          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
-          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+    uses: ./.github/workflows/database-validation.yml
+    secrets: inherit
+    with:
+      deployment_mode: production
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
-          aws-region: us-east-1
-
-      - name: Retrieve Database Secrets
-        id: get-database-secrets
-        run: |
-          secrets=$(aws secretsmanager get-secret-value --secret-id amta-production-secrets --query SecretString --output text)
-          
-          database_url=$(echo "$secrets" | jq -r '.DATABASE_URL')
-          postgres_host=$(echo "$secrets" | jq -r '.POSTGRES_HOST')
-          postgres_port=$(echo "$secrets" | jq -r '.POSTGRES_PORT')
-          postgres_db=$(echo "$secrets" | jq -r '.POSTGRES_DB')
-          postgres_user=$(echo "$secrets" | jq -r '.POSTGRES_USER')
-          postgres_password=$(echo "$secrets" | jq -r '.POSTGRES_PASSWORD')
-          
-          echo "DATABASE_URL=$database_url" >> $GITHUB_OUTPUT
-          echo "POSTGRES_HOST=$postgres_host" >> $GITHUB_OUTPUT
-          echo "POSTGRES_PORT=$postgres_port" >> $GITHUB_OUTPUT
-          echo "POSTGRES_DB=$postgres_db" >> $GITHUB_OUTPUT
-          echo "POSTGRES_USER=$postgres_user" >> $GITHUB_OUTPUT
-          echo "POSTGRES_PASSWORD=$postgres_password" >> $GITHUB_OUTPUT
-
-      - name: Install Dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install sqlalchemy psycopg2-binary
-
-      - name: Validate Restored Database
-        env:
-          DATABASE_URL: ${{ steps.get-database-secrets.outputs.DATABASE_URL }}
-          POSTGRES_HOST: ${{ steps.get-database-secrets.outputs.POSTGRES_HOST }}
-          POSTGRES_PORT: ${{ steps.get-database-secrets.outputs.POSTGRES_PORT }}
-          POSTGRES_DB: ${{ steps.get-database-secrets.outputs.POSTGRES_DB }}
-          POSTGRES_USER: ${{ steps.get-database-secrets.outputs.POSTGRES_USER }}
-          POSTGRES_PASSWORD: ${{ steps.get-database-secrets.outputs.POSTGRES_PASSWORD }}
-        run: |
-          python3 - << EOF
-          import os
-          import time
-          import sqlalchemy
-          from sqlalchemy import create_engine, text
-          import psycopg2
-
-          def generate_connection_url(host, port, db, user, password):
-              """Generate a PostgreSQL connection URL."""
-              return f"postgresql://{user}:{password}@{host}:{port}/{db}"
-
-          def validate_database_connection(connection_url):
-              """Validate database connection with detailed diagnostics."""
-              try:
-                  print(f"🔍 Attempting to connect to database: {connection_url}")
-                  
-                  # Attempt connection using psycopg2 for more detailed error handling
-                  try:
-                      conn_params = {
-                          'host': os.environ['POSTGRES_HOST'],
-                          'port': os.environ['POSTGRES_PORT'],
-                          'dbname': os.environ['POSTGRES_DB'],
-                          'user': os.environ['POSTGRES_USER'],
-                          'password': os.environ['POSTGRES_PASSWORD']
-                      }
-                      conn = psycopg2.connect(**conn_params)
-                      conn.close()
-                      print("✅ Direct psycopg2 connection successful")
-                  except Exception as psycopg_err:
-                      print(f"❌ psycopg2 connection failed: {psycopg_err}")
-                      return False
-
-                  # SQLAlchemy connection test
-                  engine = create_engine(connection_url, connect_args={'connect_timeout': 10})
-                  
-                  with engine.connect() as connection:
-                      print("✅ SQLAlchemy database connection successful")
-                      
-                      # Basic database validation
-                      result = connection.execute(text("SELECT version()"))
-                      db_version = result.scalar()
-                      print(f"📦 Database Version: {db_version}")
-                      
-                      return True
-
-              except Exception as e:
-                  print(f"❌ Database connection test failed: {e}")
-                  return False
-
-          def validate_database_schema(engine):
-              validation_results = {
-                  'tables': {},
-                  'indexes': {},
-                  'constraints': {}
-              }
-
-              # Critical tables to validate based on our models
-              critical_tables = [
-                  'texts', 'authors', 'text_divisions', 
-                  'lemmas', 'lemma_analyses', 'sentences', 
-                  'text_lines', 'lexical_values'
-              ]
-              
-              with engine.connect() as connection:
-                  for table in critical_tables:
-                      try:
-                          # Check table existence
-                          table_exists = connection.execute(
-                              text(f"SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = '{table}' AND table_schema = 'public')")
-                          ).scalar()
-                          validation_results['tables'][table] = table_exists
-
-                          if table_exists:
-                              # Check table columns and row count
-                              columns_result = connection.execute(
-                                  text(f"SELECT COUNT(*) FROM information_schema.columns WHERE table_name = '{table}' AND table_schema = 'public'")
-                              )
-                              columns_count = columns_result.scalar()
-                              validation_results['tables'][f'{table}_columns'] = columns_count
-
-                              # Check row count
-                              row_count_result = connection.execute(text(f"SELECT COUNT(*) FROM {table}"))
-                              row_count = row_count_result.scalar()
-                              validation_results['tables'][f'{table}_rows'] = row_count
-
-                      except Exception as e:
-                          print(f"❌ Error validating table {table}: {e}")
-                          validation_results['tables'][table] = False
-
-              return validation_results
-
-          def validate_database(connection_url):
-              try:
-                  # Connection Validation
-                  if not validate_database_connection(connection_url):
-                      print("❌ Database connection validation failed")
-                      return False
-
-                  # Create engine for schema validation
-                  engine = create_engine(connection_url)
-
-                  # Schema Validation
-                  schema_validation = validate_database_schema(engine)
-                  print("📋 Schema Validation Results:")
-                  for category, results in schema_validation.items():
-                      print(f"{category.capitalize()}: {results}")
-
-                  # Validate critical tables exist and have data
-                  critical_tables_valid = all(
-                      schema_validation['tables'].get(table, False) 
-                      for table in [
-                          'texts', 'authors', 'text_divisions', 
-                          'lemmas', 'sentences', 'text_lines'
-                      ]
-                  )
-
-                  return critical_tables_valid
-
-              except Exception as e:
-                  print(f"❌ Database validation failed: {e}")
-                  return False
-
-          # Generate connection URL
-          connection_url = generate_connection_url(
-              os.environ['POSTGRES_HOST'],
-              os.environ['POSTGRES_PORT'],
-              os.environ['POSTGRES_DB'],
-              os.environ['POSTGRES_USER'],
-              os.environ['POSTGRES_PASSWORD']
-          )
-          
-          if validate_database(connection_url):
-              print("✅ Database restoration validated successfully")
-          else:
-              print("❌ Database validation failed")
-              exit(1)
-          EOF
-
-  # Deployment Readiness Verification
   deployment-readiness:
-    needs: database-validation
+    needs: 
+      - database-restoration
+      - database-validation
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -271,9 +73,11 @@ jobs:
         env:
           DEPLOYMENT_MODE: production
 
-  # Remaining workflow steps stay the same as in the previous version
   deploy-to-ec2:
-    needs: deployment-readiness
+    needs: 
+      - database-restoration
+      - database-validation
+      - deployment-readiness
     if: |
       github.event_name == 'workflow_dispatch' || 
       (github.event.workflow_run.conclusion == 'success' && 
@@ -286,6 +90,7 @@ jobs:
       id-token: write
 
     steps:
+      # Remaining deployment steps stay the same...
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
