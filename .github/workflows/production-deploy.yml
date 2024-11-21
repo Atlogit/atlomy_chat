@@ -137,7 +137,7 @@ jobs:
           
           # Additional secrets extraction
           redis_url=$(echo "$secrets" | jq -r '.REDIS_URL')
-          redis_db=$(echo "$secrets" | jq -r '.REDIS_DB  || echo "0"')
+          redis_db=$(echo "$secrets" | jq -r '.REDIS_DB // "0"')
           redis_host=$(echo "$redis_url" | sed -E 's|redis://(:[^@]+@)?([^:]+):?.*|\2|')
           redis_port=$(echo "$redis_url" | sed -E 's|redis://([^:]+@)?[^:]+:([0-9]+).*|\2|')
           redis_password=$(echo "$redis_url" | sed -E 's|redis://:([^@]+)@.*|\1|')
