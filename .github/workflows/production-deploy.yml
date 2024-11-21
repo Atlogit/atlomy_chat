@@ -289,7 +289,7 @@ jobs:
 
           # Copy deployment files
           scp $SSH_OPTS -i ~/.ssh/ec2_key \
-            docker-compose.yml .env verify_deployment.sh test_db_connection.py \
+            docker-compose.yml .env \
             $EC2_USER@$EC2_HOST:~/amta/
 
             # Make verification script executable
