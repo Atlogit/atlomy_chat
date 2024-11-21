@@ -250,13 +250,14 @@ jobs:
             
             export DATABASE_BACKUP_DIR="$DATABASE_BACKUP_DIR"
 
+            echo "chcking timestamp"
             # Get local database timestamp
             # Check if PG_VERSION exists
             if ! sudo test -f "$DATABASE_BACKUP_DIR/PG_VERSION"; then
               echo "No existing database found. Restoration needed."
               exit 2
             fi        
-
+            echo "continue check"
             # Convert timestamps to seconds since epoch
             backup_seconds=\$(date -d "$BACKUP_TIMESTAMP" +%s)
             local_seconds=\$(date -d "\$local_timestamp" +%s)
