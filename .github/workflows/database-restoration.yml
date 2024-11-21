@@ -252,7 +252,7 @@ jobs:
 
             # Get local database timestamp
             # Check if PG_VERSION exists
-            if ! sudo test -f "$DATABASE_BACKUP_DIR/PG_VERSION" ]; then
+            if ! sudo test -f "$DATABASE_BACKUP_DIR/PG_VERSION"; then
               echo "No existing database found. Restoration needed."
               exit 2
             fi        
