@@ -183,8 +183,20 @@ jobs:
               exit 0
             fi
           EOF
-
-
+            )
+            # Capture the exit code
+            SSH_EXIT_CODE=$?
+            
+            # Print the output for logging
+            echo "$CHECK_OUTPUT"
+            
+            # Set the GitHub output based on exit code
+            if [ $SSH_EXIT_CODE -eq 2 ]; then
+              echo "restore_needed=true" >> $GITHUB_OUTPUT
+            else
+              echo "restore_needed=false" >> $GITHUB_OUTPUT
+            fi
+            
       - name: Discover Latest S3 Backup
         id: discover-backup
         env:
