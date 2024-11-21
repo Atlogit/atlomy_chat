@@ -272,7 +272,7 @@ jobs:
           ssh $SSH_OPTS -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << AUTH_EOF
             # Get credentials from Secrets Manager
             GITHUB_CREDS=\$(aws secretsmanager get-secret-value \
-              --secret-id github/container-registry \
+              --secret-id amta-github-container-registry \
               --query SecretString \
               --output text)
             
