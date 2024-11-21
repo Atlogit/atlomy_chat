@@ -270,7 +270,7 @@ jobs:
               exit 0
             fi
           REMOTE_SCRIPT
-          )
+            )
             # Capture the exit code
             SSH_EXIT_CODE=$?
             
