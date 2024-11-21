@@ -269,11 +269,21 @@ jobs:
               docker-compose.yml .env \
               $EC2_USER@$EC2_HOST:~/amta/
 
-          # If you have build artifacts to copy, add them here
-          #scp $SSH_OPTS -i ~/.ssh/ec2_key -r \
-          #    ./build/* \
-          #    $EC2_USER@$EC2_HOST:~/amta/next-app/ 
-
+          ssh $SSH_OPTS -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << AUTH_EOF
+            # Get credentials from Secrets Manager
+            GITHUB_CREDS=\$(aws secretsmanager get-secret-value \
+              --secret-id github/container-registry \
+              --query SecretString \
+              --output text)
+            
+            # Extract username and token
+            GITHUB_USERNAME=\$(echo \$GITHUB_CREDS | jq -r .username)
+            GITHUB_TOKEN=\$(echo \$GITHUB_CREDS | jq -r .token)
+            
+            # Login to GitHub Container Registry
+            echo "\$GITHUB_TOKEN" | docker login ghcr.io -u "\$GITHUB_USERNAME" --password-stdin
+          AUTH_EOF
+          
           # Deploy services using Docker Compose
           ssh $SSH_OPTS -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << DEPLOY_EOF
             HOME_DIR=\$(eval echo ~$EC2_USER)
