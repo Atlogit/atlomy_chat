@@ -3,6 +3,14 @@ name: Production Deployment Workflow
 on:
   workflow_dispatch:
     inputs:
+      deployment_mode:
+        description: 'Deployment mode (development/production)'
+        required: false
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - development
       force_deploy:
         description: 'Force deployment without Docker Build workflow'
         required: false
@@ -56,6 +64,7 @@ jobs:
       - database-restoration
     #  - database-validation
     runs-on: ubuntu-latest
+    environment: ${{ inputs.deployment_mode }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -81,11 +90,15 @@ jobs:
       - name: Retrieve Production Secrets
         id: get-secrets
         run: |
-          secrets=$(aws secretsmanager get-secret-value --secret-id amta-production-secrets --query SecretString --output text)
-          
+          secrets=$(aws secretsmanager get-secret-value --secret-id amta-${{ inputs.deployment_mode }}-secrets --query SecretString --output text)
+
           # Parse database connection details
           database_url=$(echo "$secrets" | jq -r '.DATABASE_URL')
-          
+          if [ -z "$database_url" ]; then
+            echo "DATABASE_URL not found in secrets"
+            exit 1
+          fi
+
           # Extract database connection parameters
           postgres_host=$(echo "$database_url" | sed -E 's|postgresql\+asyncpg://[^:]+:[^@]+@([^:/]+).*|\1|')
           postgres_port=$(echo "$database_url" | sed -E 's|postgresql\+asyncpg://[^:]+:[^@]+@[^:/]+:?([0-9]+)?.*|\1|' || echo "5432")
@@ -116,6 +129,7 @@ jobs:
 
       - name: Prepare Deployment Configuration
         env:
+          
           POSTGRES_HOST: ${{ steps.get-secrets.outputs.POSTGRES_HOST }}
           POSTGRES_PORT: ${{ steps.get-secrets.outputs.POSTGRES_PORT }}
           POSTGRES_DB: ${{ steps.get-secrets.outputs.POSTGRES_DB }}
@@ -125,6 +139,7 @@ jobs:
           BEDROCK_MODEL_ID: ${{ steps.get-secrets.outputs.BEDROCK_MODEL_ID }}
         run: |
           echo "DEPLOYMENT_MODE=production" > .env
+          echo "DATABASE_URL=$database_url" >> $GITHUB_OUTPUT
           echo "POSTGRES_HOST=$POSTGRES_HOST" >> .env
           echo "POSTGRES_PORT=$POSTGRES_PORT" >> .env
           echo "POSTGRES_DB=$POSTGRES_DB" >> .env
