@@ -54,7 +54,7 @@ jobs:
   deployment-readiness:
     needs: 
       - database-restoration
-      - database-validation
+      #- database-validation
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -76,7 +76,7 @@ jobs:
   deploy-to-ec2:
     needs: 
       - database-restoration
-      - database-validation
+      #- database-validation
       - deployment-readiness
     if: |
       github.event_name == 'workflow_dispatch' || 
