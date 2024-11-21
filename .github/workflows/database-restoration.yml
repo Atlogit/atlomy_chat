@@ -177,10 +177,8 @@ jobs:
             # Check if PostgreSQL data directory exists and contains PG_VERSION
             if ! sudo test -f "$POSTGRES_DATA_DIR/PG_VERSION"; then
               echo "Database not initialized. Restoration required."
-              echo "restore_needed=true" >> "$GITHUB_OUTPUT"
             else
               echo "Database directory exists."
-              echo "restore_needed=false" >> "$GITHUB_OUTPUT"
             fi
           EOF
 
