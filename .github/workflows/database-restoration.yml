@@ -175,14 +175,15 @@ jobs:
 
             echo "Checking PostgreSQL data directory: \${POSTGRES_DATA_DIR}"
             # Check if PostgreSQL data directory exists and contains PG_VERSION
-            if ! sudo test -f "\POSTGRES_DATA_DIR/PG_VERSION"; then
+            if ! sudo test -f "${POSTGRES_DATA_DIR}/PG_VERSION"; then
               echo "Database not initialized. Restoration required."
               echo "restore_needed=true" >> "$GITHUB_OUTPUT"
             else
               echo "Database directory exists."
+              echo "restore_needed=false" >> "$GITHUB_OUTPUT"
             fi
           REMOTE_SCRIPT
-          
+
       - name: Discover Latest S3 Backup
         id: discover-backup
         env:
