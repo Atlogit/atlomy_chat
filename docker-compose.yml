@@ -20,7 +20,7 @@ services:
       retries: 3
 
   backend:
-    image: ghcr.io/atlogit/atlomy_chat-backend:latest
+    image: ghcr.io/atlogit/atlomy_chat-backend:${BACKEND_TAG:-latest}
     #build: 
     #  context: .
     #  dockerfile: Dockerfile.backend
@@ -48,6 +48,7 @@ services:
       - POSTGRES_USER=${POSTGRES_USER}
       - SERVER_HOST=0.0.0.0
       - SERVER_PORT=8081
+      - NODE_ENV=${NODE_ENV:-development}
     restart: unless-stopped
     depends_on:
       - postgres
@@ -61,7 +62,7 @@ services:
       start_period: 40s
 
   frontend:
-    image: ghcr.io/atlogit/atlomy_chat-frontend:latest
+    image: ghcr.io/atlogit/atlomy_chat-frontend:${FRONTEND_TAG:-latest}
     #build:
     #  context: ./next-app
     #  dockerfile: Dockerfile
@@ -72,6 +73,7 @@ services:
     environment:
       - NODE_ENV=production
       - BACKEND_URL=http://localhost:8081
+      - NODE_ENV=${NODE_ENV:-development}
     restart: unless-stopped
     depends_on:
       - backend
