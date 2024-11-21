@@ -96,6 +96,7 @@ jobs:
           redis_url=$(echo "$secrets" | jq -r '.REDIS_URL')
           bedrock_model_id=$(echo "$secrets" | jq -r '.BEDROCK_MODEL_ID')
           
+          echo "::add-mask::$database_url"
           echo "::add-mask::$postgres_host"
           echo "::add-mask::$postgres_port"
           echo "::add-mask::$postgres_db"
@@ -104,6 +105,7 @@ jobs:
           echo "::add-mask::$redis_url"
           echo "::add-mask::$bedrock_model_id"
           
+          echo "DATABASE_URL=$database_url" >> $GITHUB_OUTPUT
           echo "POSTGRES_HOST=$postgres_host" >> $GITHUB_OUTPUT
           echo "POSTGRES_PORT=$postgres_port" >> $GITHUB_OUTPUT
           echo "POSTGRES_DB=$postgres_db" >> $GITHUB_OUTPUT
