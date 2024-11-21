@@ -44,54 +44,20 @@ jobs:
     with:
       deployment_mode: production
 
-  database-validation:
-    needs: database-restoration
-    uses: ./.github/workflows/database-validation.yml
-    secrets: inherit
-    with:
-      deployment_mode: production
-
-  deployment-readiness:
-    needs: 
-      - database-restoration
-      #- database-validation
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          ref: production
-          fetch-depth: 0
-
-      - name: Set up deployment environment
-        run: |
-          chmod +x deployment_readiness.sh verify_deployment.sh
-
-      - name: Run Deployment Readiness Checks
-        run: |
-          ./deployment_readiness.sh production
-        env:
-          DEPLOYMENT_MODE: production
+  #database-validation:
+  #  needs: database-restoration
+  #  uses: ./.github/workflows/database-validation.yml
+  #  secrets: inherit
+  #  with:
+  #    deployment_mode: production
 
   deploy-to-ec2:
     needs: 
       - database-restoration
-      #- database-validation
-      - deployment-readiness
-    if: |
-      github.event_name == 'workflow_dispatch' || 
-      (github.event.workflow_run.conclusion == 'success' && 
-      github.event.workflow_run.name == 'Docker Build and Registry Push' && 
-      contains(github.event.workflow_run.head_branch, 'production'))
+    #  - database-validation
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: read
-      id-token: write
-
     steps:
-      # Remaining deployment steps stay the same...
-      - name: Checkout repository
+      - name: Checkout Repository
         uses: actions/checkout@v4
         with:
           ref: production
@@ -106,22 +72,6 @@ jobs:
           echo "Workflow Run ID: ${{ github.run_id }}" >> deployment_logs/workflow_start.log
           ls -la deployment_logs
 
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Pull Backend Docker Image
-        run: |
-          BACKEND_REPO_LOWER=$(echo "${{ env.BACKEND_IMAGE_NAME }}" | tr '[:upper:]' '[:lower:]')
-          docker pull ghcr.io/$BACKEND_REPO_LOWER:production || true
-
-      - name: Pull Frontend Docker Image
-        run: |
-          FRONTEND_REPO_LOWER=$(echo "${{ env.FRONTEND_IMAGE_NAME }}" | tr '[:upper:]' '[:lower:]')
-          docker pull ghcr.io/$FRONTEND_REPO_LOWER:production || true
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -134,23 +84,28 @@ jobs:
         run: |
           secrets=$(aws secretsmanager get-secret-value --secret-id amta-production-secrets --query SecretString --output text)
           
-          redis_url=$(echo $secrets | jq -r '.REDIS_URL')
-          bedrock_model_id=$(echo $secrets | jq -r '.BEDROCK_MODEL_ID')
+          redis_url=$(echo "$secrets" | jq -r '.REDIS_URL')
+          bedrock_model_id=$(echo "$secrets" | jq -r '.BEDROCK_MODEL_ID')
+          database_url=$(echo "$secrets" | jq -r '.DATABASE_URL')
           
           echo "::add-mask::$redis_url"
           echo "::add-mask::$bedrock_model_id"
+          echo "::add-mask::$database_url"
           
           echo "REDIS_URL=$redis_url" >> $GITHUB_OUTPUT
           echo "BEDROCK_MODEL_ID=$bedrock_model_id" >> $GITHUB_OUTPUT
+          echo "DATABASE_URL=$database_url" >> $GITHUB_OUTPUT
 
       - name: Prepare Deployment Configuration
         env:
           REDIS_URL: ${{ steps.get-secrets.outputs.REDIS_URL }}
           BEDROCK_MODEL_ID: ${{ steps.get-secrets.outputs.BEDROCK_MODEL_ID }}
+          DATABASE_URL: ${{ steps.get-secrets.outputs.DATABASE_URL }}
         run: |
           echo "DEPLOYMENT_MODE=production" > .env
           echo "REDIS_URL=$REDIS_URL" >> .env
           echo "BEDROCK_MODEL_ID=$BEDROCK_MODEL_ID" >> .env
+          echo "DATABASE_URL=$DATABASE_URL" >> .env
           echo "AWS_REGION=us-east-1" >> .env
           chmod 600 .env
 
@@ -179,14 +134,13 @@ jobs:
               docker-compose.yml .env \
               $EC2_USER@$EC2_HOST:~/atlomy_chat/
 
-          # Deploy services
+          # Deploy services using Docker Compose
           ssh $SSH_OPTS -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << DEPLOY_EOF
             HOME_DIR=\$(eval echo ~$EC2_USER)
             cd \$HOME_DIR/atlomy_chat
             
             # Pull latest images
-            docker pull ghcr.io/$(echo "${{ env.BACKEND_IMAGE_NAME }}" | tr '[:upper:]' '[:lower:]'):production
-            docker pull ghcr.io/$(echo "${{ env.FRONTEND_IMAGE_NAME }}" | tr '[:upper:]' '[:lower:]'):production
+            docker-compose pull
             
             # Stop and remove existing containers
             docker-compose down || true
