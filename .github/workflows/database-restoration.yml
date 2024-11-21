@@ -168,7 +168,7 @@ jobs:
         run: |
           ssh_opts="-o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10"
           
-          CHECK_OUTPUT=$(ssh $ssh_opts -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" << REMOTE_SCRIPT
+          ssh $ssh_opts -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" << 'REMOTE_SCRIPT'
             set -e
 
             export POSTGRES_DATA_DIR="$POSTGRES_DATA_DIR"
@@ -177,26 +177,13 @@ jobs:
             # Check if PostgreSQL data directory exists and contains PG_VERSION
             if ! sudo test -f "$POSTGRES_DATA_DIR/PG_VERSION"; then
               echo "Database not initialized. Restoration required."
-              exit 2
-            else
-              echo "Database directory exists."
-              exit 0
-            fi
-          REMOTE_SCRIPT
-            )
-            # Capture the exit code
-            SSH_EXIT_CODE=$?
-            
-            # Print the output for logging
-            echo "$CHECK_OUTPUT"
-            
-            # Set the GitHub output based on exit code
-            if [ $SSH_EXIT_CODE -eq 2 ]; then
               echo "restore_needed=true" >> $GITHUB_OUTPUT
             else
-              echo "restore_needed=false" >> $GITHUB_OUTPUT
+              echo "Database directory exists."
+              echo "${{ inputs.force_restore }}=true"
             fi
-            
+          REMOTE_SCRIPT
+
       - name: Discover Latest S3 Backup
         id: discover-backup
         env:
