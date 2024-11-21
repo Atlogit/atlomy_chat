@@ -168,19 +168,19 @@ jobs:
         run: |
           ssh_opts="-o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10"
           
-          ssh $ssh_opts -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" << REMOTE_SCRIPT
+          ssh $ssh_opts -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" << 'REMOTE_SCRIPT'
             set -e
 
-            export POSTGRES_DATA_DIR="$POSTGRES_DATA_DIR"
+            POSTGRES_DATA_DIR="$POSTGRES_DATA_DIR"
 
-            echo "Checking PostgreSQL data directory: \${POSTGRES_DATA_DIR}"
+            echo "Checking PostgreSQL data directory: $POSTGRES_DATA_DIR"
             # Check if PostgreSQL data directory exists and contains PG_VERSION
-            if ! sudo test -f "${POSTGRES_DATA_DIR}/PG_VERSION"; then
+            if ! sudo test -f "$POSTGRES_DATA_DIR/PG_VERSION"; then
               echo "Database not initialized. Restoration required."
-              echo "restore_needed=true" >> "$GITHUB_OUTPUT"
+              echo "restore_needed=true" >> $GITHUB_OUTPUT
             else
               echo "Database directory exists."
-              echo "restore_needed=false" >> "$GITHUB_OUTPUT"
+              echo "restore_needed=false" >> $GITHUB_OUTPUT
             fi
           REMOTE_SCRIPT
 
