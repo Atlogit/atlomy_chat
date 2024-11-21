@@ -103,23 +103,6 @@ jobs:
           role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
           aws-region: us-east-1
 
-      - name: Diagnose Python Environment
-        run: |
-          echo "Python Version:"
-          python --version
-          
-          echo "Installed Packages:"
-          pip list
-          
-          echo "Boto3 Diagnostic:"
-          python -c "
-            import sys
-            import boto3
-            print('Python Executable:', sys.executable)
-            print('Python Version:', sys.version)
-            print('Boto3 Version:', boto3.__version__)
-            print('Boto3 Location:', boto3.__file__)
-            "
 
       - name: Retrieve Production Secrets
         id: get-secrets
