@@ -161,13 +161,19 @@ jobs:
           
           # Setup the private key
           echo "$EC2_SSH_KEY" > ~/.ssh/ec2_key
+          chmod 700 ~/.ssh/ec2_key
+          
+          # Setup the private key with proper permissions
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/ec2_key
           chmod 600 ~/.ssh/ec2_key
-          
-          # Remove old host key and accept new one
-          ssh-keygen -R ${{ secrets.EC2_HOST }} || true
-          
-          # Accept the new host key (with verbose output for debugging)
-          ssh -v -i ~/.ssh/ec2_key -o StrictHostKeyChecking=accept-new ec2-user@${{ secrets.EC2_HOST }} 'exit' || true
+
+          # Add host key checking configuration
+          echo "Host ${{ secrets.EC2_HOST }}
+          StrictHostKeyChecking accept-new
+          UserKnownHostsFile ~/.ssh/known_hosts" > ~/.ssh/config
+
+          # Test SSH connection
+          ssh -i ~/.ssh/ec2_key ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} 'echo "SSH connection successful"'
           
           # Actual deployment command
           ssh -i ~/.ssh/ec2_key ec2-user@${{ secrets.EC2_HOST }} '
