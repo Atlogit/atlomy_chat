@@ -26,6 +26,8 @@ export DEPLOYMENT_MODE=${DEPLOYMENT_MODE:-production}
 export SERVER_HOST=${SERVER_HOST:-0.0.0.0}
 export SERVER_PORT=${SERVER_PORT:-8081}
 export LOG_LEVEL=${LOG_LEVEL:-info}
+# Convert LOG_LEVEL to lowercase
+LOG_LEVEL=$(echo "$LOG_LEVEL" | tr '[:upper:]' '[:lower:]')
 
 # Validate critical environment variables
 if [ -z "$REDIS_URL" ]; then
@@ -53,6 +55,9 @@ python -c "import boto3; print('AWS SDK: OK')" || log "ERROR" "AWS SDK import fa
 
 # Start FastAPI server with comprehensive logging
 log "INFO" "Launching Uvicorn server..."
+echo "LOG_LEVEL value: '$LOG_LEVEL'"
+echo "LOG_LEVEL length: ${#LOG_LEVEL}"
+
 exec uvicorn app.run_server:app \
     --host "$SERVER_HOST" \
     --port "$SERVER_PORT" \
