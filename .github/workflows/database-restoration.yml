@@ -159,6 +159,10 @@ jobs:
           echo "$EC2_SSH_KEY" > ~/.ssh/ec2_key
           chmod 600 ~/.ssh/ec2_key
 
+          # Disable host key checking
+          echo -e "Host *\n\tStrictHostKeyChecking no\n\tUserKnownHostsFile /dev/null" > ~/.ssh/config
+          chmod 600 ~/.ssh/config
+
       - name: Check Database Initialization Status
         id: check-database
         env:

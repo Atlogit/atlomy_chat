@@ -274,6 +274,10 @@ jobs:
           echo "$EC2_SSH_KEY" > ~/.ssh/ec2_key
           chmod 600 ~/.ssh/ec2_key
 
+          mkdir -p ~/.ssh
+          echo "$EC2_SSH_KEY" > ~/.ssh/ec2_key
+          chmod 600 ~/.ssh/ec2_key
+
           SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=no"
 
           # Setup EC2 environment
