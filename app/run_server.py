@@ -117,6 +117,12 @@ async def general_exception_handler(request: Request, exc: Exception):
         }
     )
 
+# Add health check endpoint
+@app.get("/health")
+async def health_check():
+    """Simple health check endpoint."""
+    return {"status": "healthy", "message": "Backend service is running"}
+
 # Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
