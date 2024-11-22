@@ -149,39 +149,16 @@ jobs:
       - name: Prepare SSH Key
         env:
           EC2_SSH_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
-          EC2_HOST: ${{ secrets.EC2_HOST }}
-          EC2_USER: ${{ secrets.EC2_USER }}
         run: |
-          # Check if SSH key is set
           if [ -z "$EC2_SSH_KEY" ]; then
             echo "EC2 SSH key is not set"
             exit 1
           fi
           
-          # Create .ssh directory with proper permissions
           mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-          touch ~/.ssh/known_hosts
-          
-          # Setup the private key (do this only once)
           echo "$EC2_SSH_KEY" > ~/.ssh/ec2_key
           chmod 600 ~/.ssh/ec2_key
-          
-          # Add host key checking configuration
-          echo "Host $EC2_HOST
-            StrictHostKeyChecking accept-new
-            UserKnownHostsFile ~/.ssh/known_hosts" > ~/.ssh/config
-          chmod 600 ~/.ssh/config
-          
-          # Test SSH connection
-          ssh -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST 'echo "SSH connection successful"'
-          
-          # Actual deployment command
-          ssh -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST '
-            whoami &&
-            pwd
-          '
-          
+
       - name: Check Database Initialization Status
         id: check-database
         env:
@@ -189,7 +166,7 @@ jobs:
           EC2_USER: ${{ secrets.EC2_USER }}
           POSTGRES_DATA_DIR: ${{ inputs.postgres_data_dir }}
           DATABASE_BACKUP_DIR: ${{ inputs.database_backup_dir }}
-        continue-on-error: true
+
         run: |
           ssh_opts="-o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10"
           
