@@ -12,12 +12,12 @@ log() {
 }
 
 # Ensure logs directory exists
-mkdir -p /atlomy_chat/logs
+mkdir -p /amta/logs
 
 # Load environment variables
-if [ -f /atlomy_chat/.env ]; then
+if [ -f /amta/.env ]; then
     set -a
-    source /atlomy_chat/.env
+    source /amta/.env
     set +a
 fi
 
@@ -25,7 +25,7 @@ fi
 export DEPLOYMENT_MODE=${DEPLOYMENT_MODE:-production}
 export SERVER_HOST=${SERVER_HOST:-0.0.0.0}
 export SERVER_PORT=${SERVER_PORT:-8081}
-export LOG_LEVEL=${LOG_LEVEL:-INFO}
+export LOG_LEVEL=${LOG_LEVEL:-info}
 
 # Validate critical environment variables
 if [ -z "$REDIS_URL" ]; then
