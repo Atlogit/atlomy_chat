@@ -65,7 +65,7 @@ services:
 
 
   backend:
-    image: ghcr.io/atlogit/atlomy_chat-backend:production-backend-5528058
+    image: ghcr.io/atlogit/atlomy_chat-backend:production-backend-b075fbb
     #build: 
     #  context: .
     #  dockerfile: Dockerfile.backend
@@ -106,7 +106,7 @@ services:
       start_period: 40s
 
   frontend:
-    image: ghcr.io/atlogit/atlomy_chat-frontend:production-frontend-5528058
+    image: ghcr.io/atlogit/atlomy_chat-frontend:production-frontend-b075fbb
     #build:
     #  context: ./next-app
     #  dockerfile: Dockerfile
