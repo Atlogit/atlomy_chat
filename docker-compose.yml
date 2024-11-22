@@ -8,7 +8,8 @@ services:
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
     volumes:
-      - ${POSTGRES_DATA_DIR:-/var/lib/postgresql/data}
+      #- ${POSTGRES_DATA_DIR:-/var/lib/postgresql/data}
+      - /home/ec2-user/amta/postgresql/data
     #network_mode: "host"
     ports:
       - "${POSTGRES_PORT}:5432"
@@ -35,7 +36,8 @@ services:
     env_file:
       - .env
     environment:
-      - POSTGRES_DATA_DIR=${POSTGRES_DATA_DIR:-/var/lib/postgresql/data}
+      #- POSTGRES_DATA_DIR=${POSTGRES_DATA_DIR:-/var/lib/postgresql/data}
+      - POSTGRES_DATA_DIR=/home/ec2-user/amta/postgresql/data
       - PYTHONUNBUFFERED=1
       - DEPLOYMENT_MODE=${DEPLOYMENT_MODE}
       - REDIS_URL=${REDIS_URL}
