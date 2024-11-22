@@ -189,7 +189,7 @@ jobs:
           EC2_USER: ${{ secrets.EC2_USER }}
           POSTGRES_DATA_DIR: ${{ inputs.postgres_data_dir }}
           DATABASE_BACKUP_DIR: ${{ inputs.database_backup_dir }}
-
+        continue-on-error: true
         run: |
           ssh_opts="-o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10"
           
