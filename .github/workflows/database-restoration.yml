@@ -155,15 +155,25 @@ jobs:
             exit 1
           fi
           
+          # Create .ssh directory and files
           mkdir -p ~/.ssh
+          touch ~/.ssh/known_hosts
+          
+          # Setup the private key
           echo "$EC2_SSH_KEY" > ~/.ssh/ec2_key
           chmod 600 ~/.ssh/ec2_key
-
-          # Remove any existing host key for this IP/hostname
-          ssh-keygen -R ${{ secrets.EC2_HOST }}
           
-          # Accept the new host key
-          ssh -i ~/.ssh/ec2_key -o StrictHostKeyChecking=accept-new ec2-user@${{ secrets.EC2_HOST }} 'exit'
+          # Remove old host key and accept new one
+          ssh-keygen -R ${{ secrets.EC2_HOST }} || true
+          
+          # Accept the new host key (with verbose output for debugging)
+          ssh -v -i ~/.ssh/ec2_key -o StrictHostKeyChecking=accept-new ec2-user@${{ secrets.EC2_HOST }} 'exit' || true
+          
+          # Actual deployment command
+          ssh -i ~/.ssh/ec2_key ec2-user@${{ secrets.EC2_HOST }} '
+            whoami &&
+            pwd
+          '
           
       - name: Check Database Initialization Status
         id: check-database
