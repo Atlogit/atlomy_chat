@@ -159,10 +159,12 @@ jobs:
           echo "$EC2_SSH_KEY" > ~/.ssh/ec2_key
           chmod 600 ~/.ssh/ec2_key
 
-          # Disable host key checking
-          echo -e "Host *\n\tStrictHostKeyChecking no\n\tUserKnownHostsFile /dev/null" > ~/.ssh/config
-          chmod 600 ~/.ssh/config
-
+          # Remove any existing host key for this IP/hostname
+          ssh-keygen -R ${{ secrets.EC2_HOST }}
+          
+          # Accept the new host key
+          ssh -i ~/.ssh/ec2_key -o StrictHostKeyChecking=accept-new ec2-user@${{ secrets.EC2_HOST }} 'exit'
+          
       - name: Check Database Initialization Status
         id: check-database
         env:
