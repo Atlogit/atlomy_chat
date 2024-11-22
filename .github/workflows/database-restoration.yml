@@ -190,26 +190,42 @@ jobs:
 
             # Main check
             if ! sudo test -f "$POSTGRES_DATA_DIR/PG_VERSION"; then
-              echo "Database not initialized. Restoration required."
-              exit 2
+              #echo "Database not initialized. Restoration required."
+              echo "NEEDS_RESTORE"  # Use this as a marker
+              exit 0
             else
-              echo "Database directory exists."
+              #echo "Database directory exists."
+              echo "DATABASE_EXISTS"
               exit 0
             fi
           REMOTE_SCRIPT
             )
-            # Capture the exit code
-            SSH_EXIT_CODE=$?
             
             # Print the output for logging
+            echo "Command output:"
             echo "$CHECK_OUTPUT"
             
-            # Set the GitHub output based on exit code
-            if [ $SSH_EXIT_CODE -eq 2 ]; then
+            # Set the GitHub output based on the output content, not exit code
+            if echo "$CHECK_OUTPUT" | grep -q "NEEDS_RESTORE"; then
               echo "restore_needed=true" >> $GITHUB_OUTPUT
+              echo "Database needs restoration"
             else
               echo "restore_needed=false" >> $GITHUB_OUTPUT
+              echo "Database exists and initialized"
             fi
+
+            # Capture the exit code
+            #SSH_EXIT_CODE=$?
+            
+            # Print the output for logging
+            #echo "$CHECK_OUTPUT"
+            
+            # Set the GitHub output based on exit code
+            #if [ $SSH_EXIT_CODE -eq 2 ]; then
+            #  echo "restore_needed=true" >> $GITHUB_OUTPUT
+            #else
+            #  echo "restore_needed=false" >> $GITHUB_OUTPUT
+            #fi
             
       - name: Discover Latest S3 Backup
         id: discover-backup
