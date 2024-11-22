@@ -4,12 +4,12 @@ FROM python:3.11-slim-bullseye
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
-ENV VIRTUAL_ENV=/atlomy_chat/venv
+ENV VIRTUAL_ENV=/amta/venv
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
-ENV PYTHONPATH="/atlomy_chat:$PYTHONPATH"
+ENV PYTHONPATH="/amta:$PYTHONPATH"
 
 # Set working directory to the project root
-WORKDIR /atlomy_chat
+WORKDIR /amta
 
 # Install system dependencies and venv creation tools
 RUN apt-get update && apt-get install -y \
@@ -27,7 +27,7 @@ ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
 # Verify venv creation and activation
 RUN python3 -m venv --help && \
-    ls -la /atlomy_chat && \
+    ls -la /amta && \
     ls -la $VIRTUAL_ENV && \
     which python && \
     python --version
@@ -39,7 +39,7 @@ RUN pip install --upgrade pip setuptools wheel
 COPY . .
 
 # Create logs directory
-RUN mkdir -p /atlomy_chat/logs && chmod 777 /atlomy_chat/logs
+RUN mkdir -p /amta/logs && chmod 777 /amta/logs
 
 # Diagnostic step: list contents and verify package structure
 RUN ls -R app && python -c "import sys; print('\n'.join(sys.path))"
@@ -70,7 +70,7 @@ RUN python -c "import sys; print('Current working directory:', sys.path[0])" && 
 RUN python -c "import app; print('App package imported successfully')"
 
 # Verify specific module can be imported with full path
-RUN PYTHONPATH=/atlomy_chat python -c "from app import run_server; print('run_server module imported successfully')"
+RUN PYTHONPATH=/amta python -c "from app import run_server; print('run_server module imported successfully')"
 
 # Make port 8081 available
 EXPOSE 8081

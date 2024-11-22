@@ -4,12 +4,12 @@ FROM python:3.11-slim-bullseye
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
-ENV VIRTUAL_ENV=/atlomy_chat/venv
+ENV VIRTUAL_ENV=/amta/venv
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
-ENV PYTHONPATH="/atlomy_chat:$PYTHONPATH"
+ENV PYTHONPATH="/amta:$PYTHONPATH"
 
 # Set working directory to the project root
-WORKDIR /atlomy_chat
+WORKDIR /amta
 
 # Install system dependencies and venv creation tools
 RUN apt-get update && apt-get install -y \
