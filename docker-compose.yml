@@ -129,14 +129,8 @@ services:
 
   redis:
     image: redis:6.2-alpine
-    command: >
-          redis-server 
-          --appendonly yes 
-          --save 60 1 
-          --loglevel warning
-          --requirepass ${REDIS_PASSWORD}
-          --port ${REDIS_PORT}
-          --databases ${REDIS_DB}    container_name: amta-redis
+    container_name: amta-redis
+    command: redis-server --databases 16 --port ${REDIS_PORT}
     #network_mode: "host"
     ports:
       - "${REDIS_PORT}:${REDIS_PORT}"
