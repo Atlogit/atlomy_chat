@@ -29,9 +29,9 @@ services:
     ports:
       - "8081:8081"
     volumes:
-      - ./logs:/amta/logs
-      - ./.env:/amta/.env
-      - ./alembic:/amta/alembic  # Mount Alembic migrations
+      - ./logs:/home/ec2-user/amta/logs
+      - ./.env:/home/ec2-user/amta/.env
+      - ./alembic:/home/ec2-user/amta/alembic  # Mount Alembic migrations
     env_file:
       - .env
     environment:
@@ -87,7 +87,7 @@ services:
     container_name: amta-redis
     #network_mode: "host"
     volumes:
-      - redis_data:/data
+      - redis_data:/home/ec2-user/amta/redis/data
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
