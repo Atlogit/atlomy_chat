@@ -389,6 +389,9 @@ jobs:
         run: |
           ssh_opts="-o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10"
           
+          echo "Starting timestamp comparison..."
+          echo "Backup timestamp from S3: $BACKUP_TIMESTAMP"
+
           # If database is already marked for restoration, skip timestamp comparison
           if [ "$CHECK_DATABASE_RESTORE_NEEDED" = "true" ]; then
             echo "Database already marked for restoration from previous check."
@@ -397,45 +400,78 @@ jobs:
           fi
 
           # Perform timestamp comparison only if database exists
-          CHECK_OUTPUT=$(ssh $ssh_opts -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" << REMOTE_SCRIPT
+          CHECK_OUTPUT=$(ssh $ssh_opts -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" << 'REMOTE_SCRIPT'
           set -e
             
-            export DATABASE_BACKUP_DIR="$DATABASE_BACKUP_DIR"
-            export POSTGRES_DATA_DIR="$POSTGRES_DATA_DIR"
+            echo "Starting remote script execution..."
+            echo "POSTGRES_DATA_DIR=$POSTGRES_DATA_DIR"
+
 
             # Get local database timestamp
             if [ -d "$POSTGRES_DATA_DIR" ]; then
-              local_timestamp=\$(sudo stat -c %Y "$POSTGRES_DATA_DIR" | sudo xargs -I{} date -d @{} '+%Y-%m-%d %H:%M:%S')
-              if [ -z "$local_timestamp" ]; then
-                        echo "Could not get database timestamp"
-                        exit 2
-                      fi
-                      echo "Local database timestamp: $local_timestamp"
-                    else
-                      echo "Database directory not found"
-                      exit 2
-                    fi
-            
-            # Convert timestamps to seconds since epoch
-            backup_seconds=\$(date -d "$BACKUP_TIMESTAMP" +%s)
-            local_seconds=\$(date -d "\$local_timestamp" +%s)
+              echo "Database directory exists, getting timestamp..."
 
-            
-            # Store comparison result in variable instead of exiting
-            if [ "$backup_seconds" -gt "$local_seconds" ] || [ "${{ inputs.force_restore }}" = "true" ]; then
-              echo "NEEDS_RESTORE"
-            else
-              echo "UP_TO_DATE"
-            fi
-          REMOTE_SCRIPT
-          )
+              # Debug: Show directory permissions
+              suo ls -la "$POSTGRES_DATA_DIR"
+
+              local_timestamp=$(sudo stat -c %Y "$POSTGRES_DATA_DIR" | sudo xargs -I{} date -d @{} '+%Y-%m-%d %H:%M:%S')
+                echo "Raw local timestamp: $local_timestamp"
+
+              if [ -z "$local_timestamp" ]; then
+                echo "ERROR: Could not get database timestamp"
+                echo "ERROR: Could not get database timestamp"
+                echo "NEEDS_RESTORE"
+                exit 0
+              fi
+              echo "Local database timestamp: $local_timestamp"
+              else
+                echo "ERROR: Database directory not found at $POSTGRES_DATA_DIR"
+                echo "NEEDS_RESTORE"
+                exit 0
+              fi
+              
+              echo "Converting timestamps to seconds..."
+              echo "BACKUP_TIMESTAMP=$BACKUP_TIMESTAMP"
+              
+              # Debug: Show date command results
+              echo "Attempting backup timestamp conversion..."
+              backup_seconds=$(date -d "$BACKUP_TIMESTAMP" +%s)
+              echo "backup_seconds=$backup_seconds"
+              
+              echo "Attempting local timestamp conversion..."
+              local_seconds=$(date -d "$local_timestamp" +%s)
+              echo "local_seconds=$local_seconds"
           
-          # Set GitHub output based on comparison result
-          if echo "$CHECK_OUTPUT" | grep -q "NEEDS_RESTORE"; then
-            echo "restore_needed=true" >> $GITHUB_OUTPUT
-          else
-            echo "restore_needed=false" >> $GITHUB_OUTPUT
-          fi
+              echo "Comparing timestamps..."
+              echo "Backup: $BACKUP_TIMESTAMP ($backup_seconds)"
+              echo "Local:  $local_timestamp ($local_seconds)"
+
+              # Compare timestamps with debug output
+              if [ "$backup_seconds" -gt "$local_seconds" ]; then
+                echo "Backup is newer than local database"
+                echo "NEEDS_RESTORE"
+              elif [ "$FORCE_RESTORE" = "true" ]; then
+                echo "Force restore requested"
+                echo "NEEDS_RESTORE"
+              else
+                echo "Local database is up to date"
+                echo "UP_TO_DATE"
+              fi
+            REMOTE_SCRIPT
+            )          
+
+            # Print the output for logging
+            echo "Remote script output:"
+            echo "$CHECK_OUTPUT"
+            
+            # Set the GitHub output based on the response
+            if echo "$CHECK_OUTPUT" | grep -q "NEEDS_RESTORE"; then
+              echo "Setting restore_needed=true"
+              echo "restore_needed=true" >> $GITHUB_OUTPUT
+            else
+              echo "Setting restore_needed=false"
+              echo "restore_needed=false" >> $GITHUB_OUTPUT
+            fi
 
       - name: Initialize PostgreSQL Data Directory
         id: init-postgres
