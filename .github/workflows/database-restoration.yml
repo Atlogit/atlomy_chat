@@ -181,21 +181,39 @@ jobs:
               local data_dir="$POSTGRES_DATA_DIR"
               local status="UNINITIALIZED"
               
+              echo "🔍 Checking PostgreSQL data directory: $data_dir"
+              
+              # Debug: Show directory contents and permissions
+              echo "Directory listing:"
+              sudo ls -la "$data_dir" || echo "Directory does not exist or not accessible"
+              
+              # Debug: Try to find PG_VERSION
+              echo "Searching for PG_VERSION:"
+              sudo find "$data_dir" -name PG_VERSION 2>/dev/null || echo "PG_VERSION not found"
+              
               # Step 1: Check if directory exists and has basic structure
-              if [ -d "$data_dir" ] && [ -f "$data_dir/PG_VERSION" ]; then
+              if sudo test -d "$data_dir" && sudo test -f "$data_dir/PG_VERSION"; then
+                echo "Found PG_VERSION file"
+                
                 # Check for essential PostgreSQL directories
                 local required_dirs=("base" "global" "pg_wal" "pg_xact")
                 local missing_dirs=0
                 
                 for dir in "${required_dirs[@]}"; do
-                  if [ ! -d "$data_dir/$dir" ]; then
+                  echo "Checking directory: $dir"
+                  if ! sudo test -d "$data_dir/$dir"; then
+                    echo "Missing directory: $dir"
                     missing_dirs=$((missing_dirs + 1))
+                  else
+                    echo "Found directory: $dir"
                   fi
                 done
                 
                 if [ $missing_dirs -eq 0 ]; then
+                  echo "All required directories present"
                   status="INITIALIZED"
                 else
+                  echo "Missing $missing_dirs required directories"
                   status="CORRUPTED"
                 fi
               fi
@@ -208,6 +226,15 @@ jobs:
                 docker ps -q --filter "name=pg-verify" | xargs -r docker stop
                 docker ps -aq --filter "name=pg-verify" | xargs -r docker rm
                 
+                # Debug: Show data directory permissions before container start
+                echo "Data directory permissions:"
+                sudo ls -la "$data_dir"
+                
+                # Ensure proper permissions for Docker
+                echo "Setting proper permissions for Docker..."
+                sudo chown -R 999:999 "$data_dir"
+                sudo chmod 0700 "$data_dir"
+                
                 if ! timeout 30s docker run --rm \
                   --name pg-verify \
                   -v "$data_dir:/var/lib/postgresql/data" \
@@ -217,29 +244,38 @@ jobs:
                   --user 999:999 \
                   postgres:14 \
                   postgres -D /var/lib/postgresql/data -c 'log_statement=none' &> /dev/null; then
+                  echo "Container verification failed"
                   status="CORRUPTED"
+                else
+                  echo "Container verification successful"
                 fi
               fi
               
+              echo "Final status: $status"
               echo "$status"
             }
             
             # Main execution
+            echo "Starting database initialization check..."
             status=$(check_postgres_initialization)
-            echo "$status"
+            echo "Check completed with status: $status"
             
             # Store status in a variable instead of exiting
             case "$status" in
               "UNINITIALIZED")
+                echo "Database is not initialized"
                 db_status=2
                 ;;
               "CORRUPTED")
+                echo "Database is corrupted or incomplete"
                 db_status=3
                 ;;
               "INITIALIZED")
+                echo "Database is properly initialized"
                 db_status=0
                 ;;
               *)
+                echo "Unknown database status"
                 db_status=1
                 ;;
             esac
@@ -360,7 +396,13 @@ jobs:
         run: |
           ssh_opts="-o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10"
           
-          ssh $ssh_opts -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" << 'REMOTE_SCRIPT'
+          ssh $ssh_opts -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" \
+            POSTGRES_DB="$POSTGRES_DB" \
+            POSTGRES_USER="$POSTGRES_USER" \
+            POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+            POSTGRES_DATA_DIR="$POSTGRES_DATA_DIR" \
+            DATABASE_BACKUP_DIR="$DATABASE_BACKUP_DIR" \
+            'bash -s' << 'REMOTE_SCRIPT'
             set -e
             
             cleanup() {
@@ -377,36 +419,50 @@ jobs:
             echo "🧹 Initial cleanup of any existing Docker resources..."
             cleanup
             
-            # Create required directories and set permissions
-            sudo mkdir -p "$(dirname $POSTGRES_DATA_DIR)"
-            sudo mkdir -p "$(dirname $DATABASE_BACKUP_DIR)"
+            # Create directories
+            sudo mkdir -p "$POSTGRES_DATA_DIR"
             sudo mkdir -p "$DATABASE_BACKUP_DIR"
             
-            # Ensure postgres user exists
+            # Set up postgres user
             sudo groupadd -f -g 999 postgres || true
             if ! id postgres &>/dev/null; then
               sudo useradd -r -u 999 -g postgres postgres || true
             fi
             
-            # Clean and prepare PostgreSQL data directory
-            sudo rm -rf "$POSTGRES_DATA_DIR"
-            sudo mkdir -p "$POSTGRES_DATA_DIR"
+            # Prepare data directory
+            sudo rm -rf "$POSTGRES_DATA_DIR"/*
             sudo chown -R 999:999 "$POSTGRES_DATA_DIR"
             sudo chmod 0700 "$POSTGRES_DATA_DIR"
             
-            echo "🐳 Initializing PostgreSQL using Docker..."
-            docker run --rm \
+            echo "🐳 Starting PostgreSQL to initialize data directory..."
+            # The postgres image will automatically initialize the data directory
+            # and create the database if it's empty
+            docker run -d \
               --name postgres-init \
               -v "$POSTGRES_DATA_DIR:/var/lib/postgresql/data" \
               -e POSTGRES_DB="$POSTGRES_DB" \
               -e POSTGRES_USER="$POSTGRES_USER" \
               -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
               --user 999:999 \
-              postgres:14 \
-              initdb -D /var/lib/postgresql/data
+              postgres:14
             
-            # Verify initialization
-            if [ ! -f "$POSTGRES_DATA_DIR/PG_VERSION" ]; then
+            # Wait for PostgreSQL to be ready
+            for i in {1..30}; do
+              if docker exec postgres-init pg_isready -U "$POSTGRES_USER" &>/dev/null; then
+                echo "✅ PostgreSQL is ready"
+                break
+              fi
+              if [ $i -eq 30 ]; then
+                echo "❌ PostgreSQL failed to initialize"
+                exit 1
+              fi
+              sleep 1
+            done
+            
+            # Stop the container - our data directory is now initialized
+            docker stop postgres-init
+            
+            if ! sudo test -f "$POSTGRES_DATA_DIR/PG_VERSION"; then
               echo "❌ PostgreSQL initialization failed"
               exit 1
             fi
