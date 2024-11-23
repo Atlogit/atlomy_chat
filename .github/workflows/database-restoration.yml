@@ -617,7 +617,7 @@ jobs:
             fi
             
             echo "✅ Backup downloaded and verified successfully"
-        REMOTE_SCRIPT
+          REMOTE_SCRIPT
 
       - name: Restore Database
         id: restore-database
