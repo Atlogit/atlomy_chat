@@ -457,21 +457,21 @@ jobs:
                 echo "Local database is up to date"
                 echo "UP_TO_DATE"
               fi
-            REMOTE_SCRIPT
-            )          
+          REMOTE_SCRIPT
+          )          
 
-            # Print the output for logging
-            echo "Remote script output:"
-            echo "$CHECK_OUTPUT"
-            
-            # Set the GitHub output based on the response
-            if echo "$CHECK_OUTPUT" | grep -q "NEEDS_RESTORE"; then
-              echo "Setting restore_needed=true"
-              echo "restore_needed=true" >> $GITHUB_OUTPUT
-            else
-              echo "Setting restore_needed=false"
-              echo "restore_needed=false" >> $GITHUB_OUTPUT
-            fi
+          # Print the output for logging
+          echo "Remote script output:"
+          echo "$CHECK_OUTPUT"
+          
+          # Set the GitHub output based on the response
+          if echo "$CHECK_OUTPUT" | grep -q "NEEDS_RESTORE"; then
+            echo "Setting restore_needed=true"
+            echo "restore_needed=true" >> $GITHUB_OUTPUT
+          else
+            echo "Setting restore_needed=false"
+            echo "restore_needed=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Initialize PostgreSQL Data Directory
         id: init-postgres
