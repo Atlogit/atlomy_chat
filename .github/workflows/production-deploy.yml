@@ -53,12 +53,12 @@ jobs:
           echo "Workflow Run Name: ${{ github.event.workflow_run.name }}"
           echo "Workflow Run Branch: ${{ github.event.workflow_run.head_branch }}"
 
-  database-restoration:
-    needs: validate-workflow-trigger
-    uses: ./.github/workflows/database-restoration.yml
-    secrets: inherit
-    with:
-      deployment_mode: production
+  #database-restoration:
+  #  needs: validate-workflow-trigger
+  #  uses: ./.github/workflows/database-restoration.yml
+  #  secrets: inherit
+  #  with:
+  #    deployment_mode: production
 
   #database-validation:
   #  needs: database-restoration
@@ -68,8 +68,8 @@ jobs:
   #    deployment_mode: production
 
   deploy-to-ec2:
-    needs: 
-      - database-restoration
+    #needs: 
+    #  - database-restoration
     runs-on: ubuntu-latest
     environment: ${{ inputs.deployment_mode }}
     steps:
