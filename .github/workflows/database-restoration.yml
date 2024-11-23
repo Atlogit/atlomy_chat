@@ -173,7 +173,7 @@ jobs:
           ssh_opts="-o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10"
           
           # Pass environment variables directly to SSH command
-          ssh $ssh_opts -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" \
+          CHECK_OUTPUT=$(ssh $ssh_opts -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" \
             "POSTGRES_DATA_DIR='$POSTGRES_DATA_DIR' \
              DATABASE_BACKUP_DIR='$DATABASE_BACKUP_DIR' \
              POSTGRES_DB='$POSTGRES_DB' \
@@ -315,6 +315,9 @@ jobs:
             return 0
           REMOTE_SCRIPT
           )
+          
+          # Print output for logging
+          echo "Check output: $CHECK_OUTPUT"
           
           # Extract the status code from the output
           if echo "$CHECK_OUTPUT" | grep -q "DB_STATUS="; then
