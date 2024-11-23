@@ -403,23 +403,18 @@ jobs:
             export DATABASE_BACKUP_DIR="$DATABASE_BACKUP_DIR"
             export POSTGRES_DATA_DIR="$POSTGRES_DATA_DIR"
 
-              # Get local database timestamp
-            if [ -d "$POSTGRES_DATA_DIR" ]; then
-              local_timestamp=\$(stat -c %Y "$POSTGRES_DATA_DIR" | xargs -I{} date -d @{} '+%Y-%m-%d %H:%M:%S')
-              echo "Local database timestamp: \$local_timestamp"
-            else
-              echo "Database directory not found"
-              exit 2
-            fi
-
             # Get local database timestamp
             if [ -d "$POSTGRES_DATA_DIR" ]; then
-              local_timestamp=\$(stat -c %Y "$POSTGRES_DATA_DIR" | xargs -I{} date -d @{} '+%Y-%m-%d %H:%M:%S')
-              echo "Local database timestamp: \$local_timestamp"
-            else
-              echo "Database directory not found"
-              exit 2
-            fi
+              local_timestamp=\$(sudo stat -c %Y "$POSTGRES_DATA_DIR" | sudo xargs -I{} date -d @{} '+%Y-%m-%d %H:%M:%S')
+              if [ -z "$local_timestamp" ]; then
+                        echo "Could not get database timestamp"
+                        exit 2
+                      fi
+                      echo "Local database timestamp: $local_timestamp"
+                    else
+                      echo "Database directory not found"
+                      exit 2
+                    fi
             
             # Convert timestamps to seconds since epoch
             backup_seconds=\$(date -d "$BACKUP_TIMESTAMP" +%s)
