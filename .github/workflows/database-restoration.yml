@@ -321,10 +321,7 @@ jobs:
           else
             db_status=1
           fi
-          
-          # Print output for logging
-          echo "Check output: $CHECK_OUTPUT"
-          
+                    
           # Set GitHub outputs based on status
           case $db_status in
             0)
