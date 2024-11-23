@@ -169,12 +169,24 @@ jobs:
           POSTGRES_DB: ${{ steps.get-database-secrets.outputs.POSTGRES_DB }}
           POSTGRES_USER: ${{ steps.get-database-secrets.outputs.POSTGRES_USER }}
           POSTGRES_PASSWORD: ${{ steps.get-database-secrets.outputs.POSTGRES_PASSWORD }}
-
         run: |
           ssh_opts="-o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10"
           
-          CHECK_OUTPUT=$(ssh $ssh_opts -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" << 'REMOTE_SCRIPT'
+          # Pass environment variables directly to SSH command
+          ssh $ssh_opts -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" \
+            "POSTGRES_DATA_DIR='$POSTGRES_DATA_DIR' \
+             DATABASE_BACKUP_DIR='$DATABASE_BACKUP_DIR' \
+             POSTGRES_DB='$POSTGRES_DB' \
+             POSTGRES_USER='$POSTGRES_USER' \
+             POSTGRES_PASSWORD='$POSTGRES_PASSWORD' \
+             bash -s" << 'REMOTE_SCRIPT'
             set -e
+
+            echo "Debug: Environment variables:"
+            echo "POSTGRES_DATA_DIR=$POSTGRES_DATA_DIR"
+            echo "DATABASE_BACKUP_DIR=$DATABASE_BACKUP_DIR"
+            echo "POSTGRES_DB=$POSTGRES_DB"
+            echo "POSTGRES_USER=$POSTGRES_USER"
 
             # Function to check PostgreSQL initialization status
             check_postgres_initialization() {
