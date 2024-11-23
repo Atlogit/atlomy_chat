@@ -391,6 +391,7 @@ jobs:
           
           echo "Starting timestamp comparison..."
           echo "Backup timestamp from S3: $BACKUP_TIMESTAMP"
+          echo "POSTGRES_DATA_DIR: $POSTGRES_DATA_DIR"
 
           # If database is already marked for restoration, skip timestamp comparison
           if [ "$CHECK_DATABASE_RESTORE_NEEDED" = "true" ]; then
@@ -400,71 +401,61 @@ jobs:
           fi
 
           # Perform timestamp comparison only if database exists
-          CHECK_OUTPUT=$(ssh $ssh_opts -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" << 'REMOTE_SCRIPT'
-          set -e
+          CHECK_OUTPUT=$(ssh $ssh_opts -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" "
+            POSTGRES_DATA_DIR=\"$POSTGRES_DATA_DIR\"
+            BACKUP_TIMESTAMP=\"$BACKUP_TIMESTAMP\"
+            FORCE_RESTORE=\"${{ inputs.force_restore }}\"
             
-            echo "Starting remote script execution..."
-            echo "POSTGRES_DATA_DIR=$POSTGRES_DATA_DIR"
-
-
-            # Get local database timestamp
-            if [ -d "$POSTGRES_DATA_DIR" ]; then
-              echo "Database directory exists, getting timestamp..."
-
-              # Debug: Show directory permissions
-              suo ls -la "$POSTGRES_DATA_DIR"
-
-              local_timestamp=$(sudo stat -c %Y "$POSTGRES_DATA_DIR" | sudo xargs -I{} date -d @{} '+%Y-%m-%d %H:%M:%S')
-                echo "Raw local timestamp: $local_timestamp"
-
-              if [ -z "$local_timestamp" ]; then
-                echo "ERROR: Could not get database timestamp"
-                echo "ERROR: Could not get database timestamp"
-                echo "NEEDS_RESTORE"
+            echo \"Starting remote script execution...\"
+            echo \"POSTGRES_DATA_DIR=\$POSTGRES_DATA_DIR\"
+            
+            if [ -d \"\$POSTGRES_DATA_DIR\" ]; then
+              echo \"Database directory exists, getting timestamp...\"
+              ls -la \"\$POSTGRES_DATA_DIR\"
+              
+              local_timestamp=\$(sudo stat -c %Y \"\$POSTGRES_DATA_DIR\" | sudo xargs -I{} date -d @{} '+%Y-%m-%d %H:%M:%S')
+              echo \"Raw local timestamp: \$local_timestamp\"
+              
+              if [ -z \"\$local_timestamp\" ]; then
+                echo \"ERROR: Could not get database timestamp\"
+                echo \"NEEDS_RESTORE\"
                 exit 0
               fi
-              echo "Local database timestamp: $local_timestamp"
-              else
-                echo "ERROR: Database directory not found at $POSTGRES_DATA_DIR"
-                echo "NEEDS_RESTORE"
-                exit 0
-              fi
-              
-              echo "Converting timestamps to seconds..."
-              echo "BACKUP_TIMESTAMP=$BACKUP_TIMESTAMP"
-              
-              # Debug: Show date command results
-              echo "Attempting backup timestamp conversion..."
-              backup_seconds=$(date -d "$BACKUP_TIMESTAMP" +%s)
-              echo "backup_seconds=$backup_seconds"
-              
-              echo "Attempting local timestamp conversion..."
-              local_seconds=$(date -d "$local_timestamp" +%s)
-              echo "local_seconds=$local_seconds"
+              echo \"Local database timestamp: \$local_timestamp\"
+            else
+              echo \"ERROR: Database directory not found at \$POSTGRES_DATA_DIR\"
+              echo \"NEEDS_RESTORE\"
+              exit 0
+            fi
+
+            echo \"Converting timestamps to seconds...\"
+            echo \"BACKUP_TIMESTAMP=\$BACKUP_TIMESTAMP\"
+            
+            backup_seconds=\$(date -d \"\$BACKUP_TIMESTAMP\" +%s)
+            echo \"backup_seconds=\$backup_seconds\"
+            
+            local_seconds=\$(date -d \"\$local_timestamp\" +%s)
+            echo \"local_seconds=\$local_seconds\"
+        
+            echo \"Comparing timestamps...\"
+            echo \"Backup: \$BACKUP_TIMESTAMP (\$backup_seconds)\"
+            echo \"Local:  \$local_timestamp (\$local_seconds)\"
+
+            if [ \"\$backup_seconds\" -gt \"\$local_seconds\" ]; then
+              echo \"Backup is newer than local database\"
+              echo \"NEEDS_RESTORE\"
+            elif [ \"\$FORCE_RESTORE\" = \"true\" ]; then
+              echo \"Force restore requested\"
+              echo \"NEEDS_RESTORE\"
+            else
+              echo \"Local database is up to date\"
+              echo \"UP_TO_DATE\"
+            fi
+          ")
           
-              echo "Comparing timestamps..."
-              echo "Backup: $BACKUP_TIMESTAMP ($backup_seconds)"
-              echo "Local:  $local_timestamp ($local_seconds)"
-
-              # Compare timestamps with debug output
-              if [ "$backup_seconds" -gt "$local_seconds" ]; then
-                echo "Backup is newer than local database"
-                echo "NEEDS_RESTORE"
-              elif [ "$FORCE_RESTORE" = "true" ]; then
-                echo "Force restore requested"
-                echo "NEEDS_RESTORE"
-              else
-                echo "Local database is up to date"
-                echo "UP_TO_DATE"
-              fi
-          REMOTE_SCRIPT
-          )          
-
-          # Print the output for logging
           echo "Remote script output:"
           echo "$CHECK_OUTPUT"
           
-          # Set the GitHub output based on the response
           if echo "$CHECK_OUTPUT" | grep -q "NEEDS_RESTORE"; then
             echo "Setting restore_needed=true"
             echo "restore_needed=true" >> $GITHUB_OUTPUT
@@ -583,26 +574,24 @@ jobs:
         run: |
           ssh_opts="-o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10"
           
-          ssh $ssh_opts -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" << 'REMOTE_SCRIPT'
+          ssh $ssh_opts -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" << REMOTE_SCRIPT
             set -e
             
             # Export AWS credentials
-            export AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID"
-            export AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY"
-            export AWS_SESSION_TOKEN="$AWS_SESSION_TOKEN"
-            export AWS_DEFAULT_REGION="$AWS_DEFAULT_REGION"
+            export AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}"
+            export AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}"
+            export AWS_SESSION_TOKEN="${AWS_SESSION_TOKEN}"
+            export AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION}"
             
-            # Export variables for use in the script
-            export EC2_USER="$EC2_USER"
-            export DATABASE_BACKUP_DIR="$DATABASE_BACKUP_DIR"
+            DATABASE_BACKUP_DIR="${DATABASE_BACKUP_DIR}"
 
             # Ensure backup directory exists
-            sudo mkdir -p "\$DATABASE_BACKUP_DIR"
-            sudo chown -R "\$EC2_USER:\$EC2_USER" "\$DATABASE_BACKUP_DIR"
-
+            sudo mkdir -p "${DATABASE_BACKUP_DIR}"
+            sudo chown -R "${EC2_USER}:${EC2_USER}" "${DATABASE_BACKUP_DIR}"
+          
             echo "⬇️ Downloading backup from S3..."
-            aws s3 cp "s3://$S3_BACKUP_BUCKET/$S3_BACKUP_PREFIX/$LATEST_BACKUP" \
-              "$DATABASE_BACKUP_DIR/latest_backup.tar.gz"
+            aws s3 cp "s3://${S3_BACKUP_BUCKET}/${S3_BACKUP_PREFIX}/${LATEST_BACKUP}" \
+              "${DATABASE_BACKUP_DIR}/latest_backup.tar.gz"
             
             if [ ! -f "${DATABASE_BACKUP_DIR}/latest_backup.tar.gz" ]; then
               echo "❌ Backup download failed"
@@ -616,19 +605,19 @@ jobs:
             fi
             
             # Check backup contents
-            backup_contents=$(tar tzf "${DATABASE_BACKUP_DIR}/latest_backup.tar.gz")
-            if ! echo "$backup_contents" | grep -q "PG_VERSION"; then
+            backup_contents=\$(tar tzf "${DATABASE_BACKUP_DIR}/latest_backup.tar.gz")
+            if ! echo "\$backup_contents" | grep -q "PG_VERSION"; then
               echo "❌ Invalid PostgreSQL backup"
               exit 1
             fi
             
-            if ! echo "$backup_contents" | grep -q "base/"; then
+            if ! echo "\$backup_contents" | grep -q "base/"; then
               echo "❌ Missing essential PostgreSQL directories"
               exit 1
             fi
             
             echo "✅ Backup downloaded and verified successfully"
-          REMOTE_SCRIPT
+        REMOTE_SCRIPT
 
       - name: Restore Database
         id: restore-database
