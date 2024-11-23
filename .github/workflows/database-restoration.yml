@@ -183,7 +183,7 @@ jobs:
             # Check if PostgreSQL data directory exists and contains PG_VERSION
 
             # Debug: Check if directory exists
-            ls -la "$POSTGRES_DATA_DIR"
+            sudo ls -la "$POSTGRES_DATA_DIR"
             
             # Debug: Try to find PG_VERSION
             sudo find "$POSTGRES_DATA_DIR" -name PG_VERSION
