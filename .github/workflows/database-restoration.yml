@@ -226,36 +226,41 @@ jobs:
             
             # Main execution
             status=$(check_postgres_initialization)
+            echo "$status"
             
+            # Store status in a variable instead of exiting
             case "$status" in
               "UNINITIALIZED")
-                echo "Database is not initialized"
-                exit 2
+                db_status=2
                 ;;
               "CORRUPTED")
-                echo "Database is corrupted or incomplete"
-                exit 3
+                db_status=3
                 ;;
               "INITIALIZED")
-                echo "Database is properly initialized"
-                exit 0
+                db_status=0
                 ;;
               *)
-                echo "Unknown database status"
-                exit 1
+                db_status=1
                 ;;
             esac
+            
+            # Return the status code without exiting
+            echo "DB_STATUS=$db_status"
           REMOTE_SCRIPT
           )
           
-          # Capture exit code
-          EXIT_CODE=$?
+          # Extract the status code from the output
+          if echo "$CHECK_OUTPUT" | grep -q "DB_STATUS="; then
+            db_status=$(echo "$CHECK_OUTPUT" | grep "DB_STATUS=" | cut -d'=' -f2)
+          else
+            db_status=1
+          fi
           
           # Print output for logging
           echo "Check output: $CHECK_OUTPUT"
           
           # Set GitHub outputs based on status
-          case $EXIT_CODE in
+          case $db_status in
             0)
               echo "status=initialized" >> $GITHUB_OUTPUT
               echo "restore_needed=false" >> $GITHUB_OUTPUT
@@ -323,24 +328,17 @@ jobs:
             backup_seconds=$(date -d "$BACKUP_TIMESTAMP" +%s)
             local_seconds=$(date -d "$local_timestamp" +%s)
             
+            # Store comparison result in variable instead of exiting
             if [ "$backup_seconds" -gt "$local_seconds" ] || [ "${{ inputs.force_restore }}" = "true" ]; then
-              echo "Backup is newer than local database or force restore requested"
-              exit 2
+              echo "NEEDS_RESTORE"
             else
-              echo "Local database is up to date"
-              exit 0
+              echo "UP_TO_DATE"
             fi
           REMOTE_SCRIPT
           )
           
-          # Capture exit code
-          EXIT_CODE=$?
-          
-          # Print output for logging
-          echo "$CHECK_OUTPUT"
-          
-          # Set GitHub output based on exit code
-          if [ $EXIT_CODE -eq 2 ]; then
+          # Set GitHub output based on comparison result
+          if echo "$CHECK_OUTPUT" | grep -q "NEEDS_RESTORE"; then
             echo "restore_needed=true" >> $GITHUB_OUTPUT
           else
             echo "restore_needed=false" >> $GITHUB_OUTPUT
