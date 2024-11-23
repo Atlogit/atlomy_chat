@@ -15,7 +15,7 @@ services:
       - POSTGRES_EFFECTIVE_CACHE_SIZE=768MB
     volumes:
       - ${POSTGRES_DATA_DIR:-postgres_data}:/var/lib/postgresql/data
-    #network_mode: "host"
+      - ~/amta/logs:/var/log/postgresql
     ports:
       - "${POSTGRES_PORT}:5432"
     restart: unless-stopped
@@ -42,8 +42,6 @@ services:
       - "-c"
       - "temp_file_limit=10GB"
       - "-c"
-      - "log_min_duration_statement=200ms"
-      - "-c"
       - "idle_in_transaction_session_timeout=10s"
       - "-c"
       - "lock_timeout=1s"
@@ -55,6 +53,20 @@ services:
       - "pg_stat_statements.max=10000"
       - "-c"
       - "pg_stat_statements.track=all"
+      - "-c"
+      - "logging_collector=on"
+      - "-c"
+      - "log_directory=/var/log/postgresql"
+      - "-c"
+      - "log_filename=database_debug.log"
+      - "-c"
+      - "log_min_messages=${DEPLOYMENT_MODE:-production}"
+      - "-c"
+      - "log_min_error_statement=${DEPLOYMENT_MODE:-production}"
+      - "-c"
+      - "log_statement=${DEPLOYMENT_MODE:-production}"
+      - "-c"
+      - "log_line_prefix=%m [%p] %q%u@%d "
     ulimits:
       nproc: 65535
       nofile:
@@ -62,27 +74,21 @@ services:
         hard: 46677
     shm_size: '256mb'
 
-
-
   backend:
     image: ghcr.io/atlogit/atlomy_chat-backend:production-backend-b075fbb
-    #build: 
-    #  context: .
-    #  dockerfile: Dockerfile.backend
     container_name: amta-backend
-    #network_mode: "host"
     ports:
       - "8081:8081"
     volumes:
-      - ./logs:/amta/logs
+      - ~/amta/logs:/amta/logs
       - ./.env:/amta/.env
-      - ./alembic:/amta/alembic  # Mount Alembic migrations
+      - ./alembic:/amta/alembic
     env_file:
       - .env
     environment:
       - ${POSTGRES_DATA_DIR:-postgres_data}:/var/lib/postgresql/data
       - PYTHONUNBUFFERED=1
-      - DEPLOYMENT_MODE=${DEPLOYMENT_MODE}
+      - DEPLOYMENT_MODE=${DEPLOYMENT_MODE:-production}
       - REDIS_URL=${REDIS_URL}
       - AWS_REGION=${AWS_REGION}
       - BEDROCK_MODEL_ID=${BEDROCK_MODEL_ID}
@@ -93,6 +99,8 @@ services:
       - POSTGRES_USER=${POSTGRES_USER}
       - SERVER_HOST=0.0.0.0
       - SERVER_PORT=8081
+      - LOG_LEVEL=${DEPLOYMENT_MODE:-production}
+      - DEBUG=${DEPLOYMENT_MODE:-false}
     restart: unless-stopped
     depends_on:
       - postgres
@@ -107,16 +115,16 @@ services:
 
   frontend:
     image: ghcr.io/atlogit/atlomy_chat-frontend:production-frontend-b075fbb
-    #build:
-    #  context: ./next-app
-    #  dockerfile: Dockerfile
     container_name: amta-frontend
-    #network_mode: "host"
     ports:
       - "3000:3000"
     environment:
-      - NODE_ENV=production
+      - NODE_ENV=${DEPLOYMENT_MODE:-production}
       - BACKEND_URL=http://localhost:8081
+      - DEBUG=${DEPLOYMENT_MODE:-false}
+      - NEXT_PUBLIC_LOG_LEVEL=${DEPLOYMENT_MODE:-production}
+    volumes:
+      - ~/amta/logs:/app/logs
     restart: unless-stopped
     depends_on:
       - backend
@@ -126,12 +134,18 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+    command: >
+      sh -c "npm run start > /app/logs/nextjs_debug.log 2>&1"
 
   redis:
     image: redis:6.2-alpine
     container_name: amta-redis
-    command: redis-server --databases 16 --port ${REDIS_PORT}
-    #network_mode: "host"
+    command: >
+      sh -c "redis-server 
+      --databases 16 
+      --port ${REDIS_PORT}
+      --loglevel ${DEPLOYMENT_MODE:-notice}
+      --logfile /var/log/redis/redis_debug.log"
     ports:
       - "${REDIS_PORT}:${REDIS_PORT}"
     environment:
@@ -141,6 +155,7 @@ services:
       - REDIS_DB=${REDIS_DB}
     volumes:
       - redis_data:/data
+      - ~/amta/logs:/var/log/redis
     restart: unless-stopped
     healthcheck:
       test: >
@@ -157,11 +172,8 @@ services:
         soft: 26677
         hard: 46677
 
-
-
-
-
 volumes:
   postgres_data:
     driver: local
   redis_data:
+    driver: local

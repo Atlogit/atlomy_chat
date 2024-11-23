@@ -15,43 +15,69 @@
         "file": {
             "class": "logging.handlers.RotatingFileHandler",
             "formatter": "standard",
-            "filename": "logs/atlomy_chat.log",
+            "filename": "/amta/logs/atlomy_chat.log",
+            "maxBytes": 5242880,
+            "backupCount": 5,
+            "encoding": "utf8"
+        },
+        "fastapi": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "formatter": "standard",
+            "filename": "/amta/logs/fastapi_debug.log",
             "maxBytes": 5242880,
             "backupCount": 5,
             "encoding": "utf8"
         }
     },
     "root": {
-        "handlers": ["console", "file"],
-        "propagate": false
+        "handlers": ["console", "fastapi"],
+        "level": "INFO",
+        "propagate": true
     },
     "loggers": {
         "uvicorn": {
-            "handlers": [],
+            "handlers": ["console", "fastapi"],
+            "level": "INFO",
+            "propagate": true
+        },
+        "uvicorn.error": {
+            "handlers": ["console", "fastapi"],
+            "level": "INFO",
+            "propagate": true
+        },
+        "uvicorn.access": {
+            "handlers": ["console", "fastapi"],
+            "level": "INFO",
             "propagate": true
         },
         "fastapi": {
-            "handlers": [],
+            "handlers": ["console", "fastapi"],
+            "level": "INFO",
             "propagate": true
         },
         "atlomy_chat": {
-            "handlers": [],
+            "handlers": ["console", "file"],
+            "level": "INFO",
             "propagate": true
         },
         "migration": {
-            "handlers": [],
+            "handlers": ["console", "file"],
+            "level": "INFO",
             "propagate": true
         },
         "migration.citation": {
-            "handlers": [],
+            "handlers": ["console", "file"],
+            "level": "INFO",
             "propagate": true
         },
         "migration.database": {
-            "handlers": [],
+            "handlers": ["console", "file"],
+            "level": "INFO",
             "propagate": true
         },
         "watchfiles": {
-            "handlers": [],
+            "handlers": ["console", "fastapi"],
+            "level": "INFO",
             "propagate": true
         }
     }
