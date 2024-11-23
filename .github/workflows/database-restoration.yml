@@ -173,13 +173,13 @@ jobs:
           ssh_opts="-o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10"
           
           # Pass environment variables directly to SSH command
-          ssh $ssh_opts -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" \
+          CHECK_OUTPUT=$(ssh $ssh_opts -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" \
             "POSTGRES_DATA_DIR='$POSTGRES_DATA_DIR' \
              DATABASE_BACKUP_DIR='$DATABASE_BACKUP_DIR' \
              POSTGRES_DB='$POSTGRES_DB' \
              POSTGRES_USER='$POSTGRES_USER' \
              POSTGRES_PASSWORD='$POSTGRES_PASSWORD' \
-             bash -s" << 'REMOTE_SCRIPT' | tee output.log
+             bash -s" << 'REMOTE_SCRIPT'
             set -e
 
             echo "Debug: Environment variables:"
@@ -319,8 +319,8 @@ jobs:
           echo "Check output: $CHECK_OUTPUT"
           
           # Extract the status code from the output
-          if grep -q "DB_STATUS=" output.log; then
-            db_status=$(grep "DB_STATUS=" output.log | cut -d'=' -f2)
+          if echo "$CHECK_OUTPUT" | grep -q "DB_STATUS="; then
+            db_status=$(echo "$CHECK_OUTPUT" | grep "DB_STATUS=" | cut -d'=' -f2)
           else
             db_status=1
           fi
@@ -348,9 +348,6 @@ jobs:
               ;;
           esac
           
-          # Clean up
-          rm output.log
-
       - name: Discover Latest S3 Backup
         id: discover-backup
         env:
