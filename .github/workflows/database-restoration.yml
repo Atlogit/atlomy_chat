@@ -243,9 +243,12 @@ jobs:
                   
                   # Ensure proper permissions for Docker
                   echo "Setting proper permissions for Docker..."
-                  sudo chown -R 999:999 "$data_dir"/*
-                  sudo chown 999:999 "$data_dir"
-                  sudo chmod -R 0700 "$data_dir"
+                  if [ -d "$data_dir" ]; then
+                    sudo find "$data_dir" -type f -exec sudo chown 999:999 {} \;
+                    sudo find "$data_dir" -type d -exec sudo chown 999:999 {} \;
+                    sudo find "$data_dir" -type f -exec sudo chmod 0600 {} \;
+                    sudo find "$data_dir" -type d -exec sudo chmod 0700 {} \;
+                  fi
                   
                   # Start PostgreSQL with the existing data directory
                   if ! docker run -d --rm \
@@ -279,6 +282,7 @@ jobs:
               
               echo "Final status: $status"
               echo "$status"
+              return 0
             }
             
             # Main execution
@@ -306,8 +310,9 @@ jobs:
                 ;;
             esac
             
-            # Output final status
+            # Output final status and ensure we don't exit
             echo "DB_STATUS=$db_status"
+            return 0
           REMOTE_SCRIPT
           )
           
