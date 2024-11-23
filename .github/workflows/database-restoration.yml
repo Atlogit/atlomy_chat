@@ -196,6 +196,7 @@ jobs:
               if ! sudo test -f "${data_dir}/PG_VERSION"; then
                 echo "Directory missing or PG_VERSION not found"
                 status=2
+                return $status
               fi
               
               # Check 2: Essential PostgreSQL directories exist
@@ -203,35 +204,35 @@ jobs:
                 if ! sudo test -d "${data_dir}/${dir}"; then
                   echo "Missing essential directory: ${dir}"
                   status=2
+                  return $status
                 fi
               done
               
-              # Only try to start PostgreSQL if previous checks passed
-              if [ "${status}" -eq 0 ]; then
-                # Check 3: Try to start a temporary PostgreSQL instance to verify initialization
-                echo "Verifying PostgreSQL initialization with temporary container..."
-                if ! timeout 30s docker run --rm \
-                  --name pg-check \
-                  -v "${data_dir}:/var/lib/postgresql/data" \
-                  -e POSTGRES_PASSWORD="${POSTGRES_PASSWORD}" \
-                  -e POSTGRES_USER="${POSTGRES_USER}" \
-                  -e POSTGRES_DB="${POSTGRES_DB}" \
-                  --user 999:999 \
-                  postgres:14 \
-                  postgres -D /var/lib/postgresql/data -c 'log_statement=none' &> /dev/null; then
-                  echo "Failed to start PostgreSQL with existing data"
-                  status=2
-                fi
+              # Check 3: Try to start a temporary PostgreSQL instance to verify initialization
+              echo "Verifying PostgreSQL initialization with temporary container..."
+              if ! timeout 30s docker run --rm \
+                --name pg-check \
+                -v "${data_dir}:/var/lib/postgresql/data" \
+                -e POSTGRES_PASSWORD="${POSTGRES_PASSWORD}" \
+                -e POSTGRES_USER="${POSTGRES_USER}" \
+                -e POSTGRES_DB="${POSTGRES_DB}" \
+                --user 999:999 \
+                postgres:14 \
+                postgres -D /var/lib/postgresql/data -c 'log_statement=none' &> /dev/null; then
+                echo "Failed to start PostgreSQL with existing data"
+                status=2
               fi
               
-              return "${status}"
+              return $status
             }
             
             # Main check logic
-            check_postgres_initialization  # No argument needed now
+            check_postgres_initialization
             CHECK_STATUS=$?
             
-            if [ "${CHECK_STATUS}" -eq 2 ]; then
+            echo "Check status: ${CHECK_STATUS}"
+            
+            if [ "${CHECK_STATUS}" = "2" ]; then
               echo "NEEDS_RESTORE"
               exit 0
             else
