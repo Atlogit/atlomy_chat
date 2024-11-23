@@ -25,7 +25,16 @@ fi
 export DEPLOYMENT_MODE=${DEPLOYMENT_MODE:-production}
 export SERVER_HOST=${SERVER_HOST:-0.0.0.0}
 export SERVER_PORT=${SERVER_PORT:-8081}
-export LOG_LEVEL=${LOG_LEVEL:-info}
+
+# Set LOG_LEVEL and DEBUG based on DEPLOYMENT_MODE
+if [ "$DEPLOYMENT_MODE" = "development" ]; then
+    export LOG_LEVEL="debug"
+    export DEBUG="true"
+else
+    export LOG_LEVEL="info"
+    export DEBUG="false"
+fi
+
 # Convert LOG_LEVEL to lowercase
 LOG_LEVEL=$(echo "$LOG_LEVEL" | tr '[:upper:]' '[:lower:]')
 
@@ -45,6 +54,7 @@ log "INFO" "  - Deployment Mode: $DEPLOYMENT_MODE"
 log "INFO" "  - Server Host: $SERVER_HOST"
 log "INFO" "  - Server Port: $SERVER_PORT"
 log "INFO" "  - Log Level: $LOG_LEVEL"
+log "INFO" "  - Debug Mode: $DEBUG"
 log "INFO" "  - Redis URL: ${REDIS_URL%????}****" # Partially mask Redis URL
 log "INFO" "  - AWS Region: ${AWS_REGION:-Not Set}"
 
