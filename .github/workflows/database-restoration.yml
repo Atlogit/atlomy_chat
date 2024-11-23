@@ -166,6 +166,9 @@ jobs:
           EC2_USER: ${{ secrets.EC2_USER }}
           POSTGRES_DATA_DIR: ${{ inputs.postgres_data_dir }}
           DATABASE_BACKUP_DIR: ${{ inputs.database_backup_dir }}
+          POSTGRES_DB: ${{ steps.get-database-secrets.outputs.POSTGRES_DB }}
+          POSTGRES_USER: ${{ steps.get-database-secrets.outputs.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ steps.get-database-secrets.outputs.POSTGRES_PASSWORD }}
 
         run: |
           ssh_opts="-o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10"
@@ -178,23 +181,58 @@ jobs:
             set -ex
 
             export POSTGRES_DATA_DIR="$POSTGRES_DATA_DIR"
+            export PGPASSWORD="$POSTGRES_PASSWORD"
 
-            echo "Checking PostgreSQL data directory: $POSTGRES_DATA_DIR"
-            # Check if PostgreSQL data directory exists and contains PG_VERSION
-
-            # Debug: Check if directory exists
-            sudo ls -la "$POSTGRES_DATA_DIR"
+            echo "Checking PostgreSQL data directory and initialization status..."
             
-            # Debug: Try to find PG_VERSION
-            sudo find "$POSTGRES_DATA_DIR" -name PG_VERSION
-
-            # Main check
-            if ! sudo test -f "$POSTGRES_DATA_DIR/PG_VERSION"; then
-              #echo "Database not initialized. Restoration required."
-              echo "NEEDS_RESTORE"  # Use this as a marker
+            # Function to check if PostgreSQL is properly initialized
+            check_postgres_initialization() {
+              local data_dir="$POSTGRES_DATA_DIR"  # Use environment variable directly
+              local status=0
+              
+              # Check 1: Directory exists and contains PG_VERSION
+              if ! sudo test -f "$data_dir/PG_VERSION"; then
+                echo "Directory missing or PG_VERSION not found"
+                status=2
+              fi
+              
+              # Check 2: Essential PostgreSQL directories exist
+              for dir in base global pg_wal pg_xact; do
+                if ! sudo test -d "$data_dir/$dir"; then
+                  echo "Missing essential directory: $dir"
+                  status=2
+                fi
+              done
+              
+              # Only try to start PostgreSQL if previous checks passed
+              if [ $status -eq 0 ]; then
+                # Check 3: Try to start a temporary PostgreSQL instance to verify initialization
+                echo "Verifying PostgreSQL initialization with temporary container..."
+                if ! timeout 30s docker run --rm \
+                  --name pg-check \
+                  -v "$POSTGRES_DATA_DIR" \
+                  -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+                  -e POSTGRES_USER="$POSTGRES_USER" \
+                  -e POSTGRES_DB="$POSTGRES_DB" \
+                  --user 999:999 \
+                  postgres:14 \
+                  postgres -D /var/lib/postgresql/data -c 'log_statement=none' &> /dev/null; then
+                  echo "Failed to start PostgreSQL with existing data"
+                  status=2
+                fi
+              fi
+              
+              return $status
+            }
+            
+            # Main check logic
+            check_postgres_initialization  # No argument needed now
+            CHECK_STATUS=$?
+            
+            if [ $CHECK_STATUS -eq 2 ]; then
+              echo "NEEDS_RESTORE"
               exit 0
             else
-              #echo "Database directory exists."
               echo "DATABASE_EXISTS"
               exit 0
             fi
@@ -205,28 +243,15 @@ jobs:
             echo "Command output:"
             echo "$CHECK_OUTPUT"
             
-            # Set the GitHub output based on the output content, not exit code
+            # Set the GitHub output based on the output content
             if echo "$CHECK_OUTPUT" | grep -q "NEEDS_RESTORE"; then
               echo "restore_needed=true" >> $GITHUB_OUTPUT
-              echo "Database needs restoration"
+              echo "Database needs initialization/restoration"
             else
               echo "restore_needed=false" >> $GITHUB_OUTPUT
-              echo "Database exists and initialized"
+              echo "Database exists and properly initialized"
             fi
 
-            # Capture the exit code
-            #SSH_EXIT_CODE=$?
-            
-            # Print the output for logging
-            #echo "$CHECK_OUTPUT"
-            
-            # Set the GitHub output based on exit code
-            #if [ $SSH_EXIT_CODE -eq 2 ]; then
-            #  echo "restore_needed=true" >> $GITHUB_OUTPUT
-            #else
-            #  echo "restore_needed=false" >> $GITHUB_OUTPUT
-            #fi
-            
       - name: Discover Latest S3 Backup
         id: discover-backup
         env:
