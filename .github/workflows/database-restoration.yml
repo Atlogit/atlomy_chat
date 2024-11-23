@@ -173,87 +173,106 @@ jobs:
         run: |
           ssh_opts="-o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10"
           
-          # First, let's verify the directory contents
-          echo "Checking directory contents:"
-          ssh $ssh_opts -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" "sudo ls -la $POSTGRES_DATA_DIR"
+          CHECK_OUTPUT=$(ssh $ssh_opts -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" << 'REMOTE_SCRIPT'
+            set -e
 
-          CHECK_OUTPUT=$(ssh $ssh_opts -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" << REMOTE_SCRIPT
-            set -ex
-
-            export POSTGRES_DATA_DIR="$POSTGRES_DATA_DIR"
-            export PGPASSWORD="$POSTGRES_PASSWORD"
-
-            echo "Checking PostgreSQL data directory and initialization status..."
-            
-            # Function to check if PostgreSQL is properly initialized
+            # Function to check PostgreSQL initialization status
             check_postgres_initialization() {
-              local data_dir="${POSTGRES_DATA_DIR}"  # Use environment variable directly
-              local status=0
+              local data_dir="$POSTGRES_DATA_DIR"
+              local status="UNINITIALIZED"
               
-              echo "Checking PostgreSQL data directory: ${data_dir}"
-              
-              # Check 1: Directory exists and contains PG_VERSION
-              if ! sudo test -f "${data_dir}/PG_VERSION"; then
-                echo "Directory missing or PG_VERSION not found"
-                status=2
-                return $status
-              fi
-              
-              # Check 2: Essential PostgreSQL directories exist
-              for dir in base global pg_wal pg_xact; do
-                if ! sudo test -d "${data_dir}/${dir}"; then
-                  echo "Missing essential directory: ${dir}"
-                  status=2
-                  return $status
+              # Step 1: Check if directory exists and has basic structure
+              if [ -d "$data_dir" ] && [ -f "$data_dir/PG_VERSION" ]; then
+                # Check for essential PostgreSQL directories
+                local required_dirs=("base" "global" "pg_wal" "pg_xact")
+                local missing_dirs=0
+                
+                for dir in "${required_dirs[@]}"; do
+                  if [ ! -d "$data_dir/$dir" ]; then
+                    missing_dirs=$((missing_dirs + 1))
+                  fi
+                done
+                
+                if [ $missing_dirs -eq 0 ]; then
+                  status="INITIALIZED"
+                else
+                  status="CORRUPTED"
                 fi
-              done
-              
-              # Check 3: Try to start a temporary PostgreSQL instance to verify initialization
-              echo "Verifying PostgreSQL initialization with temporary container..."
-              if ! timeout 30s docker run --rm \
-                --name pg-check \
-                -v "${data_dir}:/var/lib/postgresql/data" \
-                -e POSTGRES_PASSWORD="${POSTGRES_PASSWORD}" \
-                -e POSTGRES_USER="${POSTGRES_USER}" \
-                -e POSTGRES_DB="${POSTGRES_DB}" \
-                --user 999:999 \
-                postgres:14 \
-                postgres -D /var/lib/postgresql/data -c 'log_statement=none' &> /dev/null; then
-                echo "Failed to start PostgreSQL with existing data"
-                status=2
               fi
               
-              return $status
+              # Step 2: If initialized, verify with temporary container
+              if [ "$status" = "INITIALIZED" ]; then
+                echo "Verifying PostgreSQL data with temporary container..."
+                
+                # Clean up any existing containers
+                docker ps -q --filter "name=pg-verify" | xargs -r docker stop
+                docker ps -aq --filter "name=pg-verify" | xargs -r docker rm
+                
+                if ! timeout 30s docker run --rm \
+                  --name pg-verify \
+                  -v "$data_dir:/var/lib/postgresql/data" \
+                  -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+                  -e POSTGRES_USER="$POSTGRES_USER" \
+                  -e POSTGRES_DB="$POSTGRES_DB" \
+                  --user 999:999 \
+                  postgres:14 \
+                  postgres -D /var/lib/postgresql/data -c 'log_statement=none' &> /dev/null; then
+                  status="CORRUPTED"
+                fi
+              fi
+              
+              echo "$status"
             }
             
-            # Main check logic
-            check_postgres_initialization
-            CHECK_STATUS=$?
+            # Main execution
+            status=$(check_postgres_initialization)
             
-            echo "Check status: ${CHECK_STATUS}"
-            
-            if [ "${CHECK_STATUS}" = "2" ]; then
-              echo "NEEDS_RESTORE"
-              exit 0
-            else
-              echo "DATABASE_EXISTS"
-              exit 0
-            fi
+            case "$status" in
+              "UNINITIALIZED")
+                echo "Database is not initialized"
+                exit 2
+                ;;
+              "CORRUPTED")
+                echo "Database is corrupted or incomplete"
+                exit 3
+                ;;
+              "INITIALIZED")
+                echo "Database is properly initialized"
+                exit 0
+                ;;
+              *)
+                echo "Unknown database status"
+                exit 1
+                ;;
+            esac
           REMOTE_SCRIPT
-            )
-            
-            # Print the output for logging
-            echo "Command output:"
-            echo "$CHECK_OUTPUT"
-            
-            # Set the GitHub output based on the output content
-            if echo "$CHECK_OUTPUT" | grep -q "NEEDS_RESTORE"; then
-              echo "restore_needed=true" >> $GITHUB_OUTPUT
-              echo "Database needs initialization/restoration"
-            else
+          )
+          
+          # Capture exit code
+          EXIT_CODE=$?
+          
+          # Print output for logging
+          echo "Check output: $CHECK_OUTPUT"
+          
+          # Set GitHub outputs based on status
+          case $EXIT_CODE in
+            0)
+              echo "status=initialized" >> $GITHUB_OUTPUT
               echo "restore_needed=false" >> $GITHUB_OUTPUT
-              echo "Database exists and properly initialized"
-            fi
+              ;;
+            2)
+              echo "status=uninitialized" >> $GITHUB_OUTPUT
+              echo "restore_needed=true" >> $GITHUB_OUTPUT
+              ;;
+            3)
+              echo "status=corrupted" >> $GITHUB_OUTPUT
+              echo "restore_needed=true" >> $GITHUB_OUTPUT
+              ;;
+            *)
+              echo "status=unknown" >> $GITHUB_OUTPUT
+              echo "restore_needed=true" >> $GITHUB_OUTPUT
+              ;;
+          esac
 
       - name: Discover Latest S3 Backup
         id: discover-backup
@@ -283,63 +302,55 @@ jobs:
 
       - name: Compare Backup Timestamp
         id: compare-timestamp
+        if: steps.check-database.outputs.status == 'initialized'
         env:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
           LATEST_BACKUP: ${{ steps.discover-backup.outputs.latest_backup }}
           BACKUP_TIMESTAMP: ${{ steps.discover-backup.outputs.backup_timestamp }}
-          CHECK_DATABASE_RESTORE_NEEDED: ${{ steps.check-database.outputs.restore_needed }}
           POSTGRES_DATA_DIR: ${{ inputs.postgres_data_dir }}
           DATABASE_BACKUP_DIR: ${{ inputs.database_backup_dir }}
-
         run: |
           ssh_opts="-o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10"
           
-          # If database is already marked for restoration, skip timestamp comparison
-          if [ "$CHECK_DATABASE_RESTORE_NEEDED" = "true" ]; then
-            echo "Database already marked for restoration from previous check."
-            echo "restore_needed=true" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-          
-          # Perform timestamp comparison only if database exists
-          CHECK_OUTPUT=$(ssh $ssh_opts -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" << REMOTE_SCRIPT
+          CHECK_OUTPUT=$(ssh $ssh_opts -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" << 'REMOTE_SCRIPT'
             set -e
             
-            export DATABASE_BACKUP_DIR="$DATABASE_BACKUP_DIR"
-
-            # Get local database timestamp   
-
+            # Get local database timestamp from pg_controldata
+            local_timestamp=$(sudo -u postgres pg_controldata "$POSTGRES_DATA_DIR" | grep "Database cluster state:" | awk '{print $4 " " $5}')
+            
             # Convert timestamps to seconds since epoch
-            backup_seconds=\$(date -d "$BACKUP_TIMESTAMP" +%s)
-            local_seconds=\$(date -d "\$local_timestamp" +%s)
-      
-            # Compare timestamps
-            if [ "\$backup_seconds" -gt "\$local_seconds" ] || [ "${{ inputs.force_restore }}" = "true" ]; then
-              echo "Backup is newer than local database or force restore requested."
+            backup_seconds=$(date -d "$BACKUP_TIMESTAMP" +%s)
+            local_seconds=$(date -d "$local_timestamp" +%s)
+            
+            if [ "$backup_seconds" -gt "$local_seconds" ] || [ "${{ inputs.force_restore }}" = "true" ]; then
+              echo "Backup is newer than local database or force restore requested"
               exit 2
             else
-              echo "Local database is up to date."
+              echo "Local database is up to date"
               exit 0
             fi
           REMOTE_SCRIPT
-            )
-            # Capture the exit code
-            SSH_EXIT_CODE=$?
-            
-            # Print the output for logging
-            echo "$CHECK_OUTPUT"
-            
-            # Set the GitHub output based on exit code
-            if [ $SSH_EXIT_CODE -eq 2 ]; then
-              echo "restore_needed=true" >> $GITHUB_OUTPUT
-            else
-              echo "restore_needed=false" >> $GITHUB_OUTPUT
-            fi
-            
+          )
+          
+          # Capture exit code
+          EXIT_CODE=$?
+          
+          # Print output for logging
+          echo "$CHECK_OUTPUT"
+          
+          # Set GitHub output based on exit code
+          if [ $EXIT_CODE -eq 2 ]; then
+            echo "restore_needed=true" >> $GITHUB_OUTPUT
+          else
+            echo "restore_needed=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Initialize PostgreSQL Data Directory
         id: init-postgres
-        if: steps.compare-timestamp.outputs.restore_needed == 'true'
+        if: |
+          steps.check-database.outputs.restore_needed == 'true' ||
+          steps.compare-timestamp.outputs.restore_needed == 'true'
         env:
           POSTGRES_DB: ${{ steps.get-database-secrets.outputs.POSTGRES_DB }}
           POSTGRES_USER: ${{ steps.get-database-secrets.outputs.POSTGRES_USER }}
@@ -348,35 +359,17 @@ jobs:
           EC2_USER: ${{ secrets.EC2_USER }}
           POSTGRES_DATA_DIR: ${{ inputs.postgres_data_dir }}
           DATABASE_BACKUP_DIR: ${{ inputs.database_backup_dir }}
-      
         run: |
-
           ssh_opts="-o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10"
           
-          # Verify environment variables
-          for var in POSTGRES_DB POSTGRES_USER POSTGRES_PASSWORD EC2_HOST EC2_USER; do
-            if [ -z "${!var}" ]; then
-              echo "Error: $var is not set"
-              exit 1
-            fi
-          done
-
-          # Execute remote initialization
-          ssh $ssh_opts -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" << REMOTE_SCRIPT
+          ssh $ssh_opts -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" << 'REMOTE_SCRIPT'
             set -e
             
             cleanup() {
               echo "🧹 Cleaning up Docker resources..."
-              # Stop the compose service if running
-              if [ -f "docker-compose.yml" ]; then
-                docker compose down || true
-              fi
-              # Stop any running postgres containers
-              docker ps -q --filter "name=postgres" --filter "ancestor=postgres" | xargs -r docker stop || true
-              # Remove any stopped postgres containers
-              docker ps -aq --filter "name=postgres" --filter "ancestor=postgres" | xargs -r docker rm || true
-              # Remove any dangling volumes
-              docker volume ls -q --filter "dangling=true" | xargs -r docker volume rm || true
+              docker ps -q --filter "name=postgres" | xargs -r docker stop
+              docker ps -aq --filter "name=postgres" | xargs -r docker rm
+              docker volume ls -q --filter "dangling=true" | xargs -r docker volume rm
             }
           
             # Set up cleanup trap for script exit
@@ -385,78 +378,50 @@ jobs:
             # Initial cleanup
             echo "🧹 Initial cleanup of any existing Docker resources..."
             cleanup
-
-            # Export variables for use in the script
-            export EC2_USER="$EC2_USER"
-            export POSTGRES_DATA_DIR="$POSTGRES_DATA_DIR"
-            export DATABASE_BACKUP_DIR="$DATABASE_BACKUP_DIR"
-      
-            # Define directories using the current user
-            echo "🔄 Starting PostgreSQL initialization in $POSTGRES_DATA_DIR..."
             
-            # Create postgres user and group with specific UID/GID (matching Docker postgres image)
+            # Create required directories and set permissions
+            sudo mkdir -p "$(dirname $POSTGRES_DATA_DIR)"
+            sudo mkdir -p "$(dirname $DATABASE_BACKUP_DIR)"
+            sudo mkdir -p "$DATABASE_BACKUP_DIR"
+            
+            # Ensure postgres user exists
             sudo groupadd -f -g 999 postgres || true
             if ! id postgres &>/dev/null; then
               sudo useradd -r -u 999 -g postgres postgres || true
             fi
-
-            # Create parent directories with EC2 user ownership
-            sudo mkdir -p "\$(dirname \$POSTGRES_DATA_DIR)"
-            sudo mkdir -p "\$(dirname \$DATABASE_BACKUP_DIR)"
-            sudo chown -R "\$EC2_USER:\$EC2_USER" "\$(dirname \$POSTGRES_DATA_DIR)"
-            sudo chown -R "\$EC2_USER:\$EC2_USER" "\$(dirname \$DATABASE_BACKUP_DIR)"
-            
-            # Create backup directory with EC2 user ownership
-            mkdir -p "\$DATABASE_BACKUP_DIR"
-            chmod 755 "\$DATABASE_BACKUP_DIR"
             
             # Clean and prepare PostgreSQL data directory
-            sudo rm -rf "\$POSTGRES_DATA_DIR"
-            sudo mkdir -p "\$POSTGRES_DATA_DIR"
-            sudo chown -R 999:999 "\$POSTGRES_DATA_DIR"
-            sudo chmod 0777 "\$POSTGRES_DATA_DIR"  # Temporarily more permissive
-
-            # Backup existing data if present (as EC2 user)
-            if [ -d "\$POSTGRES_DATA_DIR" ] && [ "\$(sudo ls -A \$POSTGRES_DATA_DIR)" ]; then
-              timestamp=\$(date +%Y%m%d_%H%M%S)
-              echo "📦 Backing up existing data..."
-              sudo tar czf "\${DATABASE_BACKUP_DIR}/pg_data_backup_\${timestamp}.tar.gz" \
-                -C "\$(dirname \$POSTGRES_DATA_DIR)" "\$(basename \$POSTGRES_DATA_DIR)"
-              sudo rm -rf "\$POSTGRES_DATA_DIR"/*
-            fi
-
-            # Verify Docker is available
-            if ! command -v docker &> /dev/null; then
-              echo "❌ Docker is not installed"
-              exit 1
-            fi
-
-            # Run Docker initialization
+            sudo rm -rf "$POSTGRES_DATA_DIR"
+            sudo mkdir -p "$POSTGRES_DATA_DIR"
+            sudo chown -R 999:999 "$POSTGRES_DATA_DIR"
+            sudo chmod 0700 "$POSTGRES_DATA_DIR"
+            
             echo "🐳 Initializing PostgreSQL using Docker..."
-            # Set timeout for Docker command
-            timeout 300 sudo docker run --rm \
-              --name postgres-restore \
-              -v "\$POSTGRES_DATA_DIR:\$POSTGRES_DATA_DIR" \
+            docker run --rm \
+              --name postgres-init \
+              -v "$POSTGRES_DATA_DIR:/var/lib/postgresql/data" \
               -e POSTGRES_DB="$POSTGRES_DB" \
               -e POSTGRES_USER="$POSTGRES_USER" \
               -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
               --user 999:999 \
               postgres:14 \
-              initdb -D "\$POSTGRES_DATA_DIR" || {
-                echo "❌ Docker initialization timed out or failed"
-                exit 1;
-              }
-      
-            # Ensure final permissions are correct
-            sudo chown -R 999:999 "\$POSTGRES_DATA_DIR"
-            sudo chmod 0700 "\$POSTGRES_DATA_DIR"
+              initdb -D /var/lib/postgresql/data
+            
+            # Verify initialization
+            if [ ! -f "$POSTGRES_DATA_DIR/PG_VERSION" ]; then
+              echo "❌ PostgreSQL initialization failed"
+              exit 1
+            fi
             
             echo "✅ PostgreSQL initialization completed successfully"
           REMOTE_SCRIPT
 
       - name: Download Latest Backup
         id: download-backup
-        if: steps.compare-timestamp.outputs.restore_needed == 'true'
+        if: |
+          steps.init-postgres.outcome == 'success' &&
+          (steps.check-database.outputs.restore_needed == 'true' ||
+           steps.compare-timestamp.outputs.restore_needed == 'true')
         env:
           S3_BACKUP_BUCKET: ${{ inputs.s3_backup_bucket }}
           S3_BACKUP_PREFIX: ${{ inputs.s3_backup_prefix }}
@@ -468,61 +433,47 @@ jobs:
           AWS_SESSION_TOKEN: ${{ env.AWS_SESSION_TOKEN }}
           AWS_DEFAULT_REGION: ${{ env.AWS_DEFAULT_REGION }}
           DATABASE_BACKUP_DIR: ${{ inputs.database_backup_dir }}
-      
         run: |
-          echo "🔍 Downloading backup: $LATEST_BACKUP"
-          
           ssh_opts="-o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10"
           
-          # Transfer and verify backup
-          ssh $ssh_opts -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" << REMOTE_SCRIPT
+          ssh $ssh_opts -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" << 'REMOTE_SCRIPT'
             set -e
             
-            # Export AWS credentials in the remote session
+            # Export AWS credentials
             export AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID"
             export AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY"
             export AWS_SESSION_TOKEN="$AWS_SESSION_TOKEN"
             export AWS_DEFAULT_REGION="$AWS_DEFAULT_REGION"
             
-            # Export variables for use in the script
-            export EC2_USER="$EC2_USER"
-            export DATABASE_BACKUP_DIR="$DATABASE_BACKUP_DIR"
-
-            # Ensure backup directory exists
-            sudo mkdir -p "\$DATABASE_BACKUP_DIR"
-            sudo chown -R "\$EC2_USER:\$EC2_USER" "\$DATABASE_BACKUP_DIR"
-            
             echo "⬇️ Downloading backup from S3..."
             aws s3 cp "s3://$S3_BACKUP_BUCKET/$S3_BACKUP_PREFIX/$LATEST_BACKUP" \
               "$DATABASE_BACKUP_DIR/latest_backup.tar.gz"
             
-            if [ ! -f "\${DATABASE_BACKUP_DIR}/latest_backup.tar.gz" ]; then
+            if [ ! -f "${DATABASE_BACKUP_DIR}/latest_backup.tar.gz" ]; then
               echo "❌ Backup download failed"
               exit 1
             fi
             
-            # Verify backup integrity and structure
-            if ! tar tzf "\${DATABASE_BACKUP_DIR}/latest_backup.tar.gz" > /dev/null 2>&1; then
-              echo "❌ Backup file is not a valid tar archive"
-              exit 1
-            fi
-
-            # Check if the backup contains a PostgreSQL data directory
-            if ! tar tzf "\${DATABASE_BACKUP_DIR}/latest_backup.tar.gz" | grep -q "PG_VERSION"; then
-              echo "❌ Backup does not appear to be a valid PostgreSQL data directory"
+            # Verify backup integrity
+            if ! tar tzf "${DATABASE_BACKUP_DIR}/latest_backup.tar.gz" > /dev/null 2>&1; then
+              echo "❌ Invalid backup archive"
               exit 1
             fi
             
-            # Additional checks for PostgreSQL directory structure
+            # Check backup contents
+            backup_contents=$(tar tzf "${DATABASE_BACKUP_DIR}/latest_backup.tar.gz")
+            if ! echo "$backup_contents" | grep -q "PG_VERSION"; then
+              echo "❌ Invalid PostgreSQL backup"
+              exit 1
+            fi
+            
             if ! echo "$backup_contents" | grep -q "base/"; then
-              echo "❌ Backup is missing essential PostgreSQL data subdirectories"
+              echo "❌ Missing essential PostgreSQL directories"
               exit 1
             fi
             
             echo "✅ Backup downloaded and verified successfully"
           REMOTE_SCRIPT
-
-          # Verify initialization
 
       - name: Restore Database
         id: restore-database
@@ -537,147 +488,76 @@ jobs:
           EC2_USER: ${{ secrets.EC2_USER }}
           POSTGRES_DATA_DIR: ${{ inputs.postgres_data_dir }}
           DATABASE_BACKUP_DIR: ${{ inputs.database_backup_dir }}
-      
         run: |
           ssh_opts="-o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10"
           
           ssh $ssh_opts -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" << 'REMOTE_SCRIPT'
             set -e
-
+            
             cleanup() {
-              echo "🧹 Cleaning up temporary Docker resources..."
-              # Stop and remove the postgres container if it exists
-              docker ps -q --filter "name=postgres-restore" | xargs -r docker stop || true
-              docker ps -aq --filter "name=postgres-restore" | xargs -r docker rm || true
-              # Clean up any dangling volumes
-              docker volume ls -q --filter "dangling=true" | xargs -r docker volume rm || true
+              echo "🧹 Cleaning up Docker resources..."
+              docker ps -q --filter "name=postgres-restore" | xargs -r docker stop
+              docker ps -aq --filter "name=postgres-restore" | xargs -r docker rm
+              docker volume ls -q --filter "dangling=true" | xargs -r docker volume rm
             }
-          
-            # Set up cleanup trap
-            trap cleanup EXIT INT TERM
-          
-            # Stop the running PostgreSQL container (will be handled by main deployment workflow)
-            echo "🛑 Stopping running PostgreSQL container..."
+            
+            trap cleanup EXIT
+            
+            # Stop existing PostgreSQL container
             if docker ps -q --filter "name=amta-postgres" >/dev/null; then
-              # Gracefully terminate connections before stopping
               docker exec amta-postgres psql -U "$POSTGRES_USER" -d postgres -c \
                 "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$POSTGRES_DB' AND pid <> pg_backend_pid();" || true
-              
-              # Give connections a moment to terminate
               sleep 2
-              
-              # Stop the container
               docker stop amta-postgres || true
             fi
-
-            # Initial cleanup
-            cleanup
-
-            # Export variables for use in the script
-            export EC2_USER="$EC2_USER"
-            export POSTGRES_DATA_DIR="$POSTGRES_DATA_DIR"
-            export DATABASE_BACKUP_DIR="$DATABASE_BACKUP_DIR"
-            export PGPASSWORD="$POSTGRES_PASSWORD"
             
-            echo "🔄 Starting database restoration process..."
+            cleanup
+            
+            echo "🔄 Starting database restoration..."
             
             # Extract backup
-            echo "📦 Extracting backup..."
-            # Create temporary directory for extraction
-            TEMP_DIR=\$(mktemp -d)
-            trap 'sudo rm -rf "\$TEMP_DIR"' EXIT
+            TEMP_DIR=$(mktemp -d)
+            trap 'sudo rm -rf "$TEMP_DIR"' EXIT
             
-            sudo tar xzf "\${DATABASE_BACKUP_DIR}/latest_backup.tar.gz" -C "\$TEMP_DIR" --strip-components=1
+            sudo tar xzf "${DATABASE_BACKUP_DIR}/latest_backup.tar.gz" -C "$TEMP_DIR" --strip-components=1
             
-            # Determine backup type
-            DUMP_FILE=\$(sudo find "\$TEMP_DIR" -name "*.dump" -type f)
-            PG_VERSION_FILE=\$(sudo find "\$TEMP_DIR" -name "PG_VERSION" -type f)
-            
-            if [ -n "\$PG_VERSION_FILE" ]; then
-              echo "🗂️ Full PostgreSQL data directory backup detected"
+            # Determine backup type and restore
+            if [ -f "$TEMP_DIR/PG_VERSION" ]; then
+              echo "🗂️ Restoring from data directory backup..."
               
-              # Copy entire data directory
-              sudo cp -R "\$TEMP_DIR"/* "\$POSTGRES_DATA_DIR"
-              # Ensure correct ownership and permissions
-              sudo chown -R 999:999 "\$POSTGRES_DATA_DIR"
-              sudo chmod 700 "\$POSTGRES_DATA_DIR"     
+              sudo cp -R "$TEMP_DIR"/* "$POSTGRES_DATA_DIR"
+              sudo chown -R 999:999 "$POSTGRES_DATA_DIR"
+              sudo chmod 700 "$POSTGRES_DATA_DIR"
               
-              # Verify using temporary container
-              echo "🐳 Starting temporary PostgreSQL to verify data..."
+              # Verify restoration
+              echo "🔍 Verifying restored data..."
               docker run -d \
-                --name postgres-temp-restore \
-                -v "\$POSTGRES_DATA_DIR:\$POSTGRES_DATA_DIR" \
+                --name postgres-verify \
+                -v "$POSTGRES_DATA_DIR:/var/lib/postgresql/data" \
                 -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
                 -p 5433:5432 \
                 --user 999:999 \
                 postgres:14
-                
-              #Wait for PostgreSQL to start
-              echo "⏳ Verifying restored data..."
+              
               for i in {1..30}; do
-                if docker exec postgres-temp-restore pg_isready -U "$POSTGRES_USER" -p 5432 &>/dev/null; then
-                  if docker exec postgres-temp-restore psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';" | grep -q '[1-9]'; then
+                if docker exec postgres-verify pg_isready -U "$POSTGRES_USER" -p 5432 &>/dev/null; then
+                  if docker exec postgres-verify psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c \
+                    "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';" | grep -q '[1-9]'; then
                     echo "✅ Database verification successful"
-                    docker stop postgres-temp-restore
-                    docker rm postgres-temp-restore
+                    docker stop postgres-verify
+                    docker rm postgres-verify
                     break
                   fi
                 fi
-                if [ \$i -eq 30 ]; then
+                if [ $i -eq 30 ]; then
                   echo "❌ Database verification failed"
                   exit 1
                 fi
                 sleep 2
               done
-
-            elif [ -n "\$DUMP_FILE" ]; then
-              echo "📄 Database dump file detected"
-              
-              # Start temporary PostgreSQL for restoration
-              echo "🐳 Starting temporary PostgreSQL for restoration..."
-              docker run -d \
-                --name postgres-temp-restore \
-                -v "\$POSTGRES_DATA_DIR:\$POSTGRES_DATA_DIR" \
-                -e POSTGRES_DB="$POSTGRES_DB" \
-                -e POSTGRES_USER="$POSTGRES_USER" \
-                -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
-                -p 5433:5432 \
-                postgres:14
-              
-              # Wait for PostgreSQL to start
-              echo "⏳ Waiting for PostgreSQL to start..."
-              for i in {1..30}; do
-                if docker exec postgres-temp-restore pg_isready -U "$POSTGRES_USER" -p 5432 &>/dev/null; then
-                  echo "✅ PostgreSQL ready for restoration"
-                  break
-                fi
-                if [ \$i -eq 30 ]; then
-                  echo "❌ PostgreSQL failed to start"
-                  exit 1
-                fi
-                sleep 2
-              done
-
-              # Restore from dump
-              echo "📥 Restoring from dump file..."
-              docker exec -i postgres-temp-restore pg_restore \
-                --clean --if-exists --no-owner --no-privileges \
-                -U "$POSTGRES_USER" -d "$POSTGRES_DB" < "\$DUMP_FILE"
-              
-              # Verify restoration
-              if ! docker exec postgres-temp-restore psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';" | grep -q '[1-9]'; then
-                echo "❌ Database restoration from dump failed or resulted in empty database"
-                exit 1
-              fi
-              
-              echo "✅ Database restored successfully"
-              
-              # Stop and remove the temporary container
-              docker stop postgres-temp-restore
-              docker rm postgres-temp-restore
               
             else
-              echo "❌ No valid backup found: neither PostgreSQL data directory nor dump file detected"
+              echo "❌ Invalid backup format"
               exit 1
             fi
             
