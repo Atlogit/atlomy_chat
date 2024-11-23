@@ -75,7 +75,7 @@ services:
     shm_size: '256mb'
 
   backend:
-    image: ghcr.io/atlogit/atlomy_chat-backend:production-backend-727061e
+    image: ghcr.io/atlogit/atlomy_chat-backend:production-backend-9a681a2
     container_name: amta-backend
     ports:
       - "8081:8081"
@@ -114,7 +114,7 @@ services:
       start_period: 40s
 
   frontend:
-    image: ghcr.io/atlogit/atlomy_chat-frontend:production-frontend-727061e
+    image: ghcr.io/atlogit/atlomy_chat-frontend:production-frontend-9a681a2
     container_name: amta-frontend
     ports:
       - "3000:3000"
