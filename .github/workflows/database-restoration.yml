@@ -281,7 +281,7 @@ jobs:
               fi
               
               echo "Final status: $status"
-              echo "$status"
+              echo "STATUS=$status"
               return 0
             }
             
@@ -289,9 +289,10 @@ jobs:
             echo "Starting database initialization check..."
             status=$(check_postgres_initialization)
             echo "Check completed with status: $status"
-            
+            actual_status=$(echo "$status" | grep "STATUS=" | cut -d'=' -f2)
+
             # Set status code based on result
-            case "$status" in
+            case "$actual_status" in
               "UNINITIALIZED")
                 echo "Database is not initialized"
                 db_status=2
@@ -360,7 +361,7 @@ jobs:
             | sort -k1,2 \
             | tail -n 1 \
             | awk '{print $4}')
-          
+
           if [ -z "$latest_backup" ]; then
             echo "❌ No backup files found in S3"
             exit 1
@@ -371,8 +372,8 @@ jobs:
           
           echo "Latest backup: $latest_backup"
           echo "Backup timestamp: $backup_timestamp"
-          echo "$latest_backup" >> $GITHUB_OUTPUT
-          echo "$backup_timestamp" >> $GITHUB_OUTPUT
+          echo "backup_file=$latest_backup" >> $GITHUB_OUTPUT
+          echo "backup_timestamp=$backup_timestamp" >> $GITHUB_OUTPUT
 
       - name: Compare Backup Timestamp
         id: compare-timestamp
