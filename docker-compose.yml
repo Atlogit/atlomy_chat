@@ -1,4 +1,3 @@
-version: '3.8'
 services:
   postgres:
     image: postgres:14
@@ -83,6 +82,7 @@ services:
       - ~/amta/logs:/amta/logs
       - ./.env:/amta/.env
       - ./alembic:/amta/alembic
+      - ./logging_config.json:/amta/logging_config.json
     env_file:
       - .env
     environment:
@@ -101,6 +101,7 @@ services:
       - SERVER_PORT=8081
       - LOG_LEVEL=${DEPLOYMENT_MODE:-info}
       - DEBUG=${DEPLOYMENT_MODE:-false}
+      - LOGGING_CONFIG=/amta/logging_config.json
     restart: unless-stopped
     depends_on:
       - postgres
@@ -160,6 +161,7 @@ services:
       - REDIS_PORT=${REDIS_PORT}
       - REDIS_DB=${REDIS_DB}
       - DEPLOYMENT_MODE=${DEPLOYMENT_MODE:-production}
+      - REDIS_LOG_LEVEL=${DEPLOYMENT_MODE:-notice}
     volumes:
       - redis_data:/data
       - ~/amta/logs:/var/log/redis
