@@ -237,10 +237,6 @@ jobs:
                   docker ps -q --filter "name=pg-verify" | xargs -r docker stop
                   docker ps -aq --filter "name=pg-verify" | xargs -r docker rm
                   
-                  # Debug: Show data directory permissions before container start
-                  echo "Data directory permissions:"
-                  sudo ls -la "$data_dir"
-                  
                   # Ensure proper permissions for Docker
                   echo "Setting proper permissions for Docker..."
                   if [ -d "$data_dir" ]; then
