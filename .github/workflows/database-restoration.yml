@@ -479,10 +479,8 @@ jobs:
               exit 1
             fi
 
-            backup_contents=$(tar tzf \${DATABASE_BACKUP_DIR}/latest_backup.tar.gz | cut -d'/' -f2-)
-            
             # Check if the backup contains a PostgreSQL data directory
-            if ! echo "$backup_contents" | grep -q "PG_VERSION"; then
+            if ! tar tzf "\${DATABASE_BACKUP_DIR}/latest_backup.tar.gz" | grep -q "PG_VERSION"; then
               echo "❌ Backup does not appear to be a valid PostgreSQL data directory"
               exit 1
             fi
