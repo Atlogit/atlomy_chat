@@ -26,17 +26,17 @@ services:
       retries: 3
       start_period: 20s
     command:
-      - "bash"
+      - "/bin/bash"
       - "-c"
       - |
         if [ "$DEPLOYMENT_MODE" = "development" ]; then
-          LOG_LEVEL="debug1"
-          LOG_STATEMENT="all"
+          export LOG_LEVEL="debug1"
+          export LOG_STATEMENT="all"
         else
-          LOG_LEVEL="info"
-          LOG_STATEMENT="none"
-        fi
-        exec postgres \
+          export LOG_LEVEL="info"
+          export LOG_STATEMENT="none"
+        fi &&
+        postgres \
           -c max_connections=100 \
           -c shared_buffers=256MB \
           -c effective_cache_size=768MB \
@@ -53,10 +53,10 @@ services:
           -c logging_collector=on \
           -c log_directory=/var/log/postgresql \
           -c log_filename=database_debug.log \
-          -c log_min_messages="$LOG_LEVEL" \
-          -c log_min_error_statement="$LOG_LEVEL" \
-          -c log_statement="$LOG_STATEMENT" \
-          -c log_line_prefix="%m [%p] %q%u@%d "
+          -c "log_min_messages=${LOG_LEVEL}" \
+          -c "log_min_error_statement=${LOG_LEVEL}" \
+          -c "log_statement=${LOG_STATEMENT}" \
+          -c "log_line_prefix=%m [%p] %q%u@%d "
     ulimits:
       nproc: 65535
       nofile:
