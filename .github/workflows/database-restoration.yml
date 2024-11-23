@@ -312,7 +312,6 @@ jobs:
             
             # Output final status and ensure we don't exit
             echo "DB_STATUS=$db_status"
-            return 0
           REMOTE_SCRIPT
           )
           
