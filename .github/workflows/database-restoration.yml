@@ -173,13 +173,13 @@ jobs:
           ssh_opts="-o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10"
           
           # Pass environment variables directly to SSH command
-          CHECK_OUTPUT=$(ssh $ssh_opts -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" \
+          ssh $ssh_opts -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" \
             "POSTGRES_DATA_DIR='$POSTGRES_DATA_DIR' \
              DATABASE_BACKUP_DIR='$DATABASE_BACKUP_DIR' \
              POSTGRES_DB='$POSTGRES_DB' \
              POSTGRES_USER='$POSTGRES_USER' \
              POSTGRES_PASSWORD='$POSTGRES_PASSWORD' \
-             bash -s" << 'REMOTE_SCRIPT'
+             bash -s" << 'REMOTE_SCRIPT' | tee output.log
             set -e
 
             echo "Debug: Environment variables:"
@@ -319,8 +319,8 @@ jobs:
           echo "Check output: $CHECK_OUTPUT"
           
           # Extract the status code from the output
-          if echo "$CHECK_OUTPUT" | grep -q "DB_STATUS="; then
-            db_status=$(echo "$CHECK_OUTPUT" | grep "DB_STATUS=" | cut -d'=' -f2)
+          if grep -q "DB_STATUS=" output.log; then
+            db_status=$(grep "DB_STATUS=" output.log | cut -d'=' -f2)
           else
             db_status=1
           fi
@@ -347,6 +347,9 @@ jobs:
               echo "restore_needed=true" >> $GITHUB_OUTPUT
               ;;
           esac
+          
+          # Clean up
+          rm output.log
 
       - name: Discover Latest S3 Backup
         id: discover-backup
@@ -371,8 +374,8 @@ jobs:
           
           echo "Latest backup: $latest_backup"
           echo "Backup timestamp: $backup_timestamp"
-          echo "latest_backup=$latest_backup" >> $GITHUB_OUTPUT
-          echo "backup_timestamp=$backup_timestamp" >> $GITHUB_OUTPUT
+          echo "$latest_backup" >> $GITHUB_OUTPUT
+          echo "$backup_timestamp" >> $GITHUB_OUTPUT
 
       - name: Compare Backup Timestamp
         id: compare-timestamp
@@ -532,6 +535,14 @@ jobs:
             export AWS_SESSION_TOKEN="$AWS_SESSION_TOKEN"
             export AWS_DEFAULT_REGION="$AWS_DEFAULT_REGION"
             
+            # Export variables for use in the script
+            export EC2_USER="$EC2_USER"
+            export DATABASE_BACKUP_DIR="$DATABASE_BACKUP_DIR"
+
+            # Ensure backup directory exists
+            sudo mkdir -p "\$DATABASE_BACKUP_DIR"
+            sudo chown -R "\$EC2_USER:\$EC2_USER" "\$DATABASE_BACKUP_DIR"
+
             echo "⬇️ Downloading backup from S3..."
             aws s3 cp "s3://$S3_BACKUP_BUCKET/$S3_BACKUP_PREFIX/$LATEST_BACKUP" \
               "$DATABASE_BACKUP_DIR/latest_backup.tar.gz"
