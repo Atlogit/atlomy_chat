@@ -187,33 +187,35 @@ jobs:
             
             # Function to check if PostgreSQL is properly initialized
             check_postgres_initialization() {
-              local data_dir="$POSTGRES_DATA_DIR"  # Use environment variable directly
+              local data_dir="${POSTGRES_DATA_DIR}"  # Use environment variable directly
               local status=0
               
+              echo "Checking PostgreSQL data directory: ${data_dir}"
+              
               # Check 1: Directory exists and contains PG_VERSION
-              if ! sudo test -f "$data_dir/PG_VERSION"; then
+              if ! sudo test -f "${data_dir}/PG_VERSION"; then
                 echo "Directory missing or PG_VERSION not found"
                 status=2
               fi
               
               # Check 2: Essential PostgreSQL directories exist
               for dir in base global pg_wal pg_xact; do
-                if ! sudo test -d "$data_dir/$dir"; then
-                  echo "Missing essential directory: $dir"
+                if ! sudo test -d "${data_dir}/${dir}"; then
+                  echo "Missing essential directory: ${dir}"
                   status=2
                 fi
               done
               
               # Only try to start PostgreSQL if previous checks passed
-              if [ $status -eq 0 ]; then
+              if [ "${status}" -eq 0 ]; then
                 # Check 3: Try to start a temporary PostgreSQL instance to verify initialization
                 echo "Verifying PostgreSQL initialization with temporary container..."
                 if ! timeout 30s docker run --rm \
                   --name pg-check \
-                  -v "$POSTGRES_DATA_DIR" \
-                  -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
-                  -e POSTGRES_USER="$POSTGRES_USER" \
-                  -e POSTGRES_DB="$POSTGRES_DB" \
+                  -v "${data_dir}:/var/lib/postgresql/data" \
+                  -e POSTGRES_PASSWORD="${POSTGRES_PASSWORD}" \
+                  -e POSTGRES_USER="${POSTGRES_USER}" \
+                  -e POSTGRES_DB="${POSTGRES_DB}" \
                   --user 999:999 \
                   postgres:14 \
                   postgres -D /var/lib/postgresql/data -c 'log_statement=none' &> /dev/null; then
@@ -222,14 +224,14 @@ jobs:
                 fi
               fi
               
-              return $status
+              return "${status}"
             }
             
             # Main check logic
             check_postgres_initialization  # No argument needed now
             CHECK_STATUS=$?
             
-            if [ $CHECK_STATUS -eq 2 ]; then
+            if [ "${CHECK_STATUS}" -eq 2 ]; then
               echo "NEEDS_RESTORE"
               exit 0
             else
