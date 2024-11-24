@@ -617,7 +617,6 @@ jobs:
             echo "Remote S3 path: s3://${S3_BACKUP_BUCKET}/${S3_BACKUP_PREFIX}/${LATEST_BACKUP}"
             
             set -e
-            set -x
 
             # Verify S3 bucket and object details
             echo "🔍 S3 Object Verification"
@@ -676,16 +675,7 @@ jobs:
               
               echo "Strategy $strategy failed, trying next..."
             done
-              
-              if [ "$download_success" = false ]; then
-                echo "❌ All download strategies failed"
-                # Print the directory contents for debugging
-                ls -la "${DATABASE_BACKUP_DIR}"
-                # Print S3 bucket contents for debugging
-                aws s3 ls "s3://${S3_BACKUP_BUCKET}/${S3_BACKUP_PREFIX}/"
-                exit 1
-              fi
-            
+
             if [ "$download_success" = false ]; then
               echo "❌ All download strategies failed"
               # Print the directory contents for debugging
@@ -720,17 +710,17 @@ jobs:
                 exit 1
               fi
               
-              # Check backup contents
-              backup_contents=\$(tar tzf "${DATABASE_BACKUP_DIR}/latest_backup.tar.gz")
-              if ! echo "\$backup_contents" | grep -q "PG_VERSION"; then
-                echo "❌ Invalid PostgreSQL backup"
-                exit 1
-              fi
-              
-              if ! echo "\$backup_contents" | grep -q "base/"; then
-                echo "❌ Missing essential PostgreSQL directories"
-                exit 1
-              fi
+                # Check backup contents
+                backup_contents=\$(tar tzf "${DATABASE_BACKUP_DIR}/latest_backup.tar.gz")
+                if ! echo "\$backup_contents" | grep -q "PG_VERSION"; then
+                  echo "❌ Invalid PostgreSQL backup"
+                  exit 1
+                fi
+                
+                if ! echo "\$backup_contents" | grep -q "base/"; then
+                  echo "❌ Missing essential PostgreSQL directories"
+                  exit 1
+                fi
             elif [ "$BACKUP_TYPE" == "sql" ]; then
               # Enhanced SQL backup verification
               echo "🔬 Performing SQL Backup Detailed Verification..."
