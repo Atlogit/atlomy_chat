@@ -2,11 +2,11 @@
 FROM python:3.11-slim-bullseye
 
 # Set environment variables
-ENV PYTHONDONTWRITEBYTECODE 1
-ENV PYTHONUNBUFFERED 1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 ENV VIRTUAL_ENV=/amta/venv
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
-ENV PYTHONPATH="/amta:$PYTHONPATH"
+ENV PYTHONPATH="/amta:"
 
 # Set working directory to the project root
 WORKDIR /amta
