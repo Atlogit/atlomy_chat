@@ -626,43 +626,64 @@ jobs:
             
             # Multiple download strategies
             download_strategies=(
-              "aws s3 cp"
-              "aws s3 sync"
-              "aws s3api get-object"
+              "s3cp"
+              "s3sync"
+              "s3api"
             )
-            
+
             download_success=false
             for strategy in "${download_strategies[@]}"; do
               echo "🔄 Attempting download with: $strategy"
               
               case "$strategy" in
-                "aws s3 cp")
-                  $strategy "s3://${S3_BACKUP_BUCKET}/${S3_BACKUP_PREFIX}/${LATEST_BACKUP}" \
-                    "${DATABASE_BACKUP_DIR}/latest_backup.${BACKUP_TYPE}.gz" \
-                    && download_success=true
+                "s3cp")
+                  if aws s3 cp "s3://${S3_BACKUP_BUCKET}/${S3_BACKUP_PREFIX}/${LATEST_BACKUP}" \
+                    "${DATABASE_BACKUP_DIR}/latest_backup.${BACKUP_TYPE}.gz"; then
+                    download_success=true
+                    break
+                  fi
                   ;;
-                "aws s3 sync")
-                  $strategy "s3://${S3_BACKUP_BUCKET}/${S3_BACKUP_PREFIX}/" \
+                  
+                "s3sync")
+                  if aws s3 sync \
+                    "s3://${S3_BACKUP_BUCKET}/${S3_BACKUP_PREFIX}/" \
                     "${DATABASE_BACKUP_DIR}" \
-                    --exclude "*" --include "${LATEST_BACKUP}" \
-                    && download_success=true
+                    --exclude "*" \
+                    --include "${LATEST_BACKUP}"; then
+                    download_success=true
+                    break
+                  fi
                   ;;
-                "aws s3api get-object")
-                  $strategy \
+                  
+                "s3api")
+                  if aws s3api get-object \
                     --bucket "${S3_BACKUP_BUCKET}" \
                     --key "${S3_BACKUP_PREFIX}/${LATEST_BACKUP}" \
-                    "${DATABASE_BACKUP_DIR}/latest_backup.${BACKUP_TYPE}.gz" \
-                    && download_success=true
+                    "${DATABASE_BACKUP_DIR}/latest_backup.${BACKUP_TYPE}.gz"; then
+                    download_success=true
+                    break
+                  fi
                   ;;
               esac
               
-              if [ "\$download_success" = true ]; then
-                break
-              fi
+              echo "Strategy $strategy failed, trying next..."
             done
+              
+              if [ "$download_success" = false ]; then
+                echo "❌ All download strategies failed"
+                # Print the directory contents for debugging
+                ls -la "${DATABASE_BACKUP_DIR}"
+                # Print S3 bucket contents for debugging
+                aws s3 ls "s3://${S3_BACKUP_BUCKET}/${S3_BACKUP_PREFIX}/"
+                exit 1
+              fi
             
-            if [ "\$download_success" = false ]; then
+            if [ "$download_success" = false ]; then
               echo "❌ All download strategies failed"
+              # Print the directory contents for debugging
+              ls -la "${DATABASE_BACKUP_DIR}"
+              # Print S3 bucket contents for debugging
+              aws s3 ls "s3://${S3_BACKUP_BUCKET}/${S3_BACKUP_PREFIX}/"
               exit 1
             fi
             
