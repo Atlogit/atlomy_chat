@@ -8,11 +8,14 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_HOST=${POSTGRES_HOST}
       - POSTGRES_PORT=${POSTGRES_PORT}
-      - DEPLOYMENT_MODE=${DEPLOYMENT_MODE:-production}  # Add this line
+      - DEPLOYMENT_MODE=${DEPLOYMENT_MODE:-production}
+      - POSTGRES_DATA_DIR=${POSTGRES_DATA_DIR:-postgres_data}
       # Add performance tuning parameters
       - POSTGRES_MAX_CONNECTIONS=100
       - POSTGRES_SHARED_BUFFERS=256MB
       - POSTGRES_EFFECTIVE_CACHE_SIZE=768MB
+      # Explicitly set logging parameters
+      - LOG_LEVEL=debug
     volumes:
       - ${POSTGRES_DATA_DIR:-postgres_data}:/var/lib/postgresql/data
       - ~/amta/logs:/var/log/postgresql
@@ -26,59 +29,35 @@ services:
       retries: 3
       start_period: 20s
     command:
-        - "/bin/bash"
-        - "-c"
-        - |
-          if [ "$DEPLOYMENT_MODE" = "development" ]; then
-            export LOG_LEVEL="debug1"
-            export LOG_STATEMENT="all"
-          else
-            export LOG_LEVEL="info"
-            export LOG_STATEMENT="none"
-          fi
-        - "&&"
-        - "postgres"
-        - "-c"
-        - "max_connections=100"
-        - "-c"
-        - "shared_buffers=256MB"
-        - "-c"
-        - "effective_cache_size=768MB"
-        - "-c"
-        - "work_mem=16MB"
-        - "-c"
-        - "maintenance_work_mem=256MB"
-        - "-c"
-        - "random_page_cost=1.1"
-        - "-c"
-        - "temp_file_limit=10GB"
-        - "-c"
-        - "idle_in_transaction_session_timeout=10s"
-        - "-c"
-        - "lock_timeout=1s"
-        - "-c"
-        - "statement_timeout=60s"
-        - "-c"
-        - "shared_preload_libraries=pg_stat_statements"
-        - "-c"
-        - "pg_stat_statements.max=10000"
-        - "-c"
-        - "pg_stat_statements.track=all"
-        - "-c"
-        - "logging_collector=on"
-        - "-c"
-        - "log_directory=/var/log/postgresql"
-        - "-c"
-        - "log_filename=database_debug.log"
-        - "-c"
-        - "log_min_messages=${LOG_LEVEL}"
-        - "-c"
-        - "log_min_error_statement=${LOG_LEVEL}"
-        - "-c"
-        - "log_statement=${LOG_STATEMENT}"
-        - "-c"
-        - "log_line_prefix=%m [%p] %q%u@%d "
-
+      - "postgres"
+      - "-c"
+      - "max_connections=100"
+      - "-c"
+      - "shared_buffers=256MB"
+      - "-c"
+      - "effective_cache_size=768MB"
+      - "-c"
+      - "work_mem=16MB"
+      - "-c"
+      - "maintenance_work_mem=256MB"
+      - "-c"
+      - "random_page_cost=1.1"
+      - "-c"
+      - "temp_file_limit=10GB"
+      - "-c"
+      - "log_min_duration_statement=200ms"
+      - "-c"
+      - "idle_in_transaction_session_timeout=10s"
+      - "-c"
+      - "lock_timeout=1s"
+      - "-c"
+      - "statement_timeout=60s"
+      - "-c"
+      - "shared_preload_libraries=pg_stat_statements"
+      - "-c"
+      - "pg_stat_statements.max=10000"
+      - "-c"
+      - "pg_stat_statements.track=all"
     ulimits:
       nproc: 65535
       nofile:
@@ -87,8 +66,12 @@ services:
     shm_size: '256mb'
 
   backend:
-    image: ghcr.io/atlogit/atlomy_chat-backend:production-backend-9a681a2
+    image: ghcr.io/atlogit/atlomy_chat-backend:production-backend-b075fbb
+    #build: 
+    #  context: .
+    #  dockerfile: Dockerfile.backend
     container_name: amta-backend
+    #network_mode: "host"
     ports:
       - "8081:8081"
     volumes:
@@ -98,7 +81,7 @@ services:
     env_file:
       - .env
     environment:
-      - ${POSTGRES_DATA_DIR:-postgres_data}:/var/lib/postgresql/data
+      - POSTGRES_DATA_DIR=${POSTGRES_DATA_DIR:-postgres_data}:/var/lib/postgresql/data
       - PYTHONUNBUFFERED=1
       - DEPLOYMENT_MODE=${DEPLOYMENT_MODE:-production}
       - REDIS_URL=${REDIS_URL}
@@ -111,8 +94,8 @@ services:
       - POSTGRES_USER=${POSTGRES_USER}
       - SERVER_HOST=0.0.0.0
       - SERVER_PORT=8081
-      - LOG_LEVEL=${DEPLOYMENT_MODE:-info}
-      - DEBUG=${DEPLOYMENT_MODE:-false}
+      - LOG_LEVEL=debug
+      - DEBUG=true
     restart: unless-stopped
     depends_on:
       - postgres
@@ -126,14 +109,18 @@ services:
       start_period: 40s
 
   frontend:
-    image: ghcr.io/atlogit/atlomy_chat-frontend:production-frontend-9a681a2
+    image: ghcr.io/atlogit/atlomy_chat-frontend:production-frontend-b075fbb
+    #build:
+    #  context: ./next-app
+    #  dockerfile: Dockerfile
     container_name: amta-frontend
+    #network_mode: "host"
     ports:
       - "3000:3000"
     environment:
       - NODE_ENV=${DEPLOYMENT_MODE:-production}
       - BACKEND_URL=http://localhost:8081
-      - DEBUG=${DEPLOYMENT_MODE:-false}
+      - DEBUG=true
       - NEXT_PUBLIC_LOG_LEVEL=${DEPLOYMENT_MODE:-info}
     volumes:
       - ~/amta/logs:/app/logs
@@ -152,13 +139,8 @@ services:
   redis:
     image: redis:6.2-alpine
     container_name: amta-redis
-    command: >
-      sh -c '
-      if [ "$DEPLOYMENT_MODE" = "development" ]; then
-        redis-server --databases 16 --port ${REDIS_PORT} --loglevel debug --logfile /var/log/redis/redis_debug.log
-      else
-        redis-server --databases 16 --port ${REDIS_PORT} --loglevel notice --logfile /var/log/redis/redis_debug.log
-      fi'
+    command: redis-server --databases 16 --port ${REDIS_PORT}
+    #network_mode: "host"
     ports:
       - "${REDIS_PORT}:${REDIS_PORT}"
     environment:

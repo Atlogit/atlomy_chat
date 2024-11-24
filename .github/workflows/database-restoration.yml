@@ -350,7 +350,7 @@ jobs:
         run: |
           # List and sort backups by date, get the latest
           latest_backup=$(aws s3 ls "s3://$S3_BACKUP_BUCKET/$S3_BACKUP_PREFIX/" \
-            | grep '\.tar\.gz$' \
+            | grep '\.sql\.gz$' \
             | sort -k1,2 \
             | tail -n 1 \
             | awk '{print $4}')
@@ -584,21 +584,21 @@ jobs:
           
             echo "⬇️ Downloading backup from S3..."
             aws s3 cp "s3://${S3_BACKUP_BUCKET}/${S3_BACKUP_PREFIX}/${LATEST_BACKUP}" \
-              "${DATABASE_BACKUP_DIR}/latest_backup.tar.gz"
+              "${DATABASE_BACKUP_DIR}/latest_backup.sql.gz"
             
-            if [ ! -f "${DATABASE_BACKUP_DIR}/latest_backup.tar.gz" ]; then
+            if [ ! -f "${DATABASE_BACKUP_DIR}/latest_backup.sql.gz" ]; then
               echo "❌ Backup download failed"
               exit 1
             fi
             
             # Verify backup integrity
-            if ! tar tzf "${DATABASE_BACKUP_DIR}/latest_backup.tar.gz" > /dev/null 2>&1; then
+            if ! tar tzf "${DATABASE_BACKUP_DIR}/latest_backup.sql.gz" > /dev/null 2>&1; then
               echo "❌ Invalid backup archive"
               exit 1
             fi
             
             # Check backup contents
-            backup_contents=\$(tar tzf "${DATABASE_BACKUP_DIR}/latest_backup.tar.gz")
+            backup_contents=\$(tar tzf "${DATABASE_BACKUP_DIR}/latest_backup.sql.gz")
             if ! echo "\$backup_contents" | grep -q "PG_VERSION"; then
               echo "❌ Invalid PostgreSQL backup"
               exit 1
@@ -656,7 +656,7 @@ jobs:
             TEMP_DIR=$(mktemp -d)
             trap 'sudo rm -rf "$TEMP_DIR"' EXIT
             
-            sudo tar xzf "${DATABASE_BACKUP_DIR}/latest_backup.tar.gz" -C "$TEMP_DIR" --strip-components=1
+            sudo tar xzf "${DATABASE_BACKUP_DIR}/latest_backup.sql.gz" -C "$TEMP_DIR" --strip-components=1
             
             # Determine backup type and restore
             if [ -f "$TEMP_DIR/PG_VERSION" ]; then
