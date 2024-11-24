@@ -42,15 +42,18 @@ echo "DEPLOYMENT_MODE: $DEPLOYMENT_MODE"
 echo "Original LOG_LEVEL: $LOG_LEVEL"
 
 # Ensure LOG_LEVEL is uppercase
-export LOG_LEVEL=$(echo "$LOG_LEVEL" | tr '[:lower:]' '[:upper:]')
+# Store uppercase version for Python logging config
+LOG_LEVEL_UPPER=$(echo "$LOG_LEVEL" | tr '[:lower:]' '[:upper:]')
+# Store lowercase version for Uvicorn
+LOG_LEVEL_LOWER=$(echo "$LOG_LEVEL" | tr '[:upper:]' '[:lower:]')
 
-echo "Uppercase LOG_LEVEL: $LOG_LEVEL"
+# Use uppercase version for the logging config file
+sed -i "s/\${LOG_LEVEL}/${LOG_LEVEL_UPPER}/g" "$LOGGING_CONFIG"
+
+echo "lowercase LOG_LEVEL: $LOG_LEVEL"
 
 # Backup original logging config
 cp "$LOGGING_CONFIG" "$LOGGING_CONFIG.bak"
-
-# Replace LOG LEVEL in the logging config file with extensive error checking
-sed -i "s/\${LOG_LEVEL}/$LOG_LEVEL/g" "$LOGGING_CONFIG"
 
 # Verify the replacement
 echo "Logging config after replacement:"
@@ -105,7 +108,7 @@ echo "LOG_LEVEL length: ${#LOG_LEVEL}"
 exec uvicorn app.run_server:app \
     --host "$SERVER_HOST" \
     --port "$SERVER_PORT" \
-    --log-level "$LOG_LEVEL" \
+    --log-level "$LOG_LEVEL_LOWER" \
     --log-config "$LOGGING_CONFIG" \
     2>&1 | while IFS= read -r line; do
         log "SERVER" "$line"

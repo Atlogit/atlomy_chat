@@ -407,6 +407,7 @@ jobs:
              bash -s" << 'REMOTE_SCRIPT'
               echo "Debug values:"
               echo "Username: $GITHUB_USERNAME"
+              echo "Github Token: $GITHUB_TOKEN"
               echo "Frontend Tag: $FRONTEND_TAG"
               echo "Backend Tag: $BACKEND_TAG"
               
