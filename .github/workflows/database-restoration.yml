@@ -736,14 +736,10 @@ jobs:
             
             # Stop existing PostgreSQL container
             trap cleanup EXIT
-            cleanup() {
-              echo "🧹 Cleaning up Docker resources..."
-              docker ps -q --filter "name=amta-postgres" | xargs -r docker stop
-              docker ps -aq --filter "name=amta-postgres" | xargs -r docker rm
-              docker volume ls -q --filter "dangling=true" | xargs -r docker volume rm
-            }
-            
-            cleanup
+            echo "🧹 Cleaning up Docker resources..."
+            docker ps -q --filter "name=amta-postgres" | xargs -r docker stop
+            docker ps -aq --filter "name=amta-postgres" | xargs -r docker rm
+            docker volume ls -q --filter "dangling=true" | xargs -r docker volume rm
             
             echo "🔄 Starting database restoration..."
             
