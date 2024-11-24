@@ -795,13 +795,13 @@ jobs:
                       "SELECT 1;" >/dev/null 2>&1
                     if [ \$? -eq 0 ]; then
                       echo "Database verification successful"
+                      docker stop amta-postgres
+                      docker rm amta-postgres
+                      break
                     else
                       echo "Database verification failed"
                       exit 1
                     fi
-                    docker stop amta-postgres
-                    docker rm amta-postgres
-                    break
                   fi
                 if [ $i -eq 30 ]; then
                   echo "❌ PostgreSQL initialization failed"
