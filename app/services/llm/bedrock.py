@@ -39,35 +39,53 @@ class BedrockClient(BaseLLMClient):
             logger.debug(f"Model ID from config: {settings.llm.BEDROCK_MODEL_ID}")
             logger.debug(f"Model ID from env: {os.getenv('BEDROCK_MODEL_ID', 'not set')}")
             
-            # Check if AWS credentials are set
-            if not settings.llm.AWS_ACCESS_KEY_ID or not settings.llm.AWS_SECRET_ACCESS_KEY:
-                logger.error("AWS credentials not found")
-                raise BedrockClientError(
-                    "AWS credentials not configured",
-                    {
-                        "message": "AWS credentials not found",
-                        "error_type": "configuration_error",
-                        "missing_credentials": ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]
-                    }
-                )
-
             self.config = Config(
-                region_name=settings.llm.AWS_REGION,
-                retries={
-                    'max_attempts': settings.llm.MAX_RETRIES,
-                    'mode': 'adaptive'
+            region_name=settings.llm.AWS_REGION,
+            retries={
+                'max_attempts': settings.llm.MAX_RETRIES,
+                'mode': 'adaptive'
                 }
             )
             
-            # Use explicit credentials instead of instance profile
-            self.client = boto3.client(
-                'bedrock-runtime',
-                aws_access_key_id=settings.llm.AWS_ACCESS_KEY_ID,
-                aws_secret_access_key=settings.llm.AWS_SECRET_ACCESS_KEY,
-                region_name=settings.llm.AWS_REGION,
-                config=self.config
-            )
-            
+            # Check if running on EC2 by attempting to get instance metadata
+            try:
+                session = boto3.Session()
+                sts = session.client('sts')
+                sts.get_caller_identity()
+                is_on_ec2 = True
+            except:
+                is_on_ec2 = False
+
+            # If not on EC2, enforce credential check
+            if not is_on_ec2:
+                # Check if AWS credentials are set
+                if not settings.llm.AWS_ACCESS_KEY_ID or not settings.llm.AWS_SECRET_ACCESS_KEY:
+                    logger.error("AWS credentials not found")
+                    raise BedrockClientError(
+                        "AWS credentials not configured",
+                        {
+                            "message": "AWS credentials not found",
+                            "error_type": "configuration_error",
+                            "missing_credentials": ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]
+                        }
+                    )
+
+                # Use explicit credentials instead of instance profile
+                self.client = boto3.client(
+                    'bedrock-runtime',
+                    aws_access_key_id=settings.llm.AWS_ACCESS_KEY_ID,
+                    aws_secret_access_key=settings.llm.AWS_SECRET_ACCESS_KEY,
+                    region_name=settings.llm.AWS_REGION,
+                    config=self.config
+                )
+            else:
+                # Running on EC2 with IAM role
+                self.client = boto3.client(
+                    'bedrock-runtime',
+                    region_name=settings.llm.AWS_REGION,
+                    config=self.config
+                )
+                
             self.model_id = settings.llm.BEDROCK_MODEL_ID
             logger.info(f"AWS Bedrock client initialized with model: {self.model_id}")
             
