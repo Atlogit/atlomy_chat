@@ -37,7 +37,7 @@ else
 fi
 
 # Convert LOG_LEVEL to lowercase
-LOG_LEVEL=$(echo "$LOG_LEVEL" | tr '[:upper:]' '[:lower:]')
+#LOG_LEVEL=$(echo "$LOG_LEVEL" | tr '[:upper:]' '[:lower:]')
 
 # Replace LOG LEVEL in the logging config file
 sed -i "s/\${LOG_LEVEL}/${LOG_LEVEL}/g" "$LOGGING_CONFIG"

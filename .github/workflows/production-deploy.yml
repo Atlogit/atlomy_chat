@@ -92,6 +92,44 @@ jobs:
         with:
           ref: production
           fetch-depth: 0
+          
+      - name: Get Docker Build tags
+        if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'
+        run: |
+          # Download artifact from the Docker Build workflow
+          gh run download ${{ github.event.workflow_run.id }} -n build-tags
+
+          # Read the tags from the artifact
+          if [ -f build-tags.txt ]; then
+            echo "FRONTEND_TAG=${FRONTEND_TAG}" >> $GITHUB_ENV
+            echo "BACKEND_TAG=${BACKEND_TAG}" >> $GITHUB_ENV
+            
+            # Debug output
+            echo "Using tags from Docker Build:"
+            echo "Frontend: ${FRONTEND_TAG}"
+            echo "Backend: ${BACKEND_TAG}"
+          else
+            echo "Error: build-tags.txt not found"
+            exit 1
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set manual deployment tags
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          # Use manually provided tags or generate new ones
+          if [ -n "${{ inputs.frontend_tag }}" ]; then
+            echo "FRONTEND_TAG=${{ inputs.frontend_tag }}" >> $GITHUB_ENV
+          else
+            echo "FRONTEND_TAG=production-frontend-$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+          fi
+          
+          if [ -n "${{ inputs.backend_tag }}" ]; then
+            echo "BACKEND_TAG=${{ inputs.backend_tag }}" >> $GITHUB_ENV
+          else
+            echo "BACKEND_TAG=production-backend-$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+              fi
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -317,7 +355,9 @@ jobs:
           BEDROCK_MODEL_ID: ${{ steps.get-secrets.outputs.BEDROCK_MODEL_ID }}
           GITHUB_USERNAME: ${{ steps.get-secrets.outputs.GITHUB_USERNAME }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
+          FRONTEND_TAG: ${{ env.FRONTEND_TAG }}
+          BACKEND_TAG: ${{ env.BACKEND_TAG }}
+      
         run: |
           SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=no"
 
@@ -344,20 +384,22 @@ jobs:
           ssh $SSH_OPTS -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << DEPLOY_EOF
             export GITHUB_USERNAME="$GITHUB_USERNAME"
             export GITHUB_TOKEN="$GITHUB_TOKEN"
-            
+            export FRONTEND_TAG="$FRONTEND_TAG"
+            export BACKEND_TAG="$BACKEND_TAG"
+
             echo "$GITHUB_TOKEN" | docker login ghcr.io -u "\$GITHUB_USERNAME" --password-stdin
           
             HOME_DIR=\$(eval echo ~$EC2_USER)
             cd \$HOME_DIR/amta
             
             # Pull latest images
-            docker-compose pull
+            FRONTEND_TAG="\$FRONTEND_TAG" BACKEND_TAG="\$BACKEND_TAG" docker-compose pull
             
             # Stop and remove existing containers
             docker-compose down || true
             
             # Start new deployment
-            docker-compose up -d
+            FRONTEND_TAG="\$FRONTEND_TAG" BACKEND_TAG="\$BACKEND_TAG" docker-compose up -d
             
             # Log container status
             docker-compose ps
@@ -388,7 +430,7 @@ jobs:
             max_attempts=3
             attempt=0
             
-             # Quick check if containers are running
+            # Quick check if containers are running
             echo -e "\${YELLOW}Checking Docker containers status...${NC}"
             docker-compose ps
             

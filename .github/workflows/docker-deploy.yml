@@ -270,6 +270,17 @@ jobs:
           tags: ${{ steps.frontend-meta.outputs.tags }}
           labels: ${{ steps.frontend-meta.outputs.labels }}
 
+      - name: Save build tags
+        run: |
+          echo "FRONTEND_TAG=${{ steps.frontend-meta.outputs.tags }}" > build-tags.txt
+          echo "BACKEND_TAG=${{ steps.backend-meta.outputs.tags }}" >> build-tags.txt
+
+      - name: Upload build tags
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-tags
+          path: build-tags.txt
+          
       # Trigger Production Deployment
       - name: Trigger Next Workflow with PAT
         env:
