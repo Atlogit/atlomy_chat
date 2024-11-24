@@ -385,16 +385,16 @@ jobs:
           
           echo "Latest backup: $latest_backup"
           echo "Backup timestamp: $backup_timestamp"
-          echo "backup_file=$latest_backup" >> $GITHUB_OUTPUT
-          echo "backup_timestamp=$backup_timestamp" >> $GITHUB_OUTPUT
-
+          echo "backup_file=${latest_backup}" >> "$GITHUB_OUTPUT"
+          echo "backup_timestamp=${backup_timestamp}" >> "$GITHUB_OUTPUT"
+      
       - name: Compare Backup Timestamp
         id: compare-timestamp
         if: steps.check-database.outputs.status == 'initialized'
         env:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
-          LATEST_BACKUP: ${{ steps.discover-backup.outputs.latest_backup }}
+          LATEST_BACKUP: ${{ steps.discover-backup.outputs.backup_file }}
           BACKUP_TIMESTAMP: ${{ steps.discover-backup.outputs.backup_timestamp }}
           CHECK_DATABASE_RESTORE_NEEDED: ${{ steps.check-database.outputs.restore_needed }}
           POSTGRES_DATA_DIR: ${{ inputs.postgres_data_dir }}
@@ -584,7 +584,7 @@ jobs:
         env:
           S3_BACKUP_BUCKET: ${{ inputs.s3_backup_bucket }}
           S3_BACKUP_PREFIX: ${{ inputs.s3_backup_prefix }}
-          LATEST_BACKUP: ${{ steps.discover-backup.outputs.latest_backup }}
+          LATEST_BACKUP: ${{ steps.discover-backup.outputs.backup_file }}
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
           AWS_ACCESS_KEY_ID: ${{ env.AWS_ACCESS_KEY_ID }}
@@ -594,6 +594,9 @@ jobs:
           DATABASE_BACKUP_DIR: ${{ inputs.database_backup_dir }}
           BACKUP_TYPE: ${{ inputs.backup_type }}
         run: |
+          echo "📦 Using backup file: $LATEST_BACKUP"
+          echo "⏰ Backup timestamp: $BACKUP_TIMESTAMP"
+          
           ssh_opts="-o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10"
           
           ssh $ssh_opts -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" << REMOTE_SCRIPT
