@@ -72,7 +72,7 @@ services:
     shm_size: '256mb'
 
   backend:
-    image: ghcr.io/atlogit/atlomy_chat-backend:${FRONTEND_TAG}
+    image: ghcr.io/atlogit/atlomy_chat-backend:production-backend-6c62a33
     #build: 
     #  context: .
     #  dockerfile: Dockerfile.backend
@@ -117,7 +117,7 @@ services:
       start_period: 40s
 
   frontend:
-    image: ghcr.io/atlogit/atlomy_chat-frontend:${BACKEND_TAG}
+    image: ghcr.io/atlogit/atlomy_chat-frontend:production-frontend-6c62a33
     #build:
     #  context: ./next-app
     #  dockerfile: Dockerfile
