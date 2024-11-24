@@ -11,6 +11,10 @@ on:
         options:
           - production
           - development
+      postgres_data_dir:  
+        description: 'PostgreSQL Data Directory'
+        required: false
+        default: '/home/ec2-user/amta/postgresql/data'
       force_deploy:
         description: 'Force deployment without Docker Build workflow'
         required: false
@@ -53,12 +57,12 @@ jobs:
           echo "Workflow Run Name: ${{ github.event.workflow_run.name }}"
           echo "Workflow Run Branch: ${{ github.event.workflow_run.head_branch }}"
 
-  #database-restoration:
-  #  needs: validate-workflow-trigger
-  #  uses: ./.github/workflows/database-restoration.yml
-  #  secrets: inherit
-  #  with:
-  #    deployment_mode: production
+  database-restoration:
+    needs: validate-workflow-trigger
+    uses: ./.github/workflows/database-restoration.yml
+    secrets: inherit
+    with:
+      deployment_mode: production
 
   #database-validation:
   #  needs: database-restoration
@@ -205,7 +209,8 @@ jobs:
           POSTGRES_DB: ${{ steps.get-secrets.outputs.POSTGRES_DB }}
           POSTGRES_USER: ${{ steps.get-secrets.outputs.POSTGRES_USER }}
           POSTGRES_PASSWORD: ${{ steps.get-secrets.outputs.POSTGRES_PASSWORD }}
-          
+          POSTGRES_DATA_DIR: ${{ inputs.postgres_data_dir }}
+
           REDIS_URL: ${{ steps.get-secrets.outputs.REDIS_URL }}
           REDIS_HOST: ${{ steps.get-secrets.outputs.REDIS_HOST }}
           REDIS_PORT: ${{ steps.get-secrets.outputs.REDIS_PORT }}
@@ -231,7 +236,8 @@ jobs:
           sed -i "s|^REDIS_PORT=.*|REDIS_PORT=$REDIS_PORT|" .env
           sed -i "s|^REDIS_DB=.*|REDIS_DB=$REDIS_DB|" .env
           sed -i "s|^REDIS_PASSWORD=.*|REDIS_PASSWORD=$REDIS_PASSWORD|" .env
-          
+          sed -i "s|^POSTGRES_DATA_DIR=.*|POSTGRES_DATA_DIR=$POSTGRES_DATA_DIR|" .env
+
           sed -i "s|^BEDROCK_MODEL_ID=.*|BEDROCK_MODEL_ID=$BEDROCK_MODEL_ID|" .env
           sed -i "s|^AWS_BEDROCK_REGION=.*|AWS_BEDROCK_REGION=$AWS_BEDROCK_REGION|" .env
 
