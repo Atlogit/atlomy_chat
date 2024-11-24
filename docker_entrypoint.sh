@@ -63,15 +63,32 @@ log "INFO" "Checking critical dependencies..."
 python -c "import redis; print('Redis library: OK')" || log "ERROR" "Redis library import failed"
 python -c "import boto3; print('AWS SDK: OK')" || log "ERROR" "AWS SDK import failed"
 
+# Additional diagnostic information
+log "INFO" "Python Path: $PYTHONPATH"
+log "INFO" "Current Directory: $(pwd)"
+log "INFO" "Listing /amta directory:"
+ls -la /amta
+
+# Verify logging configuration
+log "INFO" "Logging Configuration Path: $LOGGING_CONFIG"
+if [ -f "$LOGGING_CONFIG" ]; then
+    log "INFO" "Logging config file exists"
+    cat "$LOGGING_CONFIG"
+else
+    log "ERROR" "Logging config file NOT FOUND at $LOGGING_CONFIG"
+fi
+
 # Start FastAPI server with comprehensive logging
 log "INFO" "Launching Uvicorn server..."
 echo "LOG_LEVEL value: '$LOG_LEVEL'"
 echo "LOG_LEVEL length: ${#LOG_LEVEL}"
 
+# Attempt to run the server with verbose error reporting
 exec uvicorn app.run_server:app \
     --host "$SERVER_HOST" \
     --port "$SERVER_PORT" \
     --log-level "$LOG_LEVEL" \
+    --log-config "$LOGGING_CONFIG" \
     2>&1 | while IFS= read -r line; do
         log "SERVER" "$line"
     done

@@ -11,6 +11,13 @@ on:
         options:
           - production
           - development
+      backup_type:
+        description: 'Backup Type'
+        required: true
+        type: choice
+        options:
+          - tar
+          - sql
       postgres_data_dir:
         description: 'PostgreSQL Data Directory'
         required: false
@@ -39,6 +46,10 @@ on:
         type: string
         required: false
         default: 'production'
+      backup_type:
+        description: 'Backup Type'
+        type: string
+        required: true
       postgres_data_dir:
         description: 'PostgreSQL Data Directory'
         type: string
@@ -347,10 +358,20 @@ jobs:
         env:
           S3_BACKUP_BUCKET: ${{ inputs.s3_backup_bucket }}
           S3_BACKUP_PREFIX: ${{ inputs.s3_backup_prefix }}
+          BACKUP_TYPE: ${{ inputs.backup_type }}
         run: |
-          # List and sort backups by date, get the latest
+          # Determine file extension based on backup type
+          if [ "$BACKUP_TYPE" == "tar" ]; then
+            file_pattern='\.tar\.gz$'
+          elif [ "$BACKUP_TYPE" == "sql" ]; then
+            file_pattern='\.sql\.gz$'
+          else
+            echo "Invalid backup type"
+            exit 1
+          fi
+
           latest_backup=$(aws s3 ls "s3://$S3_BACKUP_BUCKET/$S3_BACKUP_PREFIX/" \
-            | grep '\.sql\.gz$' \
+            | grep "$file_pattern" \
             | sort -k1,2 \
             | tail -n 1 \
             | awk '{print $4}')
@@ -360,7 +381,6 @@ jobs:
             exit 1
           fi
 
-          # Get backup timestamp
           backup_timestamp=$(aws s3 ls "s3://$S3_BACKUP_BUCKET/$S3_BACKUP_PREFIX/$latest_backup" | awk '{print $1 " " $2}')
           
           echo "Latest backup: $latest_backup"
@@ -564,6 +584,7 @@ jobs:
           AWS_SESSION_TOKEN: ${{ env.AWS_SESSION_TOKEN }}
           AWS_DEFAULT_REGION: ${{ env.AWS_DEFAULT_REGION }}
           DATABASE_BACKUP_DIR: ${{ inputs.database_backup_dir }}
+          BACKUP_TYPE: ${{ inputs.backup_type }}
         run: |
           ssh_opts="-o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10"
           
@@ -577,6 +598,7 @@ jobs:
             export AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION}"
             
             DATABASE_BACKUP_DIR="${DATABASE_BACKUP_DIR}"
+            BACKUP_TYPE="${BACKUP_TYPE}"
 
             # Ensure backup directory exists
             sudo mkdir -p "${DATABASE_BACKUP_DIR}"
@@ -584,29 +606,36 @@ jobs:
           
             echo "⬇️ Downloading backup from S3..."
             aws s3 cp "s3://${S3_BACKUP_BUCKET}/${S3_BACKUP_PREFIX}/${LATEST_BACKUP}" \
-              "${DATABASE_BACKUP_DIR}/latest_backup.sql.gz"
+              "${DATABASE_BACKUP_DIR}/latest_backup.${BACKUP_TYPE}.gz"
             
-            if [ ! -f "${DATABASE_BACKUP_DIR}/latest_backup.sql.gz" ]; then
+            if [ ! -f "${DATABASE_BACKUP_DIR}/latest_backup.${BACKUP_TYPE}.gz" ]; then
               echo "❌ Backup download failed"
               exit 1
             fi
             
-            # Verify backup integrity
-            if ! tar tzf "${DATABASE_BACKUP_DIR}/latest_backup.sql.gz" > /dev/null 2>&1; then
-              echo "❌ Invalid backup archive"
-              exit 1
-            fi
-            
-            # Check backup contents
-            backup_contents=\$(tar tzf "${DATABASE_BACKUP_DIR}/latest_backup.sql.gz")
-            if ! echo "\$backup_contents" | grep -q "PG_VERSION"; then
-              echo "❌ Invalid PostgreSQL backup"
-              exit 1
-            fi
-            
-            if ! echo "\$backup_contents" | grep -q "base/"; then
-              echo "❌ Missing essential PostgreSQL directories"
-              exit 1
+            # Verify backup integrity based on type
+            if [ "$BACKUP_TYPE" == "tar" ]; then
+              if ! tar tzf "${DATABASE_BACKUP_DIR}/latest_backup.tar.gz" > /dev/null 2>&1; then
+                echo "❌ Invalid tar backup archive"
+                exit 1
+              fi
+              
+              # Check backup contents
+              backup_contents=\$(tar tzf "${DATABASE_BACKUP_DIR}/latest_backup.tar.gz")
+              if ! echo "\$backup_contents" | grep -q "PG_VERSION"; then
+                echo "❌ Invalid PostgreSQL backup"
+                exit 1
+              fi
+              
+              if ! echo "\$backup_contents" | grep -q "base/"; then
+                echo "❌ Missing essential PostgreSQL directories"
+                exit 1
+              fi
+            elif [ "$BACKUP_TYPE" == "sql" ]; then
+              if ! gzip -t "${DATABASE_BACKUP_DIR}/latest_backup.sql.gz" > /dev/null 2>&1; then
+                echo "❌ Invalid SQL backup archive"
+                exit 1
+              fi
             fi
             
             echo "✅ Backup downloaded and verified successfully"
@@ -625,6 +654,7 @@ jobs:
           EC2_USER: ${{ secrets.EC2_USER }}
           POSTGRES_DATA_DIR: ${{ inputs.postgres_data_dir }}
           DATABASE_BACKUP_DIR: ${{ inputs.database_backup_dir }}
+          BACKUP_TYPE: ${{ inputs.backup_type }}
         run: |
           ssh_opts="-o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10"
           
@@ -652,51 +682,81 @@ jobs:
             
             echo "🔄 Starting database restoration..."
             
-            # Extract backup
-            TEMP_DIR=$(mktemp -d)
-            trap 'sudo rm -rf "$TEMP_DIR"' EXIT
-            
-            sudo tar xzf "${DATABASE_BACKUP_DIR}/latest_backup.sql.gz" -C "$TEMP_DIR" --strip-components=1
-            
-            # Determine backup type and restore
-            if [ -f "$TEMP_DIR/PG_VERSION" ]; then
-              echo "🗂️ Restoring from data directory backup..."
+            # Restoration based on backup type
+            if [ "$BACKUP_TYPE" == "tar" ]; then
+              echo "🗂️ Restoring from tar data directory backup..."
+              
+              TEMP_DIR=$(mktemp -d)
+              trap 'sudo rm -rf "$TEMP_DIR"' EXIT
+              
+              sudo tar xzf "${DATABASE_BACKUP_DIR}/latest_backup.tar.gz" -C "$TEMP_DIR" --strip-components=1
               
               sudo cp -R "$TEMP_DIR"/* "$POSTGRES_DATA_DIR"
               sudo chown -R 999:999 "$POSTGRES_DATA_DIR"
               sudo chmod 700 "$POSTGRES_DATA_DIR"
               
-              # Verify restoration
-              echo "🔍 Verifying restored data..."
+            elif [ "$BACKUP_TYPE" == "sql" ]; then
+              echo "💾 Restoring from SQL backup..."
+              
+              # Initialize empty PostgreSQL data directory
+              sudo rm -rf "$POSTGRES_DATA_DIR"/*
+              sudo chown -R 999:999 "$POSTGRES_DATA_DIR"
+              sudo chmod 700 "$POSTGRES_DATA_DIR"
+              
+              # Start temporary PostgreSQL container
               docker run -d \
-                --name postgres-verify \
+                --name postgres-restore \
                 -v "$POSTGRES_DATA_DIR:/var/lib/postgresql/data" \
+                -e POSTGRES_DB="$POSTGRES_DB" \
+                -e POSTGRES_USER="$POSTGRES_USER" \
                 -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
-                -p 5433:5432 \
                 --user 999:999 \
                 postgres:14
               
+              # Wait for PostgreSQL to be ready
               for i in {1..30}; do
-                if docker exec postgres-verify pg_isready -U "$POSTGRES_USER" -p 5432 &>/dev/null; then
-                  if docker exec postgres-verify psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c \
-                    "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';" | grep -q '[1-9]'; then
-                    echo "✅ Database verification successful"
-                    docker stop postgres-verify
-                    docker rm postgres-verify
-                    break
-                  fi
+                if docker exec postgres-restore pg_isready -U "$POSTGRES_USER" &>/dev/null; then
+                  # Restore SQL backup
+                  docker exec postgres-restore pg_restore \
+                    -U "$POSTGRES_USER" \
+                    -d "$POSTGRES_DB" \
+                    /var/lib/postgresql/data/latest_backup.sql.gz
+                  
+                  break
                 fi
                 if [ $i -eq 30 ]; then
-                  echo "❌ Database verification failed"
+                  echo "❌ PostgreSQL initialization failed"
                   exit 1
                 fi
-                sleep 2
+                sleep 1
               done
-              
-            else
-              echo "❌ Invalid backup format"
-              exit 1
             fi
+            
+            # Verify restoration
+            docker run -d \
+              --name postgres-verify \
+              -v "$POSTGRES_DATA_DIR:/var/lib/postgresql/data" \
+              -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+              -p 5433:5432 \
+              --user 999:999 \
+              postgres:14
+            
+            for i in {1..30}; do
+              if docker exec postgres-verify pg_isready -U "$POSTGRES_USER" -p 5432 &>/dev/null; then
+                if docker exec postgres-verify psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c \
+                  "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';" | grep -q '[1-9]'; then
+                  echo "✅ Database verification successful"
+                  docker stop postgres-verify
+                  docker rm postgres-verify
+                  break
+                fi
+              fi
+              if [ $i -eq 30 ]; then
+                echo "❌ Database verification failed"
+                exit 1
+              fi
+              sleep 2
+            done
             
             echo "✅ Database restored successfully"
             echo "restore_status=success" >> $GITHUB_OUTPUT
