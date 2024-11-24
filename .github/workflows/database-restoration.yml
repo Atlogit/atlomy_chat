@@ -735,7 +735,6 @@ jobs:
             set -x
             
             # Stop existing PostgreSQL container
-            trap cleanup EXIT
             echo "🧹 Cleaning up Docker resources..."
             docker ps -q --filter "name=amta-postgres" | xargs -r docker stop
             docker ps -aq --filter "name=amta-postgres" | xargs -r docker rm
