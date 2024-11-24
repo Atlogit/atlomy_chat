@@ -699,10 +699,6 @@ jobs:
               exit 1
             fi
             
-            # Additional file type verification
-            file_type=$(file "$backup_file")
-            echo "📝 File Type: $file_type"
-
             # Verify backup integrity based on type
             if [ "$BACKUP_TYPE" == "tar" ]; then
               if ! tar tzf "${DATABASE_BACKUP_DIR}/latest_backup.tar.gz" > /dev/null 2>&1; then
