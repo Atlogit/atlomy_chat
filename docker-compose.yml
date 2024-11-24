@@ -101,6 +101,7 @@ services:
       - POSTGRES_USER=${POSTGRES_USER}
       - SERVER_HOST=0.0.0.0
       - SERVER_PORT=8081
+      - LOGGING_CONFIG=/amta/logging_config.json
       - LOG_LEVEL=debug
       - DEBUG=true
     restart: unless-stopped
