@@ -41,7 +41,7 @@ on:
     types:
       - completed
     branches:
-      -production
+      - production
 
 # Comprehensive permissions for GitHub Actions workflow
 permissions:
