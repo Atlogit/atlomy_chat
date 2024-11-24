@@ -490,6 +490,7 @@ jobs:
           EC2_USER: ${{ secrets.EC2_USER }}
           POSTGRES_DATA_DIR: ${{ inputs.postgres_data_dir }}
           DATABASE_BACKUP_DIR: ${{ inputs.database_backup_dir }}
+          BACKUP_TYPE: ${{ inputs.backup_type }}
         run: |
           ssh_opts="-o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10"
           
@@ -499,6 +500,7 @@ jobs:
             POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
             POSTGRES_DATA_DIR="$POSTGRES_DATA_DIR" \
             DATABASE_BACKUP_DIR="$DATABASE_BACKUP_DIR" \
+            BACKUP_TYPE="$BACKUP_TYPE" \
             'bash -s' << 'REMOTE_SCRIPT'
             set -e
             
@@ -526,45 +528,51 @@ jobs:
               sudo useradd -r -u 999 -g postgres postgres || true
             fi
             
-            # Prepare data directory
-            sudo rm -rf "$POSTGRES_DATA_DIR"/*
-            sudo chown -R 999:999 "$POSTGRES_DATA_DIR"
-            sudo chmod 0700 "$POSTGRES_DATA_DIR"
-            
-            echo "🐳 Starting PostgreSQL to initialize data directory..."
-            # The postgres image will automatically initialize the data directory
-            # and create the database if it's empty
-            docker run -d \
-              --name postgres-init \
-              -v "$POSTGRES_DATA_DIR:/var/lib/postgresql/data" \
-              -e POSTGRES_DB="$POSTGRES_DB" \
-              -e POSTGRES_USER="$POSTGRES_USER" \
-              -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
-              --user 999:999 \
-              postgres:14
-            
-            # Wait for PostgreSQL to be ready
-            for i in {1..30}; do
-              if docker exec postgres-init pg_isready -U "$POSTGRES_USER" &>/dev/null; then
-                echo "✅ PostgreSQL is ready"
-                break
-              fi
-              if [ $i -eq 30 ]; then
-                echo "❌ PostgreSQL failed to initialize"
+            # Only initialize full PostgreSQL data directory for TAR backups
+            if [ "$BACKUP_TYPE" == "tar" ]; then
+              echo "🧹 Cleaning existing data directory for TAR backup..."
+              sudo rm -rf "$POSTGRES_DATA_DIR"/*
+              sudo chown -R 999:999 "$POSTGRES_DATA_DIR"
+              sudo chmod 0700 "$POSTGRES_DATA_DIR"
+              
+              echo "🐳 Starting PostgreSQL to initialize data directory for TAR backup..."
+              docker run -d \
+                --name postgres-init \
+                -v "$POSTGRES_DATA_DIR:/var/lib/postgresql/data" \
+                -e POSTGRES_DB="$POSTGRES_DB" \
+                -e POSTGRES_USER="$POSTGRES_USER" \
+                -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+                --user 999:999 \
+                postgres:14
+              
+              # Wait for PostgreSQL to be ready
+              for i in {1..30}; do
+                if docker exec postgres-init pg_isready -U "$POSTGRES_USER" &>/dev/null; then
+                  echo "✅ PostgreSQL is ready"
+                  break
+                fi
+                if [ $i -eq 30 ]; then
+                  echo "❌ PostgreSQL failed to initialize"
+                  exit 1
+                fi
+                sleep 1
+              done
+              
+              # Stop the container - our data directory is now initialized
+              docker stop postgres-init
+              
+              if ! sudo test -f "$POSTGRES_DATA_DIR/PG_VERSION"; then
+                echo "❌ PostgreSQL initialization failed"
                 exit 1
               fi
-              sleep 1
-            done
-            
-            # Stop the container - our data directory is now initialized
-            docker stop postgres-init
-            
-            if ! sudo test -f "$POSTGRES_DATA_DIR/PG_VERSION"; then
-              echo "❌ PostgreSQL initialization failed"
-              exit 1
+              
+              echo "✅ PostgreSQL initialization completed successfully"
+            elif [ "$BACKUP_TYPE" == "sql" ]; then
+              echo "💾 Skipping PostgreSQL initialization for SQL backup..."
+              # Ensure correct permissions for the data directory
+              sudo chown -R 999:999 "$POSTGRES_DATA_DIR"
+              sudo chmod 0700 "$POSTGRES_DATA_DIR"
             fi
-            
-            echo "✅ PostgreSQL initialization completed successfully"
           REMOTE_SCRIPT
 
       - name: Download Latest Backup
@@ -572,7 +580,7 @@ jobs:
         if: |
           steps.init-postgres.outcome == 'success' &&
           (steps.check-database.outputs.restore_needed == 'true' ||
-           steps.compare-timestamp.outputs.restore_needed == 'true')
+            steps.compare-timestamp.outputs.restore_needed == 'true')
         env:
           S3_BACKUP_BUCKET: ${{ inputs.s3_backup_bucket }}
           S3_BACKUP_PREFIX: ${{ inputs.s3_backup_prefix }}
