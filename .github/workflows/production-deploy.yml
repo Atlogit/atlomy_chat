@@ -397,30 +397,35 @@ jobs:
             chmod +x verify_deployment.sh
 
             # Login to GitHub Container Registry
-          ssh $SSH_OPTS -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << DEPLOY_EOF
-            export GITHUB_USERNAME="$GITHUB_USERNAME"
-            export GITHUB_TOKEN="$GITHUB_TOKEN"
-            export FRONTEND_TAG="$FRONTEND_TAG"
-            export BACKEND_TAG="$BACKEND_TAG"
-
-            echo "$GITHUB_TOKEN" | docker login ghcr.io -u "\$GITHUB_USERNAME" --password-stdin
-          
-            HOME_DIR=\$(eval echo ~$EC2_USER)
-            cd \$HOME_DIR/amta
-            
-            # Pull latest images
-            FRONTEND_TAG="\$FRONTEND_TAG" BACKEND_TAG="\$BACKEND_TAG" docker-compose pull
-            
-            # Stop and remove existing containers
-            docker-compose down || true
-            
-            # Start new deployment
-            FRONTEND_TAG="\$FRONTEND_TAG" BACKEND_TAG="\$BACKEND_TAG" docker-compose up -d
-            
-            # Log container status
-            docker-compose ps
-            docker-compose logs --tail=100
-          DEPLOY_EOF
+          ssh $SSH_OPTS -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" \
+            "GITHUB_USERNAME='$GITHUB_USERNAME' \
+             GITHUB_TOKEN='$GITHUB_TOKEN' \
+             FRONTEND_TAG='$FRONTEND_TAG' \
+             BACKEND_TAG='$BACKEND_TAG' \
+             bash -s" << 'REMOTE_SCRIPT'
+              echo "Debug values:"
+              echo "Username: $GITHUB_USERNAME"
+              echo "Frontend Tag: $FRONTEND_TAG"
+              echo "Backend Tag: $BACKEND_TAG"
+              
+              echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_USERNAME" --password-stdin
+              
+              HOME_DIR=$(eval echo ~$USER)
+              cd $HOME_DIR/amta
+              
+              # Pull latest images
+              FRONTEND_TAG="$FRONTEND_TAG" BACKEND_TAG="$BACKEND_TAG" docker-compose pull
+              
+              # Stop and remove existing containers
+              docker-compose down || true
+              
+              # Start new deployment
+              FRONTEND_TAG="$FRONTEND_TAG" BACKEND_TAG="$BACKEND_TAG" docker-compose up -d
+              
+              # Log container status
+              docker-compose ps
+              docker-compose logs --tail=100
+          REMOTE_SCRIPT
 
       - name: Verify Deployment Health
         env:
