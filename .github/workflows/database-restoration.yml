@@ -280,6 +280,7 @@ jobs:
                       if [ $i -eq 30 ]; then
                         echo "Container verification failed"
                         docker stop pg-verify
+                        docker rm pg-verify
                         status="CORRUPTED"
                       fi
                       sleep 1
