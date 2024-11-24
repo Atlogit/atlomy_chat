@@ -72,8 +72,8 @@ jobs:
   #    deployment_mode: production
 
   deploy-to-ec2:
-    #needs: 
-    #  - database-restoration
+    needs: 
+      - database-restoration
     runs-on: ubuntu-latest
     environment: ${{ inputs.deployment_mode }}
     steps:
