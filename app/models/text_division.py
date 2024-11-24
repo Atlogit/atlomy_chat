@@ -60,6 +60,7 @@ class TextDivision(Base):
     work_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     
     # Structural components
+    epistle: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     fragment: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     volume: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     book: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # Added book field
@@ -157,6 +158,7 @@ class TextDivision(Base):
         if structure:
             structure_levels = [level.lower() for level in structure]
             field_map = {
+                'epistle': ('epistle', 'epistle'),
                 'fragment': ('fragment', 'Fragment'),
                 'volume': ('volume', 'Volume'),
                 'book': ('book', 'Book'),  # Added book mapping
@@ -174,6 +176,8 @@ class TextDivision(Base):
                         break
         else:
             # Fallback to default order if no structure
+            if self.epistle:
+                components.append(f"epistle {self.epistle}")
             if self.fragment:
                 components.append(f"Fragment {self.fragment}")
             if self.volume:
@@ -241,6 +245,7 @@ class TextDivision(Base):
             if structure:
                 structure_levels = [level.lower() for level in structure]
                 field_map = {
+                    'epistle': self.epistle,
                     'fragment': self.fragment,
                     'volume': self.volume,
                     'book': self.book,  # Added book field
@@ -256,6 +261,8 @@ class TextDivision(Base):
                         citation += f".{field_map[level]}"
             else:
                 # Fallback to default order if no structure
+                if self.epistle:
+                    citation += f".{self.epistle}"
                 if self.fragment:
                     citation += f".{self.fragment}"
                 if self.volume:
@@ -319,6 +326,8 @@ class TextDivision(Base):
                 self.section = citation.section
         else:
             self.is_title = False
+            if citation.epistle:
+                self.epistle = citation.epistle
             if citation.fragment:
                 self.fragment = citation.fragment
             if citation.section:

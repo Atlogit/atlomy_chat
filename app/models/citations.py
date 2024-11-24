@@ -55,20 +55,22 @@ class CitationLocation(BaseModel):
     Supports various citation schemes (volume-based, chapter-based, etc.).
     
     Attributes:
+        epistle: Epistle number if applicable
+        fragment: Fragment number if applicable
         volume: Volume number if applicable
-        chapter: Chapter number if applicable
-        section: Section number if applicable
         book: Book number if applicable
         page: Page number if applicable
-        fragment: Fragment number if applicable
+        chapter: Chapter number if applicable
+        section: Section number if applicable
         line: Line number or range
     """
+    epistle: Optional[str] = None
+    fragment: Optional[str] = None
     volume: Optional[str]
-    chapter: Optional[str]
-    section: Optional[str]
     book: Optional[str] = None
     page: Optional[str] = None
-    fragment: Optional[str] = None
+    chapter: Optional[str]
+    section: Optional[str]
     line: Optional[str] = None
 
 class CitationSource(BaseModel):

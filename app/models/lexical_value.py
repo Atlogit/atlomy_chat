@@ -122,7 +122,12 @@ class LexicalValue(Base):
                     "line_numbers": []
                 },
                 "location": {
+                    ""
+                    "epistle": '',
+                    "fragment": '',
                     "volume": '',
+                    "book": '',
+                    "page": '',
                     "chapter": '',
                     "section": ''
                 },
@@ -148,7 +153,11 @@ class LexicalValue(Base):
                 "line_numbers": [text_line.line_number]
             },
             "location": {
+                "epistle": division.epistle,
+                "fragment": division.fragment,
                 "volume": division.volume,
+                "book": division.book,
+                "page": division.page,
                 "chapter": division.chapter,
                 "section": division.section
             },
