@@ -28,6 +28,14 @@ on:
         description: 'Backend image tag (default: from Docker Build)'
         required: false
         type: string
+      backup_type:
+        description: 'Backup Type for Database Restoration'
+        required: true
+        type: choice
+        options:
+          - tar
+          - sql
+        default: sql
   workflow_run:
     workflows: ["Docker Build and Registry Push"]
     types:
@@ -63,7 +71,8 @@ jobs:
     secrets: inherit
     with:
       deployment_mode: production
-
+      backup_type: ${{ inputs.backup_type || 'tar' }}
+      postgres_data_dir: ${{ inputs.postgres_data_dir }}
   #database-validation:
   #  needs: database-restoration
   #  uses: ./.github/workflows/database-validation.yml
