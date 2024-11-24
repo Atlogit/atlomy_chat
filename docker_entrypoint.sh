@@ -40,7 +40,7 @@ fi
 #LOG_LEVEL=$(echo "$LOG_LEVEL" | tr '[:upper:]' '[:lower:]')
 
 # Replace LOG LEVEL in the logging config file
-sed -i "s/\${LOG_LEVEL}/${LOG_LEVEL}/g" "$LOGGING_CONFIG"
+sed -i "s/\${LOG_LEVEL}/$(echo ${LOG_LEVEL} | tr '[:lower:]' '[:upper:]')/g" "$LOGGING_CONFIG"
 
 # Validate critical environment variables
 if [ -z "$REDIS_URL" ]; then

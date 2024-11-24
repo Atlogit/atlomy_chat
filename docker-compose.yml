@@ -130,7 +130,7 @@ services:
       - NODE_ENV=${DEPLOYMENT_MODE:-production}
       - BACKEND_URL=http://localhost:8081
       - DEBUG=true
-      - NEXT_PUBLIC_LOG_LEVEL=${DEPLOYMENT_MODE:-info}
+      - NEXT_PUBLIC_LOG_LEVEL=${DEPLOYMENT_MODE:-INFO}
     volumes:
       - ~/amta/logs:/app/logs
     restart: unless-stopped
