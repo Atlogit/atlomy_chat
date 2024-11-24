@@ -1,7 +1,13 @@
+networks:
+  amta-network:
+    driver: bridge
+
 services:
   postgres:
     image: postgres:14
     container_name: amta-postgres
+    networks:
+      amta-network:
     environment:
       - POSTGRES_DB=${POSTGRES_DB}
       - POSTGRES_USER=${POSTGRES_USER}
@@ -71,7 +77,8 @@ services:
     #  context: .
     #  dockerfile: Dockerfile.backend
     container_name: amta-backend
-    #network_mode: "host"
+    networks:
+      amta-network:
     ports:
       - "8081:8081"
     volumes:
@@ -114,7 +121,8 @@ services:
     #  context: ./next-app
     #  dockerfile: Dockerfile
     container_name: amta-frontend
-    #network_mode: "host"
+    networks:
+      amta-network:
     ports:
       - "3000:3000"
     environment:
@@ -140,7 +148,8 @@ services:
     image: redis:6.2-alpine
     container_name: amta-redis
     command: redis-server --databases 16 --port ${REDIS_PORT}
-    #network_mode: "host"
+    networks:
+      amta-network:
     ports:
       - "${REDIS_PORT}:${REDIS_PORT}"
     environment:
