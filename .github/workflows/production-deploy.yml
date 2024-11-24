@@ -65,14 +65,14 @@ jobs:
           echo "Workflow Run Name: ${{ github.event.workflow_run.name }}"
           echo "Workflow Run Branch: ${{ github.event.workflow_run.head_branch }}"
 
-  database-restoration:
-    needs: validate-workflow-trigger
-    uses: ./.github/workflows/database-restoration.yml
-    secrets: inherit
-    with:
-      deployment_mode: production
-      backup_type: ${{ inputs.backup_type || 'tar' }}
-      postgres_data_dir: ${{ inputs.postgres_data_dir }}
+  #database-restoration:
+  #  needs: validate-workflow-trigger
+  #  uses: ./.github/workflows/database-restoration.yml
+  #  secrets: inherit
+  #  with:
+  #    deployment_mode: production
+  #    backup_type: ${{ inputs.backup_type || 'tar' }}
+  #    postgres_data_dir: ${{ inputs.postgres_data_dir }}
   
       #dtabase-validation:
   #  needs: database-restoration
@@ -82,8 +82,8 @@ jobs:
   #    deployment_mode: production
 
   deploy-to-ec2:
-    needs: 
-      - database-restoration
+    #needs: 
+    #  - database-restoration
     runs-on: ubuntu-latest
     environment: ${{ inputs.deployment_mode }}
     steps:
@@ -275,8 +275,22 @@ jobs:
           AWS_DEFAULT_REGION: us-east-1
           PYTHONPATH: .
 
+      - name: Prepare SSH Key
+        env:
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+        run: |
+          if [ -z "$EC2_SSH_KEY" ]; then
+            echo "EC2 SSH key is not set"
+            exit 1
+          fi
+          
+          mkdir -p ~/.ssh
+          echo "$EC2_SSH_KEY" > ~/.ssh/ec2_key
+          chmod 600 ~/.ssh/ec2_key
+  
       - name: Cleanup Existing Deployments
         env:
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
 
@@ -305,10 +319,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
         run: |
-          mkdir -p ~/.ssh
-          echo "$EC2_SSH_KEY" > ~/.ssh/ec2_key
-          chmod 600 ~/.ssh/ec2_key
-
           SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=no"
 
           # Setup EC2 environment
