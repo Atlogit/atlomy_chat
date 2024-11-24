@@ -801,8 +801,8 @@ jobs:
                     fi
                     docker stop amta-postgres
                     docker rm amta-postgres
-                  break
-                fi
+                    break
+                  fi
                 if [ $i -eq 30 ]; then
                   echo "❌ PostgreSQL initialization failed"
                   exit 1
@@ -811,7 +811,6 @@ jobs:
                 sleep 1
               done
             fi
-            
             echo "✅ Database restored successfully"
             echo "restore_status=success" >> $GITHUB_OUTPUT
           REMOTE_SCRIPT
