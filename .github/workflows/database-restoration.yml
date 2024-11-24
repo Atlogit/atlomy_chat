@@ -737,11 +737,20 @@ jobs:
             set -x
             
             # Stop existing PostgreSQL container
-            echo "🧹 Cleaning up Docker resources..."
-            docker ps -q --filter "name=amta-postgres" | xargs -r docker stop
-            docker ps -aq --filter "name=amta-postgres" | xargs -r docker rm
-            docker volume ls -q --filter "dangling=true" | xargs -r docker volume rm
-            
+            cleanup() {
+                echo "🧹 Performing cleanup..."
+                docker ps -q --filter "name=amta-postgres" | xargs -r docker stop
+                docker ps -aq --filter "name=amta-postgres" | xargs -r docker rm
+                docker volume ls -q --filter "dangling=true" | xargs -r docker volume rm
+            }
+
+            # Set up trap to ensure cleanup happens even if script fails
+            trap cleanup EXIT
+
+            # Initial cleanup
+            echo "🧹 Initial cleanup of Docker resources..."
+            cleanup
+
             echo "🔄 Starting database restoration..."
             
             # Restoration based on backup type
