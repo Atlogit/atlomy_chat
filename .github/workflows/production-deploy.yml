@@ -460,11 +460,11 @@ jobs:
             
             # Quick check if containers are running
             echo -e "\${YELLOW}Checking Docker containers status...${NC}"
-            docker-compose ps
+            FRONTEND_TAG=$FRONTEND_TAG BACKEND_TAG=$BACKEND_TAG docker-compose ps
             
             # Log initial container state
             echo "Initial Container Status at \$(date)" > deployment_logs/container_status.log
-            docker-compose ps >> deployment_logs/container_status.log
+            FRONTEND_TAG=$FRONTEND_TAG BACKEND_TAG=$BACKEND_TAG docker-compose ps >> deployment_logs/container_status.log
             
             while [ \$attempt -lt \$max_attempts ]; do
               echo "Health Check Attempt \$((attempt + 1))" >> deployment_logs/health_checks.log
@@ -482,8 +482,8 @@ jobs:
 
                 # Log successful deployment version
                 echo "Deployed versions:"
-                echo "Frontend: \$(docker-compose ps frontend | grep -o 'frontend:.*')"
-                echo "Backend: \$(docker-compose ps backend | grep -o 'backend:.*')"
+                echo "Frontend: \$(FRONTEND_TAG=$FRONTEND_TAG BACKEND_TAG=$BACKEND_TAG docker-compose ps frontend | grep -o 'frontend:.*')"
+                echo "Backend: \$(FRONTEND_TAG=$FRONTEND_TAG BACKEND_TAG=$BACKEND_TAG docker-compose ps backend | grep -o 'backend:.*')"
                 exit 0
               fi
 
@@ -494,7 +494,8 @@ jobs:
 
               # More detailed failure information
               echo "Container Status:"
-              docker-compose ps
+              FRONTEND_TAG=$FRONTEND_TAG BACKEND_TAG=$BACKEND_TAG docker-compose ps
+
               
               echo "Recent Logs:"
               docker-compose logs --tail=100
@@ -522,7 +523,7 @@ jobs:
             
             # Capture final state on failure
             echo "Final Container Status at \$(date)" > deployment_logs/final_status.log
-            docker-compose ps >> deployment_logs/final_status.log
+            FRONTEND_TAG=$FRONTEND_TAG BACKEND_TAG=$BACKEND_TAG docker-compose ps >> deployment_logs/final_status.log
             docker-compose logs > deployment_logs/final_logs.log
             
             # Create a tar of all logs
