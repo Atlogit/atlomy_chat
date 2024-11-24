@@ -596,24 +596,29 @@ jobs:
         run: |
           echo "📦 Using backup file: $LATEST_BACKUP"
           echo "⏰ Backup timestamp: $BACKUP_TIMESTAMP"
-          
+
           ssh_opts="-o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10"
           
-          ssh $ssh_opts -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" << REMOTE_SCRIPT
+          # Pass the variable explicitly to the remote script
+          ssh $ssh_opts -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" \
+            "LATEST_BACKUP='$LATEST_BACKUP' \
+            S3_BACKUP_BUCKET='$S3_BACKUP_BUCKET' \
+            S3_BACKUP_PREFIX='$S3_BACKUP_PREFIX' \
+            AWS_ACCESS_KEY_ID='$AWS_ACCESS_KEY_ID' \
+            AWS_SECRET_ACCESS_KEY='$AWS_SECRET_ACCESS_KEY' \
+            AWS_SESSION_TOKEN='$AWS_SESSION_TOKEN' \
+            AWS_DEFAULT_REGION='$AWS_DEFAULT_REGION' \
+            DATABASE_BACKUP_DIR='$DATABASE_BACKUP_DIR' \
+            BACKUP_TYPE='$BACKUP_TYPE' \
+            bash -s" << 'REMOTE_SCRIPT'            
+
+            # Debug on remote
+            echo "Remote LATEST_BACKUP value: $LATEST_BACKUP"
+            echo "Remote S3 path: s3://${S3_BACKUP_BUCKET}/${S3_BACKUP_PREFIX}/${LATEST_BACKUP}"
+            
             set -e
-            set -x  # Enable debug mode for verbose output
-            
-            # Export AWS credentials
-            export AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}"
-            export AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}"
-            export AWS_SESSION_TOKEN="${AWS_SESSION_TOKEN}"
-            export AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION}"
-            
-            # Comprehensive AWS CLI configuration check
-            echo "🔐 AWS Configuration Verification"
-            aws configure list
-            aws sts get-caller-identity
-            
+            set -x
+
             # Verify S3 bucket and object details
             echo "🔍 S3 Object Verification"
             echo "Bucket: ${S3_BACKUP_BUCKET}"
