@@ -44,6 +44,7 @@ on:
 # Comprehensive permissions for GitHub Actions workflow
 permissions:
   contents: read
+  actions: read
   packages: read
   id-token: write
 
@@ -128,43 +129,36 @@ jobs:
   
       - name: Set deployment tags
         run: |
-          if [ "${{ github.event_name }}" == "workflow_run" ]; then
-            echo "Processing automated deployment from Docker Build workflow"
-            gh run download ${{ github.event.workflow_run.id }} -n build-tags
-            if [ -f build-tags.txt ]; then
-              source build-tags.txt
+            if [ "${{ github.event_name }}" == "workflow_run" ]; then
+              mkdir -p artifacts
+              echo "Attempting to download artifacts..."
+              # Use the GitHub REST API to get artifact information
+              artifacts_url="${{ github.event.workflow_run.artifacts_url }}"
+              echo "Artifacts URL: $artifacts_url"
+              
+              curl -L \
+                -H "Accept: application/vnd.github+json" \
+                -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                $artifacts_url
+
+              if [ -f "artifacts/build-tags.txt" ]; then
+                source artifacts/build-tags.txt
+                echo "FRONTEND_TAG=${FRONTEND_TAG}" >> $GITHUB_ENV
+                echo "BACKEND_TAG=${BACKEND_TAG}" >> $GITHUB_ENV
+              else
+                echo "Warning: Could not find build tags, using default tags"
+                echo "FRONTEND_TAG=latest" >> $GITHUB_ENV
+                echo "BACKEND_TAG=latest" >> $GITHUB_ENV
+              fi
+            else
+              # Manual deployment - use inputs or 'latest'
+              FRONTEND_TAG="${{ inputs.frontend_tag || 'latest' }}"
+              BACKEND_TAG="${{ inputs.backend_tag || 'latest' }}"
               echo "FRONTEND_TAG=${FRONTEND_TAG}" >> $GITHUB_ENV
               echo "BACKEND_TAG=${BACKEND_TAG}" >> $GITHUB_ENV
-            else
-              echo "Error: build-tags.txt not found"
-              exit 1
             fi
-          else
-            echo "Processing manual deployment"
-            # For manual deployment: use provided tags or get latest from registry
-            if [ -n "${{ inputs.frontend_tag }}" ]; then
-              echo "Using provided frontend tag: ${{ inputs.frontend_tag }}"
-              echo "FRONTEND_TAG=${{ inputs.frontend_tag }}" >> $GITHUB_ENV
-            else
-              # Get latest production tag from registry
-              LATEST_FRONTEND_TAG=$(gh api /repos/${{ github.repository }}/packages/container/frontend/versions --jq 'map(select(.metadata.container.tags[] | contains("production"))) | .[0].metadata.container.tags[0]')
-              echo "Using latest frontend tag: ${LATEST_FRONTEND_TAG}"
-              echo "FRONTEND_TAG=${LATEST_FRONTEND_TAG}" >> $GITHUB_ENV
-            fi
-      
-            if [ -n "${{ inputs.backend_tag }}" ]; then
-              echo "Using provided backend tag: ${{ inputs.backend_tag }}"
-              echo "BACKEND_TAG=${{ inputs.backend_tag }}" >> $GITHUB_ENV
-            else
-              # Get latest production tag from registry
-              LATEST_BACKEND_TAG=$(gh api /repos/${{ github.repository }}/packages/container/backend/versions --jq 'map(select(.metadata.container.tags[] | contains("production"))) | .[0].metadata.container.tags[0]')
-              echo "Using latest backend tag: ${LATEST_BACKEND_TAG}"
-              echo "BACKEND_TAG=${LATEST_BACKEND_TAG}" >> $GITHUB_ENV
-            fi
-          fi
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    
+
       - name: Debug Tags
         run: |
           echo "Frontend Tag: ${{ env.FRONTEND_TAG }}"
