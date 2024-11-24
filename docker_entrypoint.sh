@@ -1,4 +1,5 @@
 #!/bin/bash
+export LOGGING_CONFIG="/amta/logging_config.json"
 
 # Strict error handling
 set -eo pipefail
