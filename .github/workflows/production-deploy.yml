@@ -21,11 +21,11 @@ on:
         type: boolean
         default: false
       frontend_tag:
-        description: 'Frontend image tag (default: from Docker Build)'
+        description: 'Frontend image tag (optional - will use latest if not specified)'
         required: false
         type: string
       backend_tag:
-        description: 'Backend image tag (default: from Docker Build)'
+        description: 'Backend image tag (optional - will use latest if not specified)'
         required: false
         type: string
       backup_type:
@@ -40,8 +40,6 @@ on:
     workflows: ["Docker Build and Registry Push"]
     types:
       - completed
-    branches:
-      - production
 
 # Comprehensive permissions for GitHub Actions workflow
 permissions:
@@ -84,53 +82,67 @@ jobs:
   deploy-to-ec2:
     #needs: 
     #  - database-restoration
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.head_branch == 'production')
     runs-on: ubuntu-latest
     environment: ${{ inputs.deployment_mode }}
     steps:
+      - name: Debug Workflow
+        run: |
+          echo "Event type: ${{ github.event_name }}"
+          echo "Workflow: ${{ github.event.workflow_run.name }}"
+          echo "Branch: ${{ github.event.workflow_run.head_branch }}"
+          echo "Conclusion: ${{ github.event.workflow_run.conclusion }}"
+          
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
           ref: production
           fetch-depth: 0
           
-      - name: Get Docker Build tags
-        if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'
+      - name: Set deployment tags
         run: |
-          # Download artifact from the Docker Build workflow
-          gh run download ${{ github.event.workflow_run.id }} -n build-tags
-
-          # Read the tags from the artifact
-          if [ -f build-tags.txt ]; then
-            echo "FRONTEND_TAG=${FRONTEND_TAG}" >> $GITHUB_ENV
-            echo "BACKEND_TAG=${BACKEND_TAG}" >> $GITHUB_ENV
-            
-            # Debug output
-            echo "Using tags from Docker Build:"
-            echo "Frontend: ${FRONTEND_TAG}"
-            echo "Backend: ${BACKEND_TAG}"
+          if [ "${{ github.event_name }}" == "workflow_run" ]; then
+            echo "Processing automated deployment from Docker Build workflow"
+            gh run download ${{ github.event.workflow_run.id }} -n build-tags
+            if [ -f build-tags.txt ]; then
+              source build-tags.txt
+              echo "FRONTEND_TAG=${FRONTEND_TAG}" >> $GITHUB_ENV
+              echo "BACKEND_TAG=${BACKEND_TAG}" >> $GITHUB_ENV
+            else
+              echo "Error: build-tags.txt not found"
+              exit 1
+            fi
           else
-            echo "Error: build-tags.txt not found"
-            exit 1
+            echo "Processing manual deployment"
+            # For manual deployment: use provided tags or get latest from registry
+            if [ -n "${{ inputs.frontend_tag }}" ]; then
+              echo "Using provided frontend tag: ${{ inputs.frontend_tag }}"
+              echo "FRONTEND_TAG=${{ inputs.frontend_tag }}" >> $GITHUB_ENV
+            else
+              # Get latest production tag from registry
+              LATEST_FRONTEND_TAG=$(gh api /repos/${{ github.repository }}/packages/container/frontend/versions --jq 'map(select(.metadata.container.tags[] | contains("production"))) | .[0].metadata.container.tags[0]')
+              echo "Using latest frontend tag: ${LATEST_FRONTEND_TAG}"
+              echo "FRONTEND_TAG=${LATEST_FRONTEND_TAG}" >> $GITHUB_ENV
+            fi
+      
+            if [ -n "${{ inputs.backend_tag }}" ]; then
+              echo "Using provided backend tag: ${{ inputs.backend_tag }}"
+              echo "BACKEND_TAG=${{ inputs.backend_tag }}" >> $GITHUB_ENV
+            else
+              # Get latest production tag from registry
+              LATEST_BACKEND_TAG=$(gh api /repos/${{ github.repository }}/packages/container/backend/versions --jq 'map(select(.metadata.container.tags[] | contains("production"))) | .[0].metadata.container.tags[0]')
+              echo "Using latest backend tag: ${LATEST_BACKEND_TAG}"
+              echo "BACKEND_TAG=${LATEST_BACKEND_TAG}" >> $GITHUB_ENV
+            fi
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set manual deployment tags
-        if: github.event_name == 'workflow_dispatch'
+    
+      - name: Debug Tags
         run: |
-          # Use manually provided tags or generate new ones
-          if [ -n "${{ inputs.frontend_tag }}" ]; then
-            echo "FRONTEND_TAG=${{ inputs.frontend_tag }}" >> $GITHUB_ENV
-          else
-            echo "FRONTEND_TAG=production-frontend-$(git rev-parse --short HEAD)" >> $GITHUB_ENV
-          fi
-          
-          if [ -n "${{ inputs.backend_tag }}" ]; then
-            echo "BACKEND_TAG=${{ inputs.backend_tag }}" >> $GITHUB_ENV
-          else
-            echo "BACKEND_TAG=production-backend-$(git rev-parse --short HEAD)" >> $GITHUB_ENV
-              fi
-
+          echo "Frontend Tag: ${{ env.FRONTEND_TAG }}"
+          echo "Backend Tag: ${{ env.BACKEND_TAG }}"
+            
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
