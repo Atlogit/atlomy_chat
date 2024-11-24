@@ -98,7 +98,34 @@ jobs:
         with:
           ref: production
           fetch-depth: 0
-          
+            
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install boto3 botocore awscli
+          pip install typing-extensions pydantic pydantic-settings
+
+      - name: Debug Workflow Run Info
+        if: github.event_name == 'workflow_run'
+        run: |
+          echo "Workflow Run ID: ${{ github.event.workflow_run.id }}"
+          echo "Workflow Name: ${{ github.event.workflow_run.name }}"
+          echo "Attempting to list artifacts..."
+          gh run list-files ${{ github.event.workflow_run.id }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  
       - name: Set deployment tags
         run: |
           if [ "${{ github.event_name }}" == "workflow_run" ]; then
@@ -142,23 +169,6 @@ jobs:
         run: |
           echo "Frontend Tag: ${{ env.FRONTEND_TAG }}"
           echo "Backend Tag: ${{ env.BACKEND_TAG }}"
-            
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install System Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y jq
-
-      - name: Install Python Dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install boto3 botocore awscli
-          pip install typing-extensions pydantic pydantic-settings
 
       - name: Prepare Deployment Logs
         run: |
