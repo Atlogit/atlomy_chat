@@ -620,38 +620,6 @@ jobs:
             # List bucket contents for debugging
             aws s3 ls "s3://${S3_BACKUP_BUCKET}/${S3_BACKUP_PREFIX}/"
             
-            # Detailed S3 object metadata with proper JSON handling
-            s3_object_details=$(aws s3api head-object \
-              --bucket "${S3_BACKUP_BUCKET}" \
-              --key "${S3_BACKUP_PREFIX}/${LATEST_BACKUP}" \
-              --output json 2>/dev/null)
-
-            # Check if command was successful
-            if [ $? -ne 0 ]; then
-                echo "❌ Failed to get S3 object details"
-                exit 1
-            fi
-
-            echo "📦 S3 Object Details:"
-            echo "${s3_object_details}"
-            
-            echo "📦 S3 Object Details:"
-            echo "$s3_object_details"
-            
-            # Extract specific metadata using jq (make sure jq is installed)
-            s3_file_size=$(echo "${s3_object_details}" | jq -r '.ContentLength // 0')
-            s3_content_type=$(echo "${s3_object_details}" | jq -r '.ContentType // "unknown"')
-
-            echo "📏 S3 File Size: ${s3_file_size} bytes"
-            echo "📝 Content Type: ${s3_content_type}"
-
-            if [ "${s3_file_size}" -eq 0 ]; then
-                echo "❌ S3 backup file is empty"
-                exit 1
-            fi
-
-
-            
             # Ensure backup directory exists
             mkdir -p "${DATABASE_BACKUP_DIR}"
             chmod 777 "${DATABASE_BACKUP_DIR}"
