@@ -40,6 +40,8 @@ on:
     workflows: ["Docker Build and Registry Push"]
     types:
       - completed
+    branches:
+      -production
 
 # Comprehensive permissions for GitHub Actions workflow
 permissions:
@@ -83,7 +85,7 @@ jobs:
   deploy-to-ec2:
     #needs: 
     #  - database-restoration
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.head_branch == 'production')
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.head_branch == 'production' && github.event.workflow_run.conclusion == 'success' )
     runs-on: ubuntu-latest
     environment: ${{ inputs.deployment_mode }}
     steps:
