@@ -777,7 +777,7 @@ jobs:
               
               # Wait for PostgreSQL to be ready
               echo "⏳ Waiting for PostgreSQL to start..."
-              for i in {1..30}; 
+              for i in {1..30}
               do
                 if docker exec amta-postgres pg_isready -U "$POSTGRES_USER" &>/dev/null; then
                   echo "✅ PostgreSQL is ready"
