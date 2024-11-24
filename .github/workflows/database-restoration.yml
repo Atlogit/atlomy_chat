@@ -817,7 +817,7 @@ jobs:
                   echo "❌ PostgreSQL initialization failed"
                   exit 1
                 fi
-                echo "⏳ Waiting... ($i/30)"
+                echo "⏳ Waiting... \$i of 30"
                 sleep 1
               done
               
