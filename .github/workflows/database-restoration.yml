@@ -700,7 +700,7 @@ jobs:
             fi
             
             # Verify backup integrity based on type
-            if [ "$BACKUP_TYPE" == "tar" ]; then
+            if [ "${BACKUP_TYPE}" == "tar" ]; then
               if ! tar tzf "${DATABASE_BACKUP_DIR}/latest_backup.tar.gz" > /dev/null 2>&1; then
                 echo "❌ Invalid tar backup archive"
                 exit 1
@@ -717,7 +717,7 @@ jobs:
                   echo "❌ Missing essential PostgreSQL directories"
                   exit 1
                 fi
-            elif [ "$BACKUP_TYPE" == "sql" ]; then
+            elif [ "${BACKUP_TYPE}" == "sql" ]; then
               # Enhanced SQL backup verification
               echo "🔬 Performing SQL Backup Detailed Verification..."
               
