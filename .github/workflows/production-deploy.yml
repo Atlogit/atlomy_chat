@@ -435,10 +435,14 @@ jobs:
           EC2_SSH_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
+          FRONTEND_TAG: ${{ env.FRONTEND_TAG }}
+          BACKEND_TAG: ${{ env.BACKEND_TAG }}
+
         run: |
           SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=no"
           
-          ssh $SSH_OPTS -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST << HEALTH_EOF
+          ssh $SSH_OPTS -i ~/.ssh/ec2_key $EC2_USER@$EC2_HOST\
+            "FRONTEND_TAG='$FRONTEND_TAG' BACKEND_TAG='$BACKEND_TAG' bash -s" << HEALTH_EOF
             HOME_DIR=\$(eval echo ~$EC2_USER)
             cd \$HOME_DIR/amta
             
