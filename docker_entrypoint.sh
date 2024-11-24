@@ -36,11 +36,25 @@ else
     export DEBUG="false"
 fi
 
-# Convert LOG_LEVEL to lowercase
-#LOG_LEVEL=$(echo "$LOG_LEVEL" | tr '[:upper:]' '[:lower:]')
+# Extensive logging for debugging
+echo "DEBUGGING LOG LEVEL CONFIGURATION:"
+echo "DEPLOYMENT_MODE: $DEPLOYMENT_MODE"
+echo "Original LOG_LEVEL: $LOG_LEVEL"
 
-# Replace LOG LEVEL in the logging config file
-sed -i "s/\${LOG_LEVEL}/$(echo ${LOG_LEVEL} | tr '[:lower:]' '[:upper:]')/g" "$LOGGING_CONFIG"
+# Ensure LOG_LEVEL is uppercase
+export LOG_LEVEL=$(echo "$LOG_LEVEL" | tr '[:lower:]' '[:upper:]')
+
+echo "Uppercase LOG_LEVEL: $LOG_LEVEL"
+
+# Backup original logging config
+cp "$LOGGING_CONFIG" "$LOGGING_CONFIG.bak"
+
+# Replace LOG LEVEL in the logging config file with extensive error checking
+sed -i "s/\${LOG_LEVEL}/$LOG_LEVEL/g" "$LOGGING_CONFIG"
+
+# Verify the replacement
+echo "Logging config after replacement:"
+cat "$LOGGING_CONFIG"
 
 # Validate critical environment variables
 if [ -z "$REDIS_URL" ]; then
