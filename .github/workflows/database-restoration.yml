@@ -720,7 +720,7 @@ jobs:
           ssh_opts="-o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10"
           
           ssh $ssh_opts -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" \
-            POSTGRES_HOST='$POSTGRES_HOST' \
+            "POSTGRES_HOST='$POSTGRES_HOST' \
             POSTGRES_PORT='$POSTGRES_PORT' \
             POSTGRES_DB='$POSTGRES_DB' \
             POSTGRES_USER='$POSTGRES_USER' \
@@ -817,7 +817,7 @@ jobs:
                   echo "❌ PostgreSQL initialization failed"
                   exit 1
                 fi
-                echo "⏳ Waiting... \$i of 30"
+                echo "⏳ Waiting... ($i/30)"
                 sleep 1
               done
               
