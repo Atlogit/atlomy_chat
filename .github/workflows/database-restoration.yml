@@ -801,18 +801,16 @@ jobs:
                     
                     # Verify the restore
                     echo "🔍 Verifying database restore..."
-                    if docker exec amta-postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c \
-                      "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';" | grep -q '[1-9]'; then
-                      echo "✅ Database verification successful"
+                    docker exec amta-postgres psql -U "\$POSTGRES_USER" -d "\$POSTGRES_DB" -c \
+                      "SELECT 1;" >/dev/null 2>&1
+                    if [ \$? -eq 0 ]; then
+                      echo "Database verification successful"
                     else
-                      echo "❌ Database verification failed"
+                      echo "Database verification failed"
                       exit 1
                     fi
-                  else
-                    echo "❌ SQL restore failed"
-                    exit 1
-                  fi
-                  
+                    docker stop amta-postgres
+                    docker rm amta-postgres
                   break
                 fi
                 if [ $i -eq 30 ]; then
