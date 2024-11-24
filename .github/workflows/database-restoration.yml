@@ -510,7 +510,7 @@ jobs:
               docker ps -aq --filter "name=postgres" | xargs -r docker rm
               docker volume ls -q --filter "dangling=true" | xargs -r docker volume rm
             }
-          
+            
             # Set up cleanup trap for script exit
             trap cleanup EXIT
             
