@@ -793,19 +793,19 @@ jobs:
                     
                     # Verify the restore
                     echo "🔍 Verifying database restore..."
-                    docker exec amta-postgres psql -U "\$POSTGRES_USER" -d "\$POSTGRES_DB" -c \
+                    docker exec amta-postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c \
                       "SELECT 1;" >/dev/null 2>&1
                     VERIFY_STATUS=$?
                     
                     if [ $VERIFY_STATUS -eq 0 ]; then
                       echo "Database verification successful"
-                      docker stop amta-postgres
-                      docker rm amta-postgres
-                      break
                     else
                       echo "Database verification failed"
                       exit 1
                     fi
+                    docker stop amta-postgres
+                    docker rm amta-postgres
+                    break
                   fi
                 fi
                 if [ $i -eq 30 ]; then
