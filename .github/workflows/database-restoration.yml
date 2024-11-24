@@ -274,6 +274,7 @@ jobs:
                       if docker exec pg-verify pg_isready -U "$POSTGRES_USER" &>/dev/null; then
                         echo "Container verification successful"
                         docker stop pg-verify
+                        docker rm pg-verify
                         break
                       fi
                       if [ $i -eq 30 ]; then
