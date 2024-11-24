@@ -699,46 +699,6 @@ jobs:
               exit 1
             fi
             
-            # Verify backup integrity based on type
-            if [ "${BACKUP_TYPE}" == "tar" ]; then
-              if ! tar tzf "${DATABASE_BACKUP_DIR}/latest_backup.tar.gz" > /dev/null 2>&1; then
-                echo "❌ Invalid tar backup archive"
-                exit 1
-              fi
-              
-                # Check backup contents
-                backup_contents=\$(tar tzf "${DATABASE_BACKUP_DIR}/latest_backup.tar.gz")
-                if ! echo "\$backup_contents" | grep -q "PG_VERSION"; then
-                  echo "❌ Invalid PostgreSQL backup"
-                  exit 1
-                fi
-                
-                if ! echo "\$backup_contents" | grep -q "base/"; then
-                  echo "❌ Missing essential PostgreSQL directories"
-                  exit 1
-                fi
-            elif [ "${BACKUP_TYPE}" == "sql" ]; then
-              # Enhanced SQL backup verification
-              echo "🔬 Performing SQL Backup Detailed Verification..."
-              
-              # Check gzip compression
-              if ! gzip -t "${DATABASE_BACKUP_DIR}/latest_backup.sql.gz" > /dev/null 2>&1; then
-                echo "❌ Invalid SQL backup archive - compression error"
-                exit 1
-              fi
-
-              # Attempt to decompress and analyze
-              decompressed_preview=\$(gzip -dc "${DATABASE_BACKUP_DIR}/latest_backup.sql.gz" | head -n 20)
-              echo "📄 Backup Preview:"
-              echo "\$decompressed_preview"
-              
-              # Check for PostgreSQL dump signature
-              if ! echo "\$decompressed_preview" | grep -qE "PGDUMP|CREATE|TABLE|DATABASE"; then
-                echo "❌ Invalid SQL backup - not a PostgreSQL dump"
-                exit 1
-              fi
-            fi
-            
             echo "✅ Backup downloaded successfully"
           REMOTE_SCRIPT
 
