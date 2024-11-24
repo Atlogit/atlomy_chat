@@ -133,7 +133,11 @@ class DatabaseLoader:
                             "epithet_field": None,
                             "fragment_field": None,
                             # Structural components
+                            "epistle": citation.epistle,
+                            "fragment": citation.fragment,
                             "volume": citation.volume,
+                            "book": citation.book,
+                            "page": citation.page,
                             "chapter": citation.chapter,
                             "section": citation.section,
                             "lines": []
@@ -152,7 +156,11 @@ class DatabaseLoader:
                                 "work_number_field": work_id or "1",
                                 "epithet_field": None,
                                 "fragment_field": None,
+                                "epistle": None,
+                                "fragment": None,
                                 "volume": None,
+                                "book": None,
+                                "page": None,
                                 "chapter": "1",  # Default chapter
                                 "section": None,
                                 "lines": []
@@ -248,8 +256,11 @@ class DatabaseLoader:
                     author_id_field=div["author_id_field"],
                     work_number_field=div["work_number_field"],
                     epithet_field=div.get("epithet_field"),
-                    fragment_field=div.get("fragment_field"),
+                    epistle=div.get("epistle"),
+                    fragment=div.get("fragment"),
                     volume=div.get("volume"),
+                    book=div.get("book"),
+                    page=div.get("page"),
                     chapter=div.get("chapter"),
                     section=div.get("section")
                 )
