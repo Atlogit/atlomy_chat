@@ -21,7 +21,7 @@ services:
       - POSTGRES_SHARED_BUFFERS=256MB
       - POSTGRES_EFFECTIVE_CACHE_SIZE=768MB
       # Explicitly set logging parameters
-      - LOG_LEVEL=debug
+      - LOG_LEVEL=DEBUG
     volumes:
       - ${POSTGRES_DATA_DIR:-postgres_data}:/var/lib/postgresql/data
       - ~/amta/logs:/var/log/postgresql
@@ -102,7 +102,7 @@ services:
       - SERVER_HOST=0.0.0.0
       - SERVER_PORT=8081
       - LOGGING_CONFIG=/amta/logging_config.json
-      - LOG_LEVEL=debug
+      - LOG_LEVEL=INFO
       - DEBUG=true
     restart: unless-stopped
     depends_on:
