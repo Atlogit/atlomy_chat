@@ -73,7 +73,8 @@ jobs:
       deployment_mode: production
       backup_type: ${{ inputs.backup_type || 'tar' }}
       postgres_data_dir: ${{ inputs.postgres_data_dir }}
-  #database-validation:
+  
+      #dtabase-validation:
   #  needs: database-restoration
   #  uses: ./.github/workflows/database-validation.yml
   #  secrets: inherit
@@ -274,7 +275,13 @@ jobs:
           AWS_DEFAULT_REGION: us-east-1
           PYTHONPATH: .
 
-          
+      - name: Cleanup Existing Deployments
+        run: |
+          ssh $ssh_opts -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" \
+            "docker ps -q --filter 'name=amta-' | xargs -r docker stop; \
+              docker ps -aq --filter 'name=amta-' | xargs -r docker rm; \
+              docker volume ls -q --filter 'dangling=true' | xargs -r docker volume rm"
+
       - name: Deploy to EC2
         env:
           EC2_SSH_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
