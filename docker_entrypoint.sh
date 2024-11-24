@@ -29,10 +29,10 @@ export SERVER_PORT=${SERVER_PORT:-8081}
 
 # Set LOG_LEVEL and DEBUG based on DEPLOYMENT_MODE
 if [ "$DEPLOYMENT_MODE" = "development" ]; then
-    export LOG_LEVEL="debug"
+    export LOG_LEVEL="DEBUG"
     export DEBUG="true"
 else
-    export LOG_LEVEL="info"
+    export LOG_LEVEL="INFO"
     export DEBUG="false"
 fi
 
