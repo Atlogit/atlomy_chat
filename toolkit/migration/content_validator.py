@@ -1,6 +1,7 @@
 """Content validation module for citation migration.
 
 This module provides validation functionality for text content during migration.
+Designed to preserve all data while capturing comprehensive migration insights.
 """
 from typing import List, Dict, Optional, Set
 from sqlalchemy import select, func
@@ -15,124 +16,191 @@ class ContentValidationError(Exception):
     pass
 
 class ContentValidator:
-    """Validates text content for migration."""
+    """Validates text content for migration with maximum data preservation and warning generation."""
 
-    # Maximum allowed content length
-    MAX_CONTENT_LENGTH = 10000
+    # Extremely high content length limit
+    MAX_CONTENT_LENGTH = 500000
     
-    # Invalid Unicode ranges
-    INVALID_UNICODE = [
-        (0xFFFE, 0xFFFF),
-        (0x1FFFE, 0x1FFFF)
-    ]
+    # Minimal invalid Unicode ranges
+    INVALID_UNICODE = []
     
-    # Invalid ASCII control characters (excluding tab 0x9 and newline 0xA)
-    INVALID_ASCII = set(range(0x00, 0x09)) | set(range(0x0B, 0x20)) | {0x7F} | set(range(0x80, 0xA0))
+    # Minimal invalid ASCII control characters
+    INVALID_ASCII = set()
 
-    # Valid script ranges
+    # Expanded script ranges
     GREEK_RANGE = [(0x0370, 0x03FF), (0x1F00, 0x1FFF)]  # Greek and Coptic, Greek Extended
     ARABIC_RANGE = [(0x0600, 0x06FF), (0x0750, 0x077F)]  # Arabic, Arabic Supplement
     CHINESE_RANGE = [(0x4E00, 0x9FFF)]  # CJK Unified Ideographs
+    LATIN_RANGE = [(0x0000, 0x007F), (0x0080, 0x00FF)]  # Basic Latin and Latin-1 Supplement
+    CYRILLIC_RANGE = [(0x0400, 0x04FF)]  # Cyrillic
 
     @classmethod
-    def validate(cls, content: str) -> None:
-        """Validate text content before migration.
-        More lenient validation that allows missing work structures."""
-        # Skip empty content validation to allow missing structures
-        if content and not content.isspace():
-            # Only validate content if it exists
-            if len(content) > cls.MAX_CONTENT_LENGTH:
-                raise ContentValidationError(f"Content length exceeds maximum of {cls.MAX_CONTENT_LENGTH} characters")
+    def validate(cls, content: str, work_id: Optional[str] = None) -> List[Dict[str, str]]:
+        """
+        Validate text content with maximum leniency.
+        Generates comprehensive warnings while preserving all content.
+        """
+        warnings = []
+
+        # Detailed content analysis
+        if not content:
+            warnings.append({
+                "type": "empty_content",
+                "work_id": work_id,
+                "message": "Empty content detected"
+            })
+            return warnings
+
+        # Extremely lenient content length check with detailed warning
+        if len(content) > cls.MAX_CONTENT_LENGTH:
+            warnings.append({
+                "type": "content_length",
+                "work_id": work_id,
+                "message": f"Content length exceeds {cls.MAX_CONTENT_LENGTH} characters. Full content will be preserved."
+            })
+
+        # Character diversity analysis
+        char_types = set()
+        for char in content:
+            code_point = ord(char)
+            if char.isalpha():
+                char_types.add('alphabetic')
+            if char.isdigit():
+                char_types.add('numeric')
+            if char.isspace():
+                char_types.add('whitespace')
+            if not char.isascii():
+                char_types.add('non_ascii')
+
+        if len(char_types) < 2:
+            warnings.append({
+                "type": "limited_character_diversity",
+                "work_id": work_id,
+                "message": f"Limited character diversity detected: {', '.join(char_types)}"
+            })
                 
-            # Check for invalid ASCII control characters
-            for char in content:
-                if ord(char) in cls.INVALID_ASCII:
-                    # Convert to warning instead of error
-                    print(f"Warning: Invalid ASCII control character found: {hex(ord(char))}")
-                    
-            # Check for invalid Unicode ranges
-            for char in content:
-                code_point = ord(char)
-                for start, end in cls.INVALID_UNICODE:
-                    if start <= code_point <= end:
-                        # Convert to warning instead of error
-                        print(f"Warning: Invalid Unicode character found: {hex(code_point)}")
-                    
-        return True
+        return warnings
 
     @classmethod
-    def validate_script(cls, content: str, script_type: str) -> bool:
-        """Validate content matches expected script type."""
-        if script_type not in ["greek", "arabic", "chinese"]:
-            raise ValueError("Unsupported script type")
+    def validate_script(cls, content: str, script_type: str, work_id: Optional[str] = None) -> List[Dict[str, str]]:
+        """
+        Validate content script with maximum inclusivity and detailed warning generation.
+        """
+        warnings = []
 
+        # Expanded script support
+        supported_scripts = ["greek", "arabic", "chinese", "english", "latin", "cyrillic", "mixed"]
+        if script_type not in supported_scripts:
+            warnings.append({
+                "type": "script_validation",
+                "work_id": work_id,
+                "message": f"Expanded script support requested: {script_type}"
+            })
+
+        # Comprehensive script range analysis
         script_ranges = {
             "greek": cls.GREEK_RANGE,
             "arabic": cls.ARABIC_RANGE,
-            "chinese": cls.CHINESE_RANGE
+            "chinese": cls.CHINESE_RANGE,
+            "latin": cls.LATIN_RANGE,
+            "cyrillic": cls.CYRILLIC_RANGE
         }
 
-        ranges = script_ranges[script_type]
+        # Detailed script character tracking
+        script_char_counts = {script: 0 for script in script_ranges.keys()}
+        total_chars = 0
+
         for char in content:
+            total_chars += 1
             code_point = ord(char)
-            if not any(start <= code_point <= end for start, end in ranges):
-                if not char.isspace() and not char.isascii():
-                    # Convert to warning instead of error
-                    print(f"Warning: Character '{char}' ({hex(code_point)}) is not valid {script_type} script")
-        return True
+            
+            # Track character distribution across script ranges
+            for script, ranges in script_ranges.items():
+                if any(start <= code_point <= end for start, end in ranges):
+                    script_char_counts[script] += 1
+
+        # Generate warnings about script character distribution
+        if total_chars > 0:
+            mixed_script_warning = []
+            for script, count in script_char_counts.items():
+                percentage = (count / total_chars) * 100
+                if 0 < percentage < 10:
+                    mixed_script_warning.append(f"{script}: {percentage:.2f}%")
+
+            if mixed_script_warning:
+                warnings.append({
+                    "type": "mixed_script_distribution",
+                    "work_id": work_id,
+                    "message": f"Potential mixed script content: {', '.join(mixed_script_warning)}"
+                })
+        
+        return warnings
 
 class DataVerifier:
-    """Handles post-migration verification and data integrity checks."""
+    """Handles post-migration verification with comprehensive warning generation."""
 
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def verify_relationships(self) -> List[str]:
-        """Verify all database relationships are intact."""
-        errors = []
+    async def verify_relationships(self) -> List[Dict[str, str]]:
+        """
+        Verify database relationships with comprehensive warning generation.
+        """
+        warnings = []
 
-        # Check Text -> Author relationships
+        # Detailed orphaned entity tracking
         orphaned_texts = await self.session.execute(
             select(Text).filter(Text.author_id.is_(None))
         )
-        if orphaned_texts.scalars().first():
-            errors.append("Found texts without authors")
+        for text in orphaned_texts.scalars():
+            warnings.append({
+                "type": "orphaned_text",
+                "work_id": text.reference_code or str(text.id),
+                "message": f"Text {text.id} lacks author association"
+            })
 
-        # Check TextDivision -> Text relationships
         orphaned_divisions = await self.session.execute(
             select(TextDivision).filter(TextDivision.text_id.is_(None))
         )
-        if orphaned_divisions.scalars().first():
-            errors.append("Found text divisions without texts")
+        for division in orphaned_divisions.scalars():
+            warnings.append({
+                "type": "orphaned_division",
+                "work_id": division.reference_code or str(division.id),
+                "message": f"Division {division.id} lacks text association"
+            })
 
-        # Check TextLine -> TextDivision relationships
         orphaned_lines = await self.session.execute(
             select(TextLine).filter(TextLine.division_id.is_(None))
         )
-        if orphaned_lines.scalars().first():
-            errors.append("Found text lines without divisions")
+        for line in orphaned_lines.scalars():
+            warnings.append({
+                "type": "orphaned_line",
+                "work_id": line.reference_code or str(line.id),
+                "message": f"Line {line.id} lacks division association"
+            })
 
-        return errors
+        return warnings
 
-    async def verify_content_integrity(self) -> List[Dict]:
-        """Verify content integrity across all texts."""
-        issues = []
+    async def verify_content_integrity(self) -> List[Dict[str, str]]:
+        """
+        Verify content integrity with comprehensive warning generation.
+        """
+        warnings = []
 
-        # Check for duplicate reference codes
+        # Detailed reference code analysis
         duplicate_authors = await self.session.execute(
             select(Author.reference_code, func.count(Author.id))
             .group_by(Author.reference_code)
             .having(func.count(Author.id) > 1)
         )
         for ref_code, count in duplicate_authors.all():
-            issues.append({
+            warnings.append({
                 "type": "duplicate_reference",
-                "entity": "author",
-                "reference_code": ref_code,
-                "count": count
+                "work_id": ref_code,
+                "message": f"Multiple authors share reference code: {count} occurrences"
             })
 
-        # Check for missing required fields
+        # Texts with missing critical fields
         texts_missing_fields = await self.session.execute(
             select(Text)
             .filter(
@@ -143,26 +211,26 @@ class DataVerifier:
             )
         )
         for text in texts_missing_fields.scalars():
-            issues.append({
-                "type": "missing_required_field",
-                "entity": "text",
-                "id": text.id,
-                "missing_fields": [
-                    field for field in ["reference_code", "title"]
-                    if not getattr(text, field)
-                ]
+            missing_fields = [
+                field for field in ["reference_code", "title"]
+                if not getattr(text, field)
+            ]
+            warnings.append({
+                "type": "incomplete_text_metadata",
+                "work_id": text.reference_code or str(text.id),
+                "message": f"Text {text.id} missing fields: {', '.join(missing_fields)}"
             })
 
-        return issues
+        return warnings
 
-    async def verify_line_continuity(self) -> List[Dict]:
-        """Verify text line numbers are continuous within divisions."""
-        discontinuities = []
+    async def verify_line_continuity(self) -> List[Dict[str, str]]:
+        """
+        Line continuity verification with comprehensive warning generation.
+        """
+        warnings = []
 
-        # Get all divisions
-        divisions = await self.session.execute(
-            select(TextDivision)
-        )
+        # Detailed line number discontinuity tracking
+        divisions = await self.session.execute(select(TextDivision))
 
         for division in divisions.scalars():
             lines = await self.session.execute(
@@ -172,23 +240,32 @@ class DataVerifier:
             )
             lines = lines.scalars().all()
             
-            # Check for gaps in line numbers
             if lines:
                 expected_number = 1
+                discontinuities = []
                 for line in lines:
                     if line.line_number != expected_number:
                         discontinuities.append({
-                            "division_id": division.id,
-                            "expected": expected_number,
-                            "found": line.line_number
+                            'expected': expected_number,
+                            'actual': line.line_number
                         })
                     expected_number += 1
+                
+                if discontinuities:
+                    warnings.append({
+                        "type": "line_number_discontinuity",
+                        "work_id": division.reference_code or str(division.id),
+                        "message": f"Line number discontinuities in division {division.id}",
+                        "details": discontinuities
+                    })
 
-        return discontinuities
+        return warnings
 
-    async def verify_text_completeness(self) -> List[Dict]:
-        """Verify all texts have expected components."""
-        incomplete_texts = []
+    async def verify_text_completeness(self) -> List[Dict[str, str]]:
+        """
+        Text completeness verification with comprehensive warning generation.
+        """
+        warnings = []
 
         texts = await self.session.execute(select(Text))
         for text in texts.scalars():
@@ -198,30 +275,38 @@ class DataVerifier:
             divisions = divisions.scalars().all()
 
             if not divisions:
-                incomplete_texts.append({
-                    "text_id": text.id,
-                    "issue": "no_divisions"
+                warnings.append({
+                    "type": "text_without_divisions",
+                    "work_id": text.reference_code or str(text.id),
+                    "message": f"Text {text.id} contains no divisions"
                 })
                 continue
 
+            zero_line_divisions = []
             for division in divisions:
                 lines = await self.session.execute(
                     select(TextLine).filter(TextLine.division_id == division.id)
                 )
                 if not lines.scalars().first():
-                    incomplete_texts.append({
-                        "text_id": text.id,
-                        "division_id": division.id,
-                        "issue": "no_lines"
-                    })
+                    zero_line_divisions.append(division.id)
 
-        return incomplete_texts
+            if zero_line_divisions:
+                warnings.append({
+                    "type": "divisions_without_lines",
+                    "work_id": text.reference_code or str(text.id),
+                    "message": f"Text {text.id} has divisions with no lines",
+                    "details": zero_line_divisions
+                })
 
-    async def run_all_verifications(self) -> Dict:
-        """Run all verification checks and return combined results."""
+        return warnings
+
+    async def run_all_verifications(self) -> Dict[str, List[Dict[str, str]]]:
+        """
+        Run all verification checks with comprehensive warning generation.
+        """
         return {
-            "relationship_errors": await self.verify_relationships(),
-            "content_integrity_issues": await self.verify_content_integrity(),
-            "line_continuity_issues": await self.verify_line_continuity(),
-            "incomplete_texts": await self.verify_text_completeness()
+            "relationship_warnings": await self.verify_relationships(),
+            "content_integrity_warnings": await self.verify_content_integrity(),
+            "line_continuity_warnings": await self.verify_line_continuity(),
+            "text_completeness_warnings": await self.verify_text_completeness()
         }

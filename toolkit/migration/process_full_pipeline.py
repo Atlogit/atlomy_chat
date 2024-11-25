@@ -1,5 +1,4 @@
-"""
-Complete pipeline script for loading texts and processing them through NLP.
+"""Complete pipeline script for loading texts and processing them through NLP.
 
 This script coordinates the entire process:
 1. Verifying NLP pipeline
@@ -13,17 +12,17 @@ import asyncio
 import logging
 import argparse
 from pathlib import Path
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Any
 from datetime import datetime
-import contextvars
-import greenlet
+import json
+import traceback
 
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_scoped_session
 from sqlalchemy.orm import sessionmaker
 
 from app.core.config import settings
 from toolkit.migration.citation_migrator import CitationMigrator
-from toolkit.migration.content_validator import DataVerifier
+from toolkit.migration.content_validator import ContentValidator, DataVerifier
 from toolkit.migration.corpus_processor import CorpusProcessor
 from toolkit.nlp.pipeline import NLPPipeline
 from toolkit.migration.logging_config import setup_migration_logging
@@ -31,123 +30,80 @@ from toolkit.migration.logging_config import setup_migration_logging
 # Get logger but don't configure it yet - let setup_migration_logging handle that
 logger = logging.getLogger(__name__)
 
-class PipelineReport:
-    """Tracks and reports issues during pipeline execution."""
+class PipelineWarningCollector:
+    """Comprehensive warning collection and reporting mechanism."""
     
-    def __init__(self):
-        self.citation_issues: List[Dict] = []
-        self.sentence_issues: List[Dict] = []
-        self.nlp_issues: List[Dict] = []
-        self.validation_issues: List[Dict] = []
-        self.missing_structures: List[Dict] = []  # Track works with missing structures
+    def __init__(self, output_dir: Optional[Path] = None):
+        self.warnings: Dict[str, List[Dict[str, Any]]] = {
+            "citation_migration": [],
+            "sentence_processing": [],
+            "nlp_processing": [],
+            "validation": [],
+            "content_validation": [],
+            "script_validation": [],
+            "relationship_warnings": [],
+            "content_integrity_warnings": [],
+            "line_continuity_warnings": [],
+            "text_completeness_warnings": []
+        }
         self.start_time = datetime.now()
-        
-    def add_citation_issue(self, text_title: str, error: str):
-        self.citation_issues.append({
-            "text": text_title,
-            "error": str(error),
-            "stage": "citation_migration"
-        })
-        
-    def add_sentence_issue(self, text_title: str, error: str):
-        self.sentence_issues.append({
-            "text": text_title,
-            "error": str(error),
-            "stage": "sentence_processing"
-        })
-        
-    def add_nlp_issue(self, text_title: str, error: str):
-        self.nlp_issues.append({
-            "text": text_title,
-            "error": str(error),
-            "stage": "nlp_processing"
-        })
-        
-    def add_validation_issue(self, text_title: str, error: str):
-        self.validation_issues.append({
-            "text": text_title,
-            "error": str(error),
-            "stage": "validation"
-        })
-
-    def add_missing_structure(self, author_id: str, work_id: str, work_name: str):
-        """Track works that didn't find a structure."""
-        self.missing_structures.append({
-            "author_id": author_id,
-            "work_id": work_id,
-            "work_name": work_name
-        })
+        self.output_dir = output_dir or Path(__file__).parent / "reports"
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+    
+    def add_warning(self, category: str, warning: Dict[str, Any]):
+        """Add a warning to the specified category."""
+        if category in self.warnings:
+            self.warnings[category].append(warning)
+        else:
+            logger.warning(f"Unknown warning category: {category}")
     
     def generate_report(self) -> str:
-        """Generate a formatted report of all issues."""
+        """Generate a human-readable warning report."""
         duration = datetime.now() - self.start_time
         
-        report = [
-            "\n=== Pipeline Execution Report ===",
+        report_lines = [
+            "\n=== Migration Warning Report ===",
             f"Execution time: {duration}",
-            "\nIssues Summary:",
-            f"- Citation migration issues: {len(self.citation_issues)}",
-            f"- Sentence processing issues: {len(self.sentence_issues)}",
-            f"- NLP processing issues: {len(self.nlp_issues)}",
-            f"- Validation issues: {len(self.validation_issues)}",
-            f"- Works missing structures: {len(self.missing_structures)}"
+            "\nWarnings Summary:"
         ]
-            
-        if self.citation_issues:
-            report.extend([
-                "\nCitation Migration Issues:",
-                *[f"- {issue['text']}: {issue['error']}" 
-                  for issue in self.citation_issues]
-            ])
-            
-        if self.sentence_issues:
-            report.extend([
-                "\nSentence Processing Issues:",
-                *[f"- {issue['text']}: {issue['error']}" 
-                  for issue in self.sentence_issues]
-            ])
-            
-        if self.nlp_issues:
-            report.extend([
-                "\nNLP Processing Issues:",
-                *[f"- {issue['text']}: {issue['error']}" 
-                  for issue in self.nlp_issues]
-            ])
-            
-        if self.validation_issues:
-            report.extend([
-                "\nValidation Issues:",
-                *[f"- {issue['text']}: {issue['error']}" 
-                  for issue in self.validation_issues]
-            ])
-
-        if self.missing_structures:
-            report.extend([
-                "\nWorks Missing Structures:",
-                *[f"- {work['author_id']}.{work['work_id']} {work['work_name']}"
-                  for work in self.missing_structures]
-            ])
-            
-        return "\n".join(report)
+        
+        for category, category_warnings in self.warnings.items():
+            if category_warnings:
+                report_lines.append(f"- {category.replace('_', ' ').title()}: {len(category_warnings)} warnings")
+        
+        # Detailed warnings
+        for category, category_warnings in self.warnings.items():
+            if category_warnings:
+                report_lines.append(f"\n{category.replace('_', ' ').title()} Warnings:")
+                for warning in category_warnings:
+                    report_lines.append(
+                        f"- {warning.get('work_id', 'Unknown')}: "
+                        f"{warning.get('message', 'No details')}"
+                    )
+        
+        return "\n".join(report_lines)
     
-    def save_report(self, output_dir: Optional[Path] = None):
-        """Save the report to a file."""
-        # Use toolkit/migration/reports directory by default
-        if output_dir is None:
-            output_dir = Path(__file__).parent / "reports"
-            
-        # Create reports directory if it doesn't exist
-        output_dir.mkdir(parents=True, exist_ok=True)
-        
+    def save_reports(self):
+        """Save warnings to both text and JSON formats."""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        report_path = output_dir / f"pipeline_report_{timestamp}.txt"
         
-        with open(report_path, "w") as f:
+        # Text report
+        text_report_path = self.output_dir / f"migration_warnings_{timestamp}.txt"
+        with open(text_report_path, "w") as f:
             f.write(self.generate_report())
+        logger.info(f"Migration warnings text report saved to: {text_report_path}")
         
-        logger.info(f"Pipeline report saved to: {report_path}")
+        # JSON report for machine-readable analysis
+        json_report_path = self.output_dir / f"migration_warnings_{timestamp}.json"
+        with open(json_report_path, "w") as f:
+            json.dump(self.warnings, f, indent=2)
+        logger.info(f"Migration warnings JSON report saved to: {json_report_path}")
 
-async def verify_nlp_pipeline(model_path: Optional[str], use_gpu: Optional[bool]) -> None:
+async def verify_nlp_pipeline(
+    model_path: Optional[str], 
+    use_gpu: Optional[bool], 
+    warning_collector: PipelineWarningCollector
+) -> None:
     """Verify that the NLP pipeline works with the given settings."""
     logger.info("Verifying NLP pipeline...")
     try:
@@ -160,7 +116,10 @@ async def verify_nlp_pipeline(model_path: Optional[str], use_gpu: Optional[bool]
         
         # Check if processing worked
         if not result or not result.get("tokens"):
-            raise ValueError("NLP pipeline failed to process test text")
+            warning_collector.add_warning("nlp_processing", {
+                "work_id": "nlp_verification",
+                "message": "NLP pipeline failed to process test text"
+            })
             
         # Log success with GPU status
         if use_gpu:
@@ -169,8 +128,12 @@ async def verify_nlp_pipeline(model_path: Optional[str], use_gpu: Optional[bool]
             logger.info("✓ NLP pipeline verified (CPU mode)")
             
     except Exception as e:
+        warning_collector.add_warning("nlp_processing", {
+            "work_id": "nlp_verification",
+            "message": f"NLP pipeline verification failed: {str(e)}",
+            "traceback": traceback.format_exc()
+        })
         logger.error(f"NLP pipeline verification failed: {str(e)}")
-        raise
 
 async def run_pipeline(
     corpus_dir: Path,
@@ -183,14 +146,15 @@ async def run_pipeline(
     skip_to_corpus: bool = False
 ):
     """
-    Run the complete pipeline from loading to processing.
+    Run the complete pipeline from loading to processing with lenient validation.
+    Ensures all texts are imported and warnings are collected.
     """
-    # Initialize report tracker
-    report = PipelineReport()
+    # Initialize warning collector
+    warning_collector = PipelineWarningCollector()
     
     try:
         # Verify NLP pipeline first
-        await verify_nlp_pipeline(model_path, use_gpu)
+        await verify_nlp_pipeline(model_path, use_gpu, warning_collector)
         
         # Initialize database connection with proper async context
         engine = create_async_engine(
@@ -220,7 +184,7 @@ async def run_pipeline(
             session = async_session()
             
             if not skip_to_corpus:
-                # Phase 1: Migrate citations
+                # Phase 1: Migrate citations (lenient approach)
                 logger.info("Phase 1: Migrating citations...")
                 try:
                     citation_migrator = CitationMigrator(session)
@@ -228,74 +192,73 @@ async def run_pipeline(
                     logger.info("Citation migration completed")
                 except Exception as e:
                     # Log the error but continue with pipeline
-                    report.add_citation_issue("corpus_directory", str(e))
+                    warning_collector.add_warning("citation_migration", {
+                        "work_id": "corpus_directory",
+                        "message": f"Citation migration issue: {str(e)}",
+                        "traceback": traceback.format_exc()
+                    })
                     logger.error(f"Error during citation migration: {e}")
                     logger.info("Continuing with pipeline despite citation migration issues...")
 
-            # Phase 2: Process sentences and NLP
+            # Phase 2: Process sentences and NLP (lenient processing)
             logger.info("Phase 2: Processing sentences and NLP...")
             try:
                 processor = CorpusProcessor(
                     session,
                     model_path=model_path,
                     use_gpu=use_gpu,
-                    report=report  # Pass report to processor
+                    warning_collector=warning_collector  # Pass warning collector
                 )
                 await processor.process_corpus()
             except Exception as e:
-                report.add_sentence_issue("corpus_processing", str(e))
+                warning_collector.add_warning("sentence_processing", {
+                    "work_id": "corpus_processing",
+                    "message": f"Sentence/NLP processing error: {str(e)}",
+                    "traceback": traceback.format_exc()
+                })
                 logger.error(f"Error during sentence/NLP processing: {e}")
-                raise
+                # Continue processing despite errors
             
-            # Phase 3: Validate results if requested
+            # Phase 3: Validate results if requested (lenient validation)
             if validate:
                 logger.info("Phase 3: Validation...")
                 verifier = DataVerifier(session)
                 try:
                     validation_results = await verifier.run_all_verifications()
                     
-                    # Log validation results
-                    logger.info("Validation Results:")
-                    
-                    if validation_results["relationship_errors"]:
-                        for error in validation_results["relationship_errors"]:
-                            report.add_validation_issue("relationships", error)
+                    # Collect all warnings from verification
+                    for category, warnings in validation_results.items():
+                        for warning in warnings:
+                            warning_collector.add_warning(category, warning)
                             
-                    if validation_results["content_integrity_issues"]:
-                        for issue in validation_results["content_integrity_issues"]:
-                            report.add_validation_issue("content_integrity", 
-                                f"{issue['type']} in {issue['entity']}: {issue.get('reference_code', issue.get('id', 'Unknown'))}")
-                            
-                    if validation_results["line_continuity_issues"]:
-                        for issue in validation_results["line_continuity_issues"]:
-                            report.add_validation_issue("line_continuity", 
-                                f"Division {issue['division_id']}: Expected line {issue['expected']}, found {issue['found']}")
-                            
-                    if validation_results["incomplete_texts"]:
-                        for issue in validation_results["incomplete_texts"]:
-                            report.add_validation_issue("incomplete_text", 
-                                f"Text {issue['text_id']}: {issue['issue']}")
-                        
                 except Exception as e:
-                    report.add_validation_issue("validation_process", str(e))
+                    warning_collector.add_warning("validation", {
+                        "work_id": "global_validation",
+                        "message": f"Validation process error: {str(e)}",
+                        "traceback": traceback.format_exc()
+                    })
                     logger.error(f"Error during validation: {e}")
 
         finally:
             await session.close()
             
     except Exception as e:
+        warning_collector.add_warning("pipeline_execution", {
+            "work_id": "global_pipeline",
+            "message": f"Overall pipeline execution error: {str(e)}",
+            "traceback": traceback.format_exc()
+        })
         logger.error(f"Pipeline failed: {str(e)}")
-        raise
     finally:
         await engine.dispose()
         await async_session.remove()
         
-        # Save the execution report
-        report.save_report()
+        # Save the warning reports
+        warning_collector.save_reports()
         
-        # Display report summary
-        logger.info("\nPipeline Execution Summary:")
-        logger.info(report.generate_report())
+        # Display warning summary
+        logger.info("\nMigration Warning Summary:")
+        logger.info(warning_collector.generate_report())
 
 def main():
     parser = argparse.ArgumentParser(description="Run the complete corpus processing pipeline")

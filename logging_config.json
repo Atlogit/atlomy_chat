@@ -3,7 +3,8 @@
     "disable_existing_loggers": false,
     "formatters": {
         "standard": {
-            "format": "%(asctime)s - %(name)s - %(levelname)s - %(module)s:%(funcName)s:%(lineno)d - %(message)s"
+            "format": "%(asctime)s - %(name)s - %(levelname)s - %(module)s:%(funcName)s:%(lineno)d - %(message)s",
+            "datefmt": "%Y-%m-%d %H:%M:%S"
         }
     },
     "handlers": {
@@ -12,47 +13,34 @@
             "formatter": "standard",
             "stream": "ext://sys.stdout"
         },
-        "file": {
-            "class": "logging.handlers.RotatingFileHandler",
+        "migration_file": {
+            "class": "logging.FileHandler",
             "formatter": "standard",
-            "filename": "logs/atlomy_chat.log",
-            "maxBytes": 5242880,
-            "backupCount": 5,
-            "encoding": "utf8"
+            "filename": "logs/migration/migration_persistent.log",
+            "mode": "a",
+            "encoding": "utf-8"
         }
     },
     "root": {
-        "handlers": ["console", "file"],
+        "handlers": ["console", "migration_file"],
+        "level": "INFO",
         "propagate": false
     },
     "loggers": {
-        "uvicorn": {
-            "handlers": [],
-            "propagate": true
-        },
-        "fastapi": {
-            "handlers": [],
-            "propagate": true
-        },
-        "atlomy_chat": {
-            "handlers": [],
-            "propagate": true
-        },
         "migration": {
-            "handlers": [],
-            "propagate": true
+            "handlers": ["migration_file"],
+            "level": "INFO",
+            "propagate": false
         },
         "migration.citation": {
-            "handlers": [],
-            "propagate": true
+            "handlers": ["migration_file"],
+            "level": "INFO",
+            "propagate": false
         },
         "migration.database": {
-            "handlers": [],
-            "propagate": true
-        },
-        "watchfiles": {
-            "handlers": [],
-            "propagate": true
+            "handlers": ["migration_file"],
+            "level": "INFO",
+            "propagate": false
         }
     }
 }
