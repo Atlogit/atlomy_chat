@@ -4,7 +4,6 @@ Database operations for corpus processing.
 Handles database operations for storing sentences and line analysis.
 """
 
-import logging
 from typing import Dict, List, Optional, Any
 from sqlalchemy import select
 
@@ -16,7 +15,11 @@ from toolkit.parsers.sentence import Sentence
 
 from .corpus_base import CorpusBase
 
-logger = logging.getLogger(__name__)
+# Import migration logging configuration
+from toolkit.migration.logging_config import get_migration_logger
+
+# Use migration logger instead of standard logger
+logger = get_migration_logger('migration.db_processor')
 
 class DBProcessor(CorpusBase):
     """Handles database operations for corpus processing."""

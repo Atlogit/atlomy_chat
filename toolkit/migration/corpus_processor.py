@@ -5,7 +5,6 @@ Coordinates specialized processors for line processing,
 sentence formation, and database operations.
 """
 
-import logging
 from typing import Optional, Dict, Any, List
 from tqdm import tqdm
 
@@ -13,12 +12,16 @@ from .corpus_db import CorpusDB
 from toolkit.parsers.citation import CitationParser
 from toolkit.parsers.citation_utils import map_level_to_field
 
-logger = logging.getLogger(__name__)
+# Import migration logging configuration
+from toolkit.migration.logging_config import get_migration_logger
+
+# Use migration logger instead of standard logger
+logger = get_migration_logger('migration.corpus_processor')
 
 class CorpusProcessor(CorpusDB):
     """Main coordinator for corpus processing."""
 
-    def __init__(self, session: Any, model_path: Optional[str] = None, use_gpu: Optional[bool] = None, report: Optional[Any] = None):
+    def __init__(self, session: Any, model_path: Optional[str] = None, use_gpu: Optional[bool] = None, report: Optional[Any] = None, skip_nlp: bool = False):
         """Initialize the corpus processor.
         
         Args:
@@ -26,16 +29,19 @@ class CorpusProcessor(CorpusDB):
             model_path: Optional path to spaCy model
             use_gpu: Whether to use GPU for NLP processing (None for auto-detect)
             report: Optional PipelineReport for tracking issues
+            skip_nlp: Whether to skip NLP token generation
         """
         super().__init__(session, model_path=model_path, use_gpu=use_gpu)
         self._current_metadata = None  # Track current metadata
         self.report = report  # Store report for tracking issues
+        self.skip_nlp = skip_nlp  # Flag to skip NLP processing
         
         # Set report in citation parser
         if report:
             CitationParser.get_instance().set_report(report)
             
-        logger.info("CorpusProcessor initialized")
+        logger.info(f"CorpusProcessor initialized (Skip NLP: {self.skip_nlp})")
+
 
     def _set_metadata(self, metadata: Optional[Dict[str, str]]) -> None:
         """Set current metadata context."""
@@ -160,12 +166,14 @@ class CorpusProcessor(CorpusDB):
                         # Process each sentence
                         for sentence in sentences:
                             try:
-                                # Process through NLP
-                                processed_doc = self.process_sentence(sentence)
-                                if not processed_doc:
-                                    if self.report:
-                                        self.report.add_nlp_issue(f"division_{division.id}", "NLP processing failed")
-                                    continue
+                                # Conditionally process through NLP
+                                processed_doc = None
+                                if not self.skip_nlp:
+                                    processed_doc = self.process_sentence(sentence)
+                                    if not processed_doc:
+                                        if self.report:
+                                            self.report.add_nlp_issue(f"division_{division.id}", "NLP processing failed")
+                                        continue
                                 
                                 # Get database lines for sentence
                                 sentence_lines = self.get_sentence_lines(sentence, db_lines)
@@ -173,7 +181,7 @@ class CorpusProcessor(CorpusDB):
                                     logger.warning("No database lines found for sentence: %s", 
                                                 sentence.content)
                                     logger.debug("Source lines had line numbers: %s",
-                                               [str(self._get_line_number(line)) 
+                                            [str(self._get_line_number(line)) 
                                                 for line in sentence.source_lines])
                                     if self.report:
                                         self.report.add_sentence_issue(f"division_{division.id}", "No database lines found for sentence")
@@ -193,10 +201,10 @@ class CorpusProcessor(CorpusDB):
                                     if line_num is not None and line_num in line_map:
                                         source_line_ids.append(line_map[line_num])
 
-                                # Create sentence record with ordered source_line_ids
+                                # Create sentence record
                                 new_sentence = await self.create_sentence_record(
                                     sentence, 
-                                    processed_doc,
+                                    processed_doc,  # This will be None if skip_nlp is True
                                     source_line_ids
                                 )
                                 if not new_sentence:
@@ -204,9 +212,9 @@ class CorpusProcessor(CorpusDB):
                                         self.report.add_sentence_issue(f"division_{division.id}", "Failed to create sentence record")
                                     continue
 
-                                # Update line analysis
-                                for db_line in sentence_lines:
-                                    if processed_doc['tokens']:
+                                # Update line analysis only if NLP processing was done
+                                if processed_doc and processed_doc['tokens']:
+                                    for db_line in sentence_lines:
                                         line_analysis = self._map_tokens_to_line(
                                             db_line.content,
                                             processed_doc
@@ -229,7 +237,7 @@ class CorpusProcessor(CorpusDB):
                                                 last_token_pos
                                             )
                                                 
-                                await self.session.flush()
+                                        await self.session.flush()
                                     
                             except Exception as e:
                                 logger.error("Error processing sentence in division %d: %s", 

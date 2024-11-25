@@ -12,51 +12,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .shared_components import SharedComponents
 
+# Import migration logging configuration
+from toolkit.migration.logging_config import get_migration_logger
+
+# Use migration logger
+logger = get_migration_logger('migration.corpus_base')
+
 # Create logs directory if it doesn't exist
 os.makedirs('logs', exist_ok=True)
-
-# Configure logging
-logger = logging.getLogger('corpus_processing')
-logger.setLevel(logging.DEBUG)
-
-# Create formatters
-file_formatter = logging.Formatter(
-    '%(asctime)s - %(name)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s'
-)
-console_formatter = logging.Formatter(
-    '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-
-# File handler - use timestamp in filename
-timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-file_handler = logging.FileHandler(f'logs/corpus_processing_{timestamp}.log')
-file_handler.setLevel(logging.DEBUG)
-file_handler.setFormatter(file_formatter)
-
-# Console handler
-console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.INFO)
-console_handler.setFormatter(console_formatter)
-
-# Add handlers to logger
-logger.addHandler(file_handler)
-logger.addHandler(console_handler)
-
-# Set debug level for key modules
-for module in [
-    'toolkit.parsers.sentence_parser',
-    'toolkit.parsers.citation_utils',  # Added citation modules
-    'toolkit.parsers.citation_parser',
-    'toolkit.migration.corpus_processor',
-    'toolkit.migration.corpus_db',
-    'toolkit.migration.corpus_text',
-    'toolkit.migration.line_processor',
-    'toolkit.migration.sentence_processor'
-]:
-    mod_logger = logging.getLogger(module)
-    mod_logger.setLevel(logging.DEBUG)
-    mod_logger.addHandler(file_handler)
-    mod_logger.addHandler(console_handler)
 
 class CorpusBase:
     """Base class for corpus processing components."""
@@ -84,9 +47,34 @@ class CorpusBase:
         logger.info("CorpusBase initialized with model_path=%s, use_gpu=%s", 
                    model_path, use_gpu)
 
+        # Configure loggers for key modules
+        key_modules = [
+            'toolkit.parsers.sentence_parser',
+            'toolkit.parsers.citation_utils',
+            'toolkit.parsers.citation_parser',
+            'toolkit.migration.corpus_processor',
+            'toolkit.migration.corpus_db',
+            'toolkit.migration.corpus_text',
+            'toolkit.migration.line_processor',
+            'toolkit.migration.sentence_processor'
+        ]
+        
+        for module_name in key_modules:
+            # Use migration logger for each module
+            mod_logger = get_migration_logger(module_name.replace('toolkit.', ''))
+            mod_logger.debug(f"Logger configured for {module_name}")
+
     def _get_attr_safe(self, obj: object, attr: str, default: Any = None) -> Any:
         """Safely get attribute from object."""
         try:
             return getattr(obj, attr, default)
         except (AttributeError, TypeError):
             return default
+
+    def reset(self):
+        """
+        Reset the corpus processor state.
+        
+        Provides a hook for subclasses to reset internal state.
+        """
+        logger.debug("Resetting CorpusBase state")

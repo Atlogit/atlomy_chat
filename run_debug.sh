@@ -9,15 +9,21 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Directory for logs (using absolute path)
 LOG_DIR="${SCRIPT_DIR}/logs"
+MIGRATION_RUNS_DIR="${LOG_DIR}/migration_runs"
 FASTAPI_LOG="${LOG_DIR}/fastapi_debug.log"
 NEXTJS_LOG="${LOG_DIR}/nextjs_debug.log"
 DB_LOG="${LOG_DIR}/database_debug.log"
 REDIS_LOG="${LOG_DIR}/redis_debug.log"
 
-# Ensure logs directory exists with proper permissions
-rm -rf "${LOG_DIR}"  # Remove existing logs directory
+# Ensure logs directory and migration_runs exist with proper permissions
 mkdir -p "${LOG_DIR}"
+mkdir -p "${MIGRATION_RUNS_DIR}"
 chmod 777 "${LOG_DIR}"
+chmod 777 "${MIGRATION_RUNS_DIR}"
+
+# Remove only specific log files, preserve migration logs
+rm -f "${FASTAPI_LOG}" "${NEXTJS_LOG}" "${DB_LOG}" "${REDIS_LOG}"
+rm -f "${LOG_DIR}"/corpus_processing_*.log
 
 # Initialize log files with proper permissions
 for log_file in "${FASTAPI_LOG}" "${NEXTJS_LOG}" "${DB_LOG}" "${REDIS_LOG}"; do
@@ -157,6 +163,15 @@ log "INFO" "Using settings from .env:"
 log "INFO" "  - AWS Region: $AWS_REGION"
 log "INFO" "  - Bedrock Model: $BEDROCK_MODEL_ID"
 log "INFO" "  - Database URL: $DATABASE_URL"
+
+# Clear Redis cache server
+log "INFO" "Clearing Redis cache..."
+/root/anaconda3/envs/amta/bin/redis-cli FLUSHDB >> "${REDIS_LOG}" 2>&1
+if [ $? -eq 0 ]; then
+    log "INFO" "Redis cache successfully cleared"
+else
+    log "WARN" "Failed to clear Redis cache. Continuing with debug session."
+fi
 
 # Start Redis server
 log "INFO" "Starting Redis server..."

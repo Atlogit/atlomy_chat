@@ -6,12 +6,14 @@ matching work structures in the TLG indexes.
 """
 
 import regex as re
-import logging
 import unicodedata
 from typing import Dict, List, Optional, Any, Union
 
-# Use the same logger name as configured in corpus_base.py
-logger = logging.getLogger('toolkit.parsers.citation_utils')
+# Import migration logging configuration
+from toolkit.migration.logging_config import get_migration_logger
+
+# Use migration logger instead of standard logger
+logger = get_migration_logger('parsers.citation_utils')
 
 def map_level_to_field(level_name: str, work_structure: Optional[List[str]] = None) -> str:
     """Map a level name to its corresponding database field using regex patterns.

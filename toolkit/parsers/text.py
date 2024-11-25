@@ -8,13 +8,16 @@ citation and reference parsing to CitationParser.
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 from dataclasses import dataclass, field
-import logging
 from functools import wraps
 
 from .exceptions import TextExtractionError, EncodingError
 from .citation import CitationParser, Citation
 
-logger = logging.getLogger(__name__)
+# Import migration logging configuration
+from toolkit.migration.logging_config import get_migration_logger
+
+# Use migration logger instead of standard logger
+logger = get_migration_logger('parsers.text_parsing')
 
 @dataclass
 class TextLine:

@@ -16,9 +16,13 @@ class TextDivisionResponse(BaseModel):
     id: str
     author_name: Optional[str] = None
     work_name: Optional[str] = None
+    epistle: Optional[str] = None
+    fragment: Optional[str] = None
     volume: Optional[str] = None
+    book: Optional[str] = None
     chapter: Optional[str] = None
     section: Optional[str] = None
+    page: Optional[str] = None
     is_title: bool
     title_number: Optional[str] = None
     title_text: Optional[str] = None

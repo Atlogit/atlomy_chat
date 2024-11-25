@@ -1,90 +1,112 @@
 """
 Logging configuration for the migration process.
 
-Sets up logging to both file and console with different levels and formats.
+Sets up comprehensive logging with file and console handlers,
+ensuring detailed logs are captured and preserved.
 """
 
 import logging
 import sys
+import os
 from pathlib import Path
-from logging.handlers import RotatingFileHandler
+from datetime import datetime
+import os
 
-def setup_migration_logging(log_dir: Path = None, level: str = "INFO") -> None:
+def setup_migration_logging(
+    log_dir: Path = None, 
+    level: str = "DEBUG", 
+    max_log_size_bytes: int = 100 * 1024 * 1024  # 100 MB
+) -> Path:
     """
-    Configure logging for the migration process.
+    Configure comprehensive logging for migration processes.
     
     Args:
-        log_dir: Directory to store log files. If None, uses toolkit/migration/logs.
+        log_dir: Directory to store log files
         level: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
-    """
-    if log_dir is None:
-        log_dir = Path(__file__).parent / "logs"
+        max_log_size_bytes: Maximum size of log file before rotation
     
-    log_dir.mkdir(parents=True, exist_ok=True)
-    log_file = log_dir / "migration.log"
+    Returns:
+        Path to the current log file
+    """
+    # Reduce verbosity for external libraries
+    external_loggers = [
+        'sqlalchemy', 'alembic', 'asyncio', 'urllib3', 
+        'botocore', 'boto3', 's3transfer'
+    ]
+    for logger_name in external_loggers:
+        logging.getLogger(logger_name).setLevel(logging.WARNING)
+
+    # Default log directory in project's logs folder with migration subfolder
+    if log_dir is None:
+        log_dir = Path(__file__).parent.parent.parent / "logs" / "migration_runs"
+    
+    # Ensure log directory exists with proper permissions
+    os.makedirs(log_dir, exist_ok=True)
+    
+    # Generate unique log filename with detailed timestamp
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    log_file = log_dir / f"migration_{timestamp}.log"
     
     # Convert string level to logging level
     numeric_level = getattr(logging, level.upper(), logging.INFO)
     
     # Create formatters
     file_formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-        #'%(name)s - %(message)s'
+        '%(asctime)s - %(name)s - %(levelname)s - %(module)s:%(funcName)s:%(lineno)d - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
     )
     console_formatter = logging.Formatter(
         '%(levelname)s: %(message)s'
     )
     
-    # Create and configure file handler
-    file_handler = RotatingFileHandler(
-        log_file,
-        maxBytes=10*1024*1024,  # 10MB
-        backupCount=5
-    )
-    file_handler.setLevel(numeric_level)  # Respect passed level
+    # Create file handler without rotation to preserve all logs
+    file_handler = logging.FileHandler(log_file)
+    file_handler.setLevel(numeric_level)
     file_handler.setFormatter(file_formatter)
     
-    # Create and configure console handler
+    # Create and configure console handler with reduced verbosity
     console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(numeric_level)  # Respect passed level
+    console_handler.setLevel(logging.WARNING)  # Only show warnings and errors on console
     console_handler.setFormatter(console_formatter)
     
     # Configure root logger
+    logging.basicConfig(
+        level=logging.DEBUG,
+        handlers=[file_handler, console_handler],
+        force=True  # Ensure existing loggers are reconfigured
+    )
+    
+    # Reduce verbosity for external libraries
+    external_loggers = [
+        'sqlalchemy', 'alembic', 'asyncio', 'urllib3', 
+        'botocore', 'boto3', 's3transfer'
+    ]
+    for logger_name in external_loggers:
+        logging.getLogger(logger_name).setLevel(logging.WARNING)
+    
+    # Ensure all loggers propagate
     root_logger = logging.getLogger()
-    root_logger.setLevel(numeric_level)  # Respect passed level
+    root_logger.propagate = True
     
-    # Remove any existing handlers to prevent duplicate logging
-    for handler in root_logger.handlers[:]:
-        root_logger.removeHandler(handler)
-        
-    root_logger.addHandler(file_handler)
-    root_logger.addHandler(console_handler)
-    
-    # Create specific loggers with migration prefix to match get_migration_logger
-    loggers = {
-        'migration': logging.getLogger('migration.core'),
-        'citation': logging.getLogger('migration.citation'),
-        'database': logging.getLogger('migration.database')
-    }
-    
-    # Set all loggers to respect passed level
-    for logger in loggers.values():
-        logger.setLevel(numeric_level)
-        
-    # Log migration start
-    migration_logger = loggers['migration']
+    # Log configuration details
+    migration_logger = logging.getLogger('migration.core')
     migration_logger.info("Migration logging configured")
     migration_logger.info(f"Log file: {log_file}")
-    migration_logger.info(f"Console log level: {level}")
+    migration_logger.info(f"Log level: {level}")
+    migration_logger.info(f"Log directory: {log_dir}")
+
+    return log_file
 
 def get_migration_logger(name: str) -> logging.Logger:
     """
     Get a logger for a specific migration component.
     
     Args:
-        name: Name of the logger (e.g., 'citation', 'database')
+        name: Name of the logger
         
     Returns:
-        Logger instance for the specified component
+        Configured logger instance
     """
-    return logging.getLogger(f'migration.{name}')
+    logger = logging.getLogger(f'migration.{name}')
+    logger.propagate = True
+    return logger

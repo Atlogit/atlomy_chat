@@ -80,6 +80,66 @@ python -m toolkit.migration.process_full_pipeline \
     --max-workers 4
 ```
 
+## Logging Strategy
+
+### Log File Management
+
+#### Migration Logs
+- Logs are stored in `logs/migration_runs/` directory
+- Each migration run generates a unique log file
+- Log filenames follow the format: `migration_YYYYMMDD_HHMMSS.log`
+
+#### Log Levels
+- DEBUG: Most detailed logging
+- INFO: Standard operational information
+- WARNING: Potential issues or unexpected conditions
+- ERROR: Significant problems that may halt migration
+
+### Logging Configuration
+
+```python
+# Example logging setup in migration scripts
+from toolkit.migration.logging_config import setup_migration_logging, get_migration_logger
+
+# Configure logging for the migration
+log_file = setup_migration_logging(level="INFO")
+
+# Get specific loggers for different components
+migration_logger = get_migration_logger('core')
+citation_logger = get_migration_logger('citation')
+
+# Use loggers instead of print statements
+migration_logger.info("Starting migration process")
+citation_logger.debug("Processing specific citations")
+```
+
+### Log Preservation
+- Migration logs are NEVER deleted during debug runs
+- Logs are preserved across multiple migration attempts
+- Each log file contains comprehensive details about the migration process
+
+### Accessing Logs
+- Migration logs are located in: `logs/migration_runs/`
+- Each log file is timestamped for easy tracking
+- Logs include detailed information about:
+  * Migration stages
+  * Processing times
+  * Encountered warnings or errors
+  * System and processing context
+
+### Logging Command Line Options
+
+- `--log-level LEVEL`
+  - Set the logging verbosity
+  - Choices: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  - Default: INFO
+  - Example: `--log-level DEBUG`
+
+### Troubleshooting with Logs
+1. Check migration logs for detailed error information
+2. Use DEBUG level for most comprehensive logging
+3. Review log files in `logs/migration_runs/` for migration details
+
 ## GPU Support
 
 The NLP pipeline automatically detects and uses GPU if available. You can control GPU usage with the following options:
@@ -141,6 +201,93 @@ python -m toolkit.migration.process_full_pipeline \
   - Number of texts to load in each batch during parallel loading
   - Default: 5
   - Example: `--loading-batch-size 10`
+
+
+## Command Line Options
+
+### Advanced Processing Control Options
+
+#### Skipping and Quitting Options
+
+- `--skip-to-corpus`
+  - Skip citation migration and start directly from corpus processing
+  - Useful when citations have already been migrated
+  - Default: False
+  - Example: `--skip-to-corpus`
+
+- `--skip-nlp`
+  - Skip NLP token generation while still processing sentences
+  - Useful for partial processing or debugging
+  - Default: False
+  - Example: `--skip-nlp`
+
+- `--quiet`
+  - Suppress console output during pipeline execution
+  - Useful for automated or background processing
+  - Default: False
+  - Example: `--quiet`
+
+### Use Case Scenarios
+
+#### 1. Resuming Interrupted Migration
+
+When you want to continue a migration from the corpus processing stage:
+
+```bash
+python -m toolkit.migration.process_full_pipeline \
+    --corpus-dir /path/to/texts \
+    --skip-to-corpus
+```
+
+#### 2. Processing Sentences Without NLP
+
+When you need to process text structure without generating NLP tokens:
+
+```bash
+python -m toolkit.migration.process_full_pipeline \
+    --corpus-dir /path/to/texts \
+    --skip-nlp
+```
+
+#### 3. Silent Background Processing
+
+For automated or scripted migrations with no console output:
+
+```bash
+python -m toolkit.migration.process_full_pipeline \
+    --corpus-dir /path/to/texts \
+    --quiet
+```
+
+### Combining Options
+
+You can combine these options for more complex migration scenarios:
+
+```bash
+python -m toolkit.migration.process_full_pipeline \
+    --corpus-dir /path/to/texts \
+    --skip-to-corpus \
+    --skip-nlp \
+    --quiet
+```
+
+### Workflow Considerations
+
+- `--skip-to-corpus`: 
+  - Assumes citations are already migrated
+  - Starts processing from corpus loading stage
+  - Useful for resuming interrupted migrations
+
+- `--skip-nlp`:
+  - Processes text divisions and sentences
+  - Does not generate NLP tokens
+  - Helpful for structural analysis or debugging
+
+- `--quiet`:
+  - Redirects all output to log files
+  - Prevents console logging
+  - Useful for automated scripts or background jobs
+
 
 #### Processing Options
 

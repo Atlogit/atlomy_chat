@@ -4,7 +4,6 @@ This module handles the parsing and processing of citations and their components
 """
 
 import re
-import logging
 from typing import Dict, Optional, Tuple, List
 from pathlib import Path
 
@@ -12,7 +11,11 @@ from toolkit.parsers.shared_parsers import SharedParsers
 from toolkit.parsers.citation import Citation
 from toolkit.parsers.citation_utils import map_level_to_field
 
-logger = logging.getLogger(__name__)
+# Import migration logging configuration
+from toolkit.migration.logging_config import get_migration_logger
+
+# Use migration logger instead of standard logger
+logger = get_migration_logger('migration.citation_processor')
 
 class CitationProcessor:
     """Processes citations and their components."""

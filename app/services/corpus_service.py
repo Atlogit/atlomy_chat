@@ -63,13 +63,40 @@ class CorpusService:
         )
 
     async def invalidate_text_cache(self, text_id: Optional[int] = None) -> None:
-        """Invalidate text cache for a specific text or all texts."""
-        if text_id:
-            # Invalidate specific text cache
-            cache_key = f"{settings.redis.TEXT_CACHE_PREFIX}{text_id}"
-            await self.redis.delete(cache_key)
-        else:
-            # Invalidate all text-related caches
-            await self.redis.clear_cache(f"{settings.redis.TEXT_CACHE_PREFIX}*")
-            await self.redis.clear_cache(f"{settings.redis.SEARCH_CACHE_PREFIX}*")
-            await self.redis.clear_cache(f"{settings.redis.CATEGORY_CACHE_PREFIX}*")
+        """
+        Invalidate text cache with more aggressive clearing.
+        
+        Args:
+            text_id (Optional[int]): Specific text ID to invalidate. 
+                                     If None, clears ALL text-related caches.
+        """
+        try:
+            if text_id:
+                # Invalidate specific text cache
+                cache_keys = [
+                    f"{settings.redis.TEXT_CACHE_PREFIX}{text_id}",
+                    f"{settings.redis.SEARCH_RESULTS_PREFIX}text_{text_id}",
+                ]
+                for key in cache_keys:
+                    await self.redis.delete(key)
+                    logger.info(f"Invalidated specific text cache: {key}")
+            else:
+                # More aggressive cache clearing
+                cache_patterns = [
+                    f"{settings.redis.TEXT_CACHE_PREFIX}*",
+                    f"{settings.redis.SEARCH_CACHE_PREFIX}*",
+                    f"{settings.redis.CATEGORY_CACHE_PREFIX}*",
+                    f"{settings.redis.SEARCH_RESULTS_PREFIX}*"
+                ]
+                
+                for pattern in cache_patterns:
+                    result = await self.redis.clear_cache(pattern)
+                    logger.info(f"Cleared cache pattern: {pattern}, Result: {result}")
+                
+                # Additional step: Flush entire Redis database (use with caution)
+                if self.redis._redis:
+                    await self.redis._redis.flushdb()
+                    logger.warning("Entire Redis database flushed")
+        
+        except Exception as e:
+            logger.error(f"Error invalidating text cache: {e}", exc_info=True)

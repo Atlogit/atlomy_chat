@@ -4,7 +4,6 @@ Text processing for corpus analysis.
 Handles text line processing and sentence formation with structure awareness.
 """
 
-import logging
 import re
 from typing import Dict, List, Optional, Tuple, Any
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,7 +19,11 @@ from .citation_processor import CitationProcessor
 
 from .corpus_citation import CorpusCitation
 
-logger = logging.getLogger(__name__)
+# Import migration logging configuration
+from toolkit.migration.logging_config import get_migration_logger
+
+# Use migration logger instead of standard logger
+logger = get_migration_logger('migration.corpus_text')
 
 class CorpusText(CorpusCitation):
     """Handles text line processing and sentence formation."""

@@ -14,32 +14,66 @@
             "stream": "ext://sys.stdout"
         },
         "migration_file": {
-            "class": "logging.FileHandler",
+            "class": "logging.handlers.RotatingFileHandler",
             "formatter": "standard",
-            "filename": "logs/migration/migration_persistent.log",
-            "mode": "a",
-            "encoding": "utf-8"
+            "filename": "logs/atlomy_chat.log",
+            "maxBytes": 104857600,
+            "backupCount": 5,
+            "encoding": "utf8"
+        },
+        "fastapi": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "formatter": "standard",
+            "filename": "logs/fastapi_debug.log",
+            "maxBytes": 5242880,
+            "backupCount": 5,
+            "encoding": "utf8"
         }
     },
     "root": {
         "handlers": ["console", "migration_file"],
         "level": "INFO",
-        "propagate": false
+        "propagate": true
     },
     "loggers": {
         "migration": {
-            "handlers": ["migration_file"],
+            "handlers": ["console", "migration_file"],
             "level": "INFO",
             "propagate": false
         },
         "migration.citation": {
-            "handlers": ["migration_file"],
+            "handlers": ["console", "migration_file"],
             "level": "INFO",
             "propagate": false
         },
         "migration.database": {
-            "handlers": ["migration_file"],
+            "handlers": ["console", "fastapi"],
             "level": "INFO",
+            "propagate": false
+        },
+        "uvicorn": {
+            "handlers": ["console", "fastapi"],
+            "level": "INFO",
+            "propagate": true
+        },
+        "uvicorn.error": {
+            "handlers": ["console", "fastapi"],
+            "level": "INFO",
+            "propagate": true
+        },
+        "uvicorn.access": {
+            "handlers": ["console", "fastapi"],
+            "level": "INFO",
+            "propagate": true
+        },
+        "fastapi": {
+            "handlers": ["console", "fastapi"],
+            "level": "INFO",
+            "propagate": true
+        },
+        "watchfiles": {
+            "handlers": ["console", "fastapi"],
+            "level": "WARNING",
             "propagate": false
         }
     }

@@ -4,7 +4,6 @@ Database operations for corpus processing.
 Handles database interactions for corpus text processing.
 """
 
-import logging
 from typing import List, Dict, Any, Optional, Tuple
 from sqlalchemy import select, and_, case
 from tqdm import tqdm
@@ -19,7 +18,11 @@ from toolkit.parsers.citation_utils import map_level_to_field
 
 from .corpus_nlp import CorpusNLP
 
-logger = logging.getLogger(__name__)
+# Import migration logging configuration
+from toolkit.migration.logging_config import get_migration_logger
+
+# Use migration logger instead of standard logger
+logger = get_migration_logger('migration.corpus_db')
 
 class CorpusDB(CorpusNLP):
     """Database operations for corpus processing."""

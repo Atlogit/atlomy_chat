@@ -15,8 +15,11 @@ from assets.indexes import tlg_index, work_numbers
 from .citation_types import Citation
 from .citation_utils import find_matching_work, map_level_to_field
 
-# Use the same logger name as configured in corpus_base.py
-logger = logging.getLogger('toolkit.parsers.citation_parser')
+# Import migration logging configuration
+from toolkit.migration.logging_config import get_migration_logger
+
+# Use migration logger instead of standard logger
+logger = get_migration_logger('parsers.citation_parser')
 
 def log_exceptions(func):
     """Decorator to log exceptions raised by citation parsing functions."""

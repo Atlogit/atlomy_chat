@@ -4,11 +4,14 @@ Singleton class for shared parser components.
 Provides centralized access to shared parser utilities and resources.
 """
 
-import logging
 from typing import Optional
 from pathlib import Path
 
-logger = logging.getLogger(__name__)
+# Import migration logging configuration
+from toolkit.migration.logging_config import get_migration_logger
+
+# Use migration logger instead of standard logger
+logger = get_migration_logger('parsers.shared_parsers')
 
 class SharedParsers:
     """Singleton class for shared parser components."""

@@ -6,12 +6,15 @@ and other text processing operations.
 """
 
 import re
-import logging
 from typing import List, Optional
 from functools import wraps
 from .text import TextLine
 
-logger = logging.getLogger(__name__)
+# Import migration logging configuration
+from toolkit.migration.logging_config import get_migration_logger
+
+# Use migration logger instead of standard logger
+logger = get_migration_logger('parsers.sentence_utils')
 
 def log_exceptions(func):
     """Decorator to log exceptions raised by sentence parsing functions."""

@@ -4,7 +4,6 @@ NLP processing for corpus analysis.
 Handles NLP processing and token mapping with structure awareness.
 """
 
-import logging
 from typing import Dict, List, Optional, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,7 +12,11 @@ from app.models.text_line import TextLine as DBTextLine
 
 from .corpus_text import CorpusText
 
-logger = logging.getLogger(__name__)
+# Import migration logging configuration
+from toolkit.migration.logging_config import get_migration_logger
+
+# Use migration logger instead of standard logger
+logger = get_migration_logger('migration.corpus_nlp')
 
 class CorpusNLP(CorpusText):
     """Handles NLP processing and token mapping."""

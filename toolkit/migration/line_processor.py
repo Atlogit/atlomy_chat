@@ -4,7 +4,6 @@ Line processing for corpus analysis.
 Handles conversion and processing of text lines.
 """
 
-import logging
 import re
 from typing import Dict, List, Optional, Tuple, Any
 from app.models.text_division import TextDivision
@@ -16,7 +15,11 @@ from toolkit.parsers.sentence_utils import SentenceUtils
 from .corpus_base import CorpusBase
 from .corpus_citation import CorpusCitation
 
-logger = logging.getLogger(__name__)
+# Import migration logging configuration
+from toolkit.migration.logging_config import get_migration_logger
+
+# Use migration logger instead of standard logger
+logger = get_migration_logger('migration.line_processor')
 
 class LineProcessor(CorpusBase):
     """Handles processing of text lines."""

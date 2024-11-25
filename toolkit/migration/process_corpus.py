@@ -31,7 +31,7 @@ async def process_corpus(
         parallel: Whether to use parallel processing
         max_workers: Maximum number of worker processes for parallel processing
     """
-    logger = get_migration_logger('process_corpus')
+    logger = get_migration_logger('migration.process_corpus')
     logger.info(f"Starting corpus processing (parallel={parallel})")
     
     try:

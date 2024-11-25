@@ -6,7 +6,6 @@ citation information and work structure context.
 """
 
 import re
-import logging
 from typing import List, Optional, Tuple, Dict
 from functools import wraps
 
@@ -17,7 +16,11 @@ from .sentence_types import Sentence, SentenceBoundary
 from .sentence_utils import SentenceUtils, log_exceptions
 from .shared_parsers import SharedParsers
 
-logger = logging.getLogger(__name__)
+# Import migration logging configuration
+from toolkit.migration.logging_config import get_migration_logger
+
+# Use migration logger
+logger = get_migration_logger('parsers.sentence_parser')
 
 class SentenceParser:
     """Handles the parsing of text lines into complete sentences."""

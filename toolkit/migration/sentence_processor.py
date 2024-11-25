@@ -15,7 +15,11 @@ from toolkit.parsers.shared_parsers import SharedParsers
 from .corpus_base import CorpusBase
 from .corpus_citation import CorpusCitation
 
-logger = logging.getLogger(__name__)
+# Import migration logging configuration
+from toolkit.migration.logging_config import get_migration_logger
+
+# Use migration logger instead of standard logger
+logger = get_migration_logger('migration.sentence_processor')
 
 class SentenceProcessor(CorpusBase):
     """Handles sentence formation and NLP processing."""

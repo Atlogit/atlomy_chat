@@ -4,14 +4,17 @@ Citation handling for corpus processing.
 Handles citation parsing and creation with work structure awareness.
 """
 
-import logging
 from typing import Dict, List, Optional, Tuple, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .corpus_base import CorpusBase
 from toolkit.parsers.citation import Citation
 
-logger = logging.getLogger(__name__)
+# Import migration logging configuration
+from toolkit.migration.logging_config import get_migration_logger
+
+# Use migration logger instead of standard logger
+logger = get_migration_logger('migration.corpus_citation')
 
 class CorpusCitation(CorpusBase):
     """Handles citation parsing and creation."""

@@ -23,7 +23,11 @@ from app.models.text_line import TextLine
 from toolkit.nlp.pipeline import NLPPipeline
 from toolkit.parsers.sentence import SentenceParser, Sentence
 
-logger = logging.getLogger(__name__)
+# Import migration logging configuration
+from toolkit.migration.logging_config import get_migration_logger
+
+# Use migration logger instead of standard logger
+logger = get_migration_logger('migration.parallel_processor')
 
 @dataclass
 class WorkBatch:

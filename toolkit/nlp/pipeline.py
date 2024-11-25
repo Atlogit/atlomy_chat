@@ -6,14 +6,17 @@ storing results in a format compatible with our PostgreSQL schema.
 """
 
 import os
-import logging
+import torch
 from typing import List, Dict, Any, Optional
 from pathlib import Path
 import spacy
-import torch
 from tqdm import tqdm
 
-logger = logging.getLogger(__name__)
+# Import migration logging configuration
+from toolkit.migration.logging_config import get_migration_logger
+
+# Use migration logger
+logger = get_migration_logger('nlp.pipeline')
 
 class NLPPipeline:
     """Handles text processing using spaCy with configuration for ancient texts."""
