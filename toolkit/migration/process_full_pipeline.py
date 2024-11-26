@@ -188,6 +188,10 @@ async def run_pipeline(
     # Initialize report tracker
     report = PipelineReport()
     
+    # Initialize engine to None to ensure it's always defined
+    engine = None
+    async_session = None
+    
     try:
         # Verify NLP pipeline first (only if not skipping NLP)
         if not skip_nlp:
@@ -272,14 +276,18 @@ async def run_pipeline(
                     raise
 
         finally:
-            await session.close()
+            if session:
+                await session.close()
             
     except Exception as e:
         logger.error(f"Pipeline failed: {str(e)}")
         raise
     finally:
-        await engine.dispose()
-        await async_session.remove()
+        # Ensure resources are cleaned up even if an exception occurs
+        if engine:
+            await engine.dispose()
+        if async_session:
+            await async_session.remove()
         
         # Save the execution report
         report.save_report()

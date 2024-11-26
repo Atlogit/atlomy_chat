@@ -6,6 +6,9 @@ storing results in a format compatible with our PostgreSQL schema.
 """
 
 import os
+import sys
+import ctypes
+import warnings
 import torch
 from typing import List, Dict, Any, Optional
 from pathlib import Path
@@ -17,6 +20,49 @@ from toolkit.migration.logging_config import get_migration_logger
 
 # Use migration logger
 logger = get_migration_logger('nlp.pipeline')
+
+def _configure_cuda_libraries():
+    """
+    Comprehensive CUDA library configuration and detection.
+    
+    Attempts to resolve CUDA library loading issues by:
+    1. Adding potential library paths
+    2. Explicitly loading key CUDA runtime libraries
+    3. Configuring environment for GPU computing
+    """
+    # Suppress specific warnings
+    warnings.filterwarnings("ignore", category=UserWarning)
+    warnings.filterwarnings("ignore", category=FutureWarning)
+    
+    # Potential CUDA library paths
+    cuda_lib_paths = [
+        '/root/anaconda3/envs/amta/lib/python3.11/site-packages/nvidia/cuda_nvrtc/lib',
+        '/usr/local/cuda/lib64',
+        '/opt/cuda/lib64',
+        f'{os.environ.get("CONDA_PREFIX", "")}/lib',
+        f'{os.environ.get("CONDA_PREFIX", "")}/lib64'
+    ]
+    
+    # Update LD_LIBRARY_PATH
+    current_ld_path = os.environ.get('LD_LIBRARY_PATH', '')
+    new_ld_path = ':'.join(filter(os.path.exists, cuda_lib_paths))
+    
+    if new_ld_path:
+        os.environ['LD_LIBRARY_PATH'] = f"{new_ld_path}:{current_ld_path}"
+        logger.info(f"Updated LD_LIBRARY_PATH: {os.environ['LD_LIBRARY_PATH']}")
+    
+    # Attempt to load NVRTC library
+    nvrtc_lib_path = '/root/anaconda3/envs/amta/lib/python3.11/site-packages/nvidia/cuda_nvrtc/lib/libnvrtc.so.12'
+    
+    try:
+        # Explicitly load library
+        ctypes.CDLL(nvrtc_lib_path, mode=ctypes.RTLD_GLOBAL)
+        logger.info(f"Successfully loaded {nvrtc_lib_path}")
+    except Exception as e:
+        logger.warning(f"Could not load {nvrtc_lib_path}: {e}")
+        return False
+    
+    return True
 
 class NLPPipeline:
     """Handles text processing using spaCy with configuration for ancient texts."""
@@ -37,6 +83,9 @@ class NLPPipeline:
             category_threshold: Threshold for category detection
             use_gpu: Whether to use GPU. If None, automatically detects GPU availability
         """
+        # Configure CUDA libraries before any GPU operations
+        cuda_config_success = _configure_cuda_libraries()
+        
         self.batch_size = batch_size
         
         # Use provided model path or default to project model
@@ -50,24 +99,24 @@ class NLPPipeline:
                 "model-best"
             )
         
-        # Configure GPU usage
-        if use_gpu is None:
-            use_gpu = torch.cuda.is_available()
+        # Comprehensive GPU detection
+        self.gpu_available = self._check_gpu_availability()
         
-        if use_gpu:
-            if not torch.cuda.is_available():
-                logger.warning("PyTorch CUDA not available. Falling back to CPU.")
+        # Determine GPU usage
+        if use_gpu is None:
+            use_gpu = self.gpu_available
+        
+        # Configure spaCy and PyTorch for processing
+        if use_gpu and self.gpu_available and cuda_config_success:
+            try:
+                spacy.require_gpu()
+                torch.set_default_tensor_type('torch.cuda.FloatTensor')
+                logger.info(f"Using GPU: {torch.cuda.get_device_name(0)}")
+                logger.info(f"CUDA Version: {torch.version.cuda}")
+            except Exception as e:
+                logger.warning(f"GPU initialization failed. Falling back to CPU: {e}")
+                use_gpu = False
                 spacy.require_cpu()
-            else:
-                try:
-                    spacy.require_gpu()
-                    logger.info("Using GPU for NLP processing")
-                    # Set PyTorch to use GPU
-                    torch.set_default_tensor_type('torch.cuda.FloatTensor')
-                except Exception as e:
-                    logger.warning(f"Failed to initialize GPU: {e}. Falling back to CPU.")
-                    spacy.require_cpu()
-                    use_gpu = False
         else:
             spacy.require_cpu()
             logger.info("Using CPU for NLP processing")
@@ -79,15 +128,35 @@ class NLPPipeline:
             self.nlp.get_pipe("spancat").cfg["threshold"] = category_threshold
             logger.info("Successfully loaded spaCy model and configured pipeline")
             
-            # Log device information
-            if use_gpu and torch.cuda.is_available():
-                device_name = torch.cuda.get_device_name(0)
-                logger.info(f"Using GPU: {device_name}")
-                logger.info(f"CUDA Version: {torch.version.cuda}")
-                
         except Exception as e:
             logger.error(f"Failed to load spaCy model: {e}")
             raise
+
+    def _check_gpu_availability(self) -> bool:
+        """
+        Comprehensive check for GPU availability.
+        
+        Returns:
+            Boolean indicating whether a usable GPU is available
+        """
+        try:
+            # Check PyTorch CUDA availability
+            if not torch.cuda.is_available():
+                logger.warning("PyTorch reports no CUDA devices available.")
+                return False
+            
+            # Additional checks for CUDA libraries and device initialization
+            try:
+                torch.zeros(1).cuda()
+            except RuntimeError as cuda_error:
+                logger.warning(f"CUDA device initialization failed: {cuda_error}")
+                return False
+            
+            return True
+        
+        except Exception as e:
+            logger.warning(f"Unexpected error checking GPU availability: {e}")
+            return False
 
     def _create_token_dict(self, token: spacy.tokens.Token, doc: spacy.tokens.Doc) -> Dict[str, Any]:
         """

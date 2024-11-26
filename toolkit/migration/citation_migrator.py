@@ -12,8 +12,13 @@ import re
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional, Set
 import logging
-from sqlalchemy.ext.asyncio import AsyncSession
+import sys
+import traceback
+
+from sqlalchemy.ext.asyncio import AsyncSession, AsyncEngine, create_async_engine
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError, OperationalError, DatabaseError
+from sqlalchemy.orm.exc import NoResultFound
 from tqdm import tqdm
 
 from toolkit.parsers.shared_parsers import SharedParsers
@@ -26,6 +31,19 @@ from app.models.text_division import TextDivision
 from app.models.text_line import TextLine
 from assets.indexes import tlg_index, work_numbers
 from toolkit.parsers.citation_utils import map_level_to_field
+from app.core.config import settings
+
+class UnicodeLoggingHandler(logging.StreamHandler):
+    """Custom logging handler to handle Unicode characters."""
+    def emit(self, record):
+        try:
+            msg = self.format(record)
+            # Encode with UTF-8, replacing problematic characters
+            stream = self.stream
+            stream.write(msg.encode('utf-8', errors='replace').decode('utf-8') + self.terminator)
+            self.flush()
+        except Exception:
+            self.handleError(record)
 
 class MigrationError(Exception):
     """Custom exception for migration errors."""
@@ -34,9 +52,10 @@ class MigrationError(Exception):
 class CitationMigrator:
     """Handles migration of citations to PostgreSQL database."""
 
-    def __init__(self, session: AsyncSession):
-        """Initialize the migrator with database session."""
+    def __init__(self, session: AsyncSession, engine: Optional[AsyncEngine] = None):
+        """Initialize the migrator with database session and optional engine."""
         self.session = session
+        self.engine = engine
         self.citation_processor = CitationProcessor()
         # Get shared parser components
         shared = SharedParsers.get_instance()
@@ -48,13 +67,20 @@ class CitationMigrator:
         # Set up logging
         setup_migration_logging()
         self.logger = get_migration_logger('citation_migrator')
+        
+        # Add Unicode-safe handler
+        unicode_handler = UnicodeLoggingHandler()
+        unicode_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+        self.logger.addHandler(unicode_handler)
+        
         self.stats = {
             'processed_files': 0,
             'processed_lines': 0,
             'failed_citations': 0,
             'validation_errors': 0,
             'divisions_created': 0,
-            'lines_per_division': {}  # Track lines per division
+            'lines_per_division': {}, 
+            'failed_files': []  # Track files that failed to process
         }
 
     def _normalize_reference_code(self, ref_code: str) -> str:
@@ -79,6 +105,88 @@ class CitationMigrator:
             return None
         # Split on tab and take first part
         return line_number.split('\t')[0] if '\t' in line_number else line_number
+
+    async def _get_or_create_text(self, author_id: str, work_id: str) -> int:
+        """Get existing text or create new one with advanced error handling."""
+        max_retries = 5
+        retry_delay = 1  # Initial delay in seconds
+        
+        for attempt in range(max_retries):
+            try:
+                # Normalize and validate inputs
+                normalized_author_id = self._normalize_reference_code(author_id)
+                
+                # Validate work_id
+                if not work_id or not isinstance(work_id, str):
+                    raise ValueError(f"Invalid work_id: {work_id}")
+                
+                # Check cache first
+                cache_key = (normalized_author_id, work_id)
+                if cache_key in self.text_cache:
+                    return self.text_cache[cache_key]
+                
+                # Ensure author exists in cache
+                if normalized_author_id not in self.author_cache:
+                    # Create or retrieve author if not in cache
+                    author_db_id = await self._get_or_create_author(normalized_author_id)
+                    self.author_cache[normalized_author_id] = author_db_id
+                
+                # Query for existing text
+                stmt = select(Text).where(
+                    Text.reference_code == work_id,
+                    Text.author_id == self.author_cache[normalized_author_id]
+                )
+                
+                # Execute query with timeout
+                result = await asyncio.wait_for(
+                    self.session.execute(stmt), 
+                    timeout=10.0  # 10-second timeout
+                )
+                text = result.scalar_one_or_none()
+                
+                # Create new text if not found
+                if not text:
+                    text = Text(
+                        author_id=self.author_cache[normalized_author_id],
+                        reference_code=work_id,
+                        title=f"Work {work_id}"
+                    )
+                    self.session.add(text)
+                    await self.session.flush()
+                
+                # Cache and return text ID
+                self.text_cache[cache_key] = text.id
+                return text.id
+            
+            except (OperationalError, NoResultFound, asyncio.TimeoutError) as e:
+                # Log specific error details
+                self.logger.warning(
+                    f"Database error on attempt {attempt + 1}: {type(e).__name__} - {str(e)}"
+                )
+                
+                # Exponential backoff
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(retry_delay * (2 ** attempt))
+                    
+                    # Attempt to reset session
+                    try:
+                        await self._reset_session()
+                    except Exception as reset_error:
+                        self.logger.error(f"Session reset failed: {str(reset_error)}")
+                else:
+                    # Final error handling
+                    self.logger.error(
+                        f"Failed to get or create text after {max_retries} attempts. "
+                        f"Author ID: {normalized_author_id}, Work ID: {work_id}"
+                    )
+                    raise MigrationError(f"Persistent database error: {str(e)}")
+            
+            except Exception as unexpected_error:
+                # Catch-all for unexpected errors
+                self.logger.error(
+                    f"Unexpected error in text creation: {type(unexpected_error).__name__} - {str(unexpected_error)}"
+                )
+                raise
 
     async def _get_or_create_author(self, author_id: str) -> int:
         """Get existing author or create new one."""
@@ -303,6 +411,7 @@ class CitationMigrator:
                         "work_number_field": current_tlg.work_id if current_tlg else file_work_id,
                         "work_abbreviation_field": None,
                         "author_abbreviation_field": None,
+                        "epistle": None,
                         "fragment": None,
                         "volume": None,
                         "book": None,
@@ -375,8 +484,10 @@ class CitationMigrator:
                         "work_number_field": work_id,
                         "work_abbreviation_field": None,
                         "author_abbreviation_field": None,
+                        "epistle": None,
                         "fragment": None,
                         "volume": None,
+                        "book": None,
                         "chapter": None,
                         "section": None,
                         "page": None,
@@ -392,8 +503,10 @@ class CitationMigrator:
                         "work_number_field": work_id,
                         "work_abbreviation_field": None,
                         "author_abbreviation_field": None,
+                        "epistle": None,
                         "fragment": None,
                         "volume": None,
+                        "book": None,
                         "chapter": "1",
                         "section": None,
                         "page": None,
@@ -420,8 +533,10 @@ class CitationMigrator:
                         work_number_field=division["work_number_field"],
                         work_abbreviation_field=division["work_abbreviation_field"],
                         author_abbreviation_field=division["author_abbreviation_field"],
+                        epistle=division["epistle"],
                         fragment=division["fragment"],
                         volume=division["volume"],
+                        book=division["book"],
                         chapter=division["chapter"],
                         section=division["section"],
                         page=division["page"],
