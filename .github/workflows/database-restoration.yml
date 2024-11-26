@@ -428,7 +428,7 @@ jobs:
               echo \"Database directory exists, getting timestamp...\"
               sudo ls -la \"\$POSTGRES_DATA_DIR\"
               
-              local_timestamp=\$(sudo stat -c %Y \"\$POSTGRES_DATA_DIR\" | sudo xargs -I{} date -d @{} '+%Y-%m-%d %H:%M:%S')
+              local_timestamp=\$(sudo stat -c %Y \"\$POSTGRES_DATA_DIR\PG_VERSION" | sudo xargs -I{} date -d @{} '+%Y-%m-%d %H:%M:%S')
               echo \"Raw local timestamp: \$local_timestamp\"
               
               if [ -z \"\$local_timestamp\" ]; then
