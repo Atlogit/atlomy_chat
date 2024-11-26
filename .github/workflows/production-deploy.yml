@@ -66,25 +66,25 @@ jobs:
           echo "Workflow Run Name: ${{ github.event.workflow_run.name }}"
           echo "Workflow Run Branch: ${{ github.event.workflow_run.head_branch }}"
 
-  #database-restoration:
-  #  needs: validate-workflow-trigger
-  #  uses: ./.github/workflows/database-restoration.yml
-  #  secrets: inherit
-  #  with:
-  #    deployment_mode: production
-  #    backup_type: ${{ inputs.backup_type || 'tar' }}
-  #    postgres_data_dir: ${{ inputs.postgres_data_dir }}
+  database-restoration:
+    needs: validate-workflow-trigger
+    uses: ./.github/workflows/database-restoration.yml
+    secrets: inherit
+    with:
+      deployment_mode: production
+      backup_type: ${{ inputs.backup_type || 'tar' }}
+      postgres_data_dir: ${{ inputs.postgres_data_dir }}
   
-      #dtabase-validation:
-  #  needs: database-restoration
-  #  uses: ./.github/workflows/database-validation.yml
-  #  secrets: inherit
-  #  with:
-  #    deployment_mode: production
+  database-validation:
+    needs: database-restoration
+    uses: ./.github/workflows/database-validation.yml
+    secrets: inherit
+    with:
+      deployment_mode: production
 
   deploy-to-ec2:
-    #needs: 
-    #  - database-restoration
+    needs: 
+      - database-restoration
     if: github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.head_branch == 'production' && github.event.workflow_run.conclusion == 'success' )
     runs-on: ubuntu-latest
     environment: ${{ inputs.deployment_mode }}
