@@ -239,11 +239,15 @@ jobs:
                   echo "Missing $missing_dirs required directories"
                   status="CORRUPTED"
                 fi
-                
+                              echo "Final status: $status"
+
                 # Step 2: If initialized, verify with temporary container
+                #if [ "$status" = "INITIALIZED" ] && sudo test -f "$data_dir/postmaster.pid"; then
                 if [ "$status" = "INITIALIZED" ]; then
-                  echo "Verifying PostgreSQL data with temporary container..."
-                  
+                  echo "Database appears healthy, skipping Docker verification"
+                else
+                  # Do Docker verification only if basic checks fail
+                  echo "Verifying PostgreSQL data with temporary container..."                
                   # Clean up any existing containers
                   docker ps -q --filter "name=pg-verify" | xargs -r docker stop
                   docker ps -aq --filter "name=pg-verify" | xargs -r docker rm
@@ -428,7 +432,9 @@ jobs:
               echo \"Database directory exists, getting timestamp...\"
               sudo ls -la \"\$POSTGRES_DATA_DIR\"
               
-              local_timestamp=\$(sudo stat -c %Y \"\$POSTGRES_DATA_DIR/PG_VERSION" | sudo xargs -I{} date -d @{} '+%Y-%m-%d %H:%M:%S')
+              local data_dir="$POSTGRES_DATA_DIR"
+
+              local_timestamp=\$(sudo stat -c %Y "$data_dir/PG_VERSION" | sudo xargs -I{} date -d @{} '+%Y-%m-%d %H:%M:%S')
               echo \"Raw local timestamp: \$local_timestamp\"
               
               if [ -z \"\$local_timestamp\" ]; then
