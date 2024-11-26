@@ -239,7 +239,6 @@ jobs:
                   echo "Missing $missing_dirs required directories"
                   status="CORRUPTED"
                 fi
-                              echo "Final status: $status"
 
                 # Step 2: If initialized, verify with temporary container
                 #if [ "$status" = "INITIALIZED" ] && sudo test -f "$data_dir/postmaster.pid"; then
