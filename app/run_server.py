@@ -23,7 +23,6 @@ def configure_logging():
     
     logging_config_str = json.dumps(logging_config).replace("${LOG_LEVEL}", log_level)
     logging_config = json.loads(logging_config_str)
-    print("Modified logging config:", logging_config, flush=True)
     logging.config.dictConfig(logging_config)
     return logging_config # Ensure the updated configuration is returned
 
