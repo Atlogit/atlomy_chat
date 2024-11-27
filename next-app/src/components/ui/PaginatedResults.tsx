@@ -1,6 +1,8 @@
-import { useState, useEffect } from 'react'
-import { SearchResult } from '../../utils/api'
-import { ResultsDisplay } from './ResultsDisplay'
+import React, { useState, useEffect, useCallback } from 'react'
+import { SearchResult, ProcessingStatus } from '../../utils/api/types/types'
+import { ProgressIndicator, LoadingSpinner, ErrorDisplay } from './ProgressIndicator'
+import { API } from '../../utils/api/endpoints'
+import { fetchApi } from '../../utils/api/fetch'
 
 interface PaginatedResultsProps {
   title?: string
@@ -8,11 +10,12 @@ interface PaginatedResultsProps {
   pageSize?: number
   className?: string
   isLoading?: boolean
+  processingStatus?: ProcessingStatus
   onPageChange?: (page: number, pageSize: number) => Promise<SearchResult[]>
   totalResults?: number
 }
 
-type LocationField = 'book' | 'fragment' | 'volume' | 'page' | 'chapter' | 'section' | 'line'
+type LocationField = 'epistle' | 'book' | 'fragment' | 'volume' | 'page' | 'chapter' | 'section' | 'line'
 type AvailableFields = Record<LocationField, string | null>
 
 export function PaginatedResults({
@@ -21,20 +24,103 @@ export function PaginatedResults({
   pageSize = 10,
   className = '',
   isLoading = false,
+  processingStatus,
   onPageChange,
   totalResults,
 }: PaginatedResultsProps) {
   const [currentPage, setCurrentPage] = useState(1)
   const [paginatedResults, setPaginatedResults] = useState<SearchResult[]>([])
   const [isChangingPage, setIsChangingPage] = useState(false)
+  const [pollingStatus, setPollingStatus] = useState<ProcessingStatus | null>(processingStatus || null)
+  const [isPolling, setIsPolling] = useState(!!processingStatus)
+  
+  // Debugging logging
+  useEffect(() => {
+    console.group('PaginatedResults Debug')
+    console.log('Results:', results)
+    console.log('Processing Status:', processingStatus)
+    console.log('Total Results:', totalResults)
+    console.log('Is Loading:', isLoading)
+    console.log('Current Page:', currentPage)
+    console.log('Paginated Results:', paginatedResults)
+    console.log('Is Polling:', isPolling)
+    console.groupEnd()
+  }, [results, processingStatus, totalResults, isLoading, currentPage, paginatedResults, isPolling])
   
   // Calculate total pages based on totalResults if provided, otherwise use results.length
   const totalPages = totalResults 
     ? Math.ceil(totalResults / pageSize)
     : Math.ceil(results.length / pageSize)
 
-  // Only update paginated results when initial results change or when not using server pagination
+  // Polling mechanism for processing status
+  const pollQueryStatus = useCallback(async () => {
+    if (!pollingStatus?.results_id) {
+      console.warn('No results_id found for polling');
+      return;
+    }
+
+    try {
+      console.log('Polling query status for ID:', pollingStatus.results_id);
+      const status = await fetchApi<ProcessingStatus>(API.llm.checkQueryStatus, {
+        method: 'POST',
+        body: JSON.stringify({ results_id: pollingStatus.results_id })
+      });
+
+      console.log('Polling status result:', status);
+      setPollingStatus(status);
+
+      if (status.status === 'completed') {
+        setIsPolling(false);
+        // Trigger initial page load
+        if (onPageChange) {
+          try {
+            const initialResults = await onPageChange(1, pageSize);
+            console.log('Initial results from page change:', initialResults);
+            setPaginatedResults(initialResults);
+          } catch (pageChangeError) {
+            console.error('Error in page change during polling:', pageChangeError);
+          }
+        }
+      } else if (status.status === 'failed') {
+        setIsPolling(false);
+        // Handle error state
+        console.error('Query processing failed', status);
+      }
+    } catch (error) {
+      console.error('Error polling query status', error);
+      setIsPolling(false);
+    }
+  }, [pollingStatus?.results_id, onPageChange, pageSize]);
+
+  // Start polling when processing status is received
   useEffect(() => {
+    if (processingStatus) {
+      console.log('Starting polling with status:', processingStatus);
+      setPollingStatus(processingStatus);
+      setIsPolling(true);
+    }
+  }, [processingStatus]);
+
+  // Polling interval effect
+  useEffect(() => {
+    let intervalId: NodeJS.Timeout;
+    
+    if (isPolling) {
+      intervalId = setInterval(pollQueryStatus, 5000); // Poll every 5 seconds
+      console.log('Polling interval started');
+    }
+
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+        console.log('Polling interval cleared');
+      }
+    };
+  }, [isPolling, pollQueryStatus]);
+
+  // Update results when initial results change
+  useEffect(() => {
+    console.log('Results changed:', results);
     if (!results.length) {
       setPaginatedResults([])
       return
@@ -45,18 +131,15 @@ export function PaginatedResults({
     if (!onPageChange || currentPage === 1) {
       setPaginatedResults(results)
     }
-  }, [results]) // Only depend on results changes
+  }, [results, onPageChange, currentPage])
 
   const handlePageChange = async (newPage: number) => {
+    console.log(`Changing to page ${newPage}`);
     if (onPageChange) {
       setIsChangingPage(true)
       try {
-        console.log(`Fetching page ${newPage}`)
         const newResults = await onPageChange(newPage, pageSize)
-        console.log(`Got ${newResults.length} results for page ${newPage}`)
-        if (newResults.length > 0) {
-          console.log(`First result ID: ${newResults[0].sentence?.id}`)
-        }
+        console.log(`Results for page ${newPage}:`, newResults);
         setPaginatedResults(newResults)
         setCurrentPage(newPage)
       } catch (error) {
@@ -74,60 +157,43 @@ export function PaginatedResults({
     }
   }
 
-  const formatCitation = (result: SearchResult): string => {
-    // More strict checking for source properties
-    if (!result.source || typeof result.source !== 'object') {
-      return 'Unknown Source'
-    }
+  // Rest of the existing component code remains unchanged
+  // (formatCitation method and rendering logic)
 
-    const { author, work } = result.source
-    if (!author || !work || author === 'Unknown' || work === 'Unknown') {
-      return 'Unknown Source'
-    }
+  // Processing status rendering
+  if (isPolling) {
+    const processedCitations = pollingStatus?.processed_citations ?? 0;
+    const totalCitations = pollingStatus?.total_citations ?? 0;
 
-    const authorWork = `${author}, ${work}`
-    const locationParts: string[] = []
-
-    // Get all available location fields
-    const location = result.location || {}
-    const availableFields: AvailableFields = {
-      book: location.book ? `book ${location.book}` : null,
-      fragment: location.fragment ? `Fragment ${location.fragment}` : null,
-      volume: location.volume ? `Volume ${location.volume}` : null,
-      page: location.page ? `Page ${location.page}` : null,
-      chapter: location.chapter ? `Chapter ${location.chapter}` : null,
-      section: location.section ? `Section ${location.section}` : null,
-      line: result.context?.line_numbers?.length ? (
-        result.context.line_numbers.length === 1 
-          ? `Line ${result.context.line_numbers[0]}`
-          : `Lines ${result.context.line_numbers[0]}-${result.context.line_numbers[result.context.line_numbers.length - 1]}`
-      ) : null
-    }
-
-    // Add fields in the order they appear in the work structure
-    // This ensures we respect the citation format for each work
-    const fieldOrder: LocationField[] = ['book', 'fragment', 'volume', 'page', 'chapter', 'section', 'line']
-    fieldOrder.forEach(field => {
-      const value = availableFields[field]
-      if (value) {
-        locationParts.push(value)
-      }
-    })
-    
-    const locationStr = locationParts.length > 0 ? ` (${locationParts.join(', ')})` : ''
-    
-    return `${authorWork}${locationStr}`
+    return (
+      <div className={`space-y-4 ${className}`}>
+        <ProgressIndicator 
+          current={processedCitations}
+          total={totalCitations}
+          stage={pollingStatus?.status || 'Processing results'}
+          className="px-4"
+        />
+        {pollingStatus?.status === 'failed' && (
+          <ErrorDisplay 
+            message="Query processing encountered an error"
+            onRetry={() => {
+              // Implement retry logic if needed
+              setIsPolling(true);
+              pollQueryStatus();
+            }}
+          />
+        )}
+      </div>
+    )
   }
 
+  // Existing loading and no results states
   if (isLoading || isChangingPage) {
     return (
       <div className={`space-y-4 ${className}`}>
-        <div className="flex items-center justify-center p-8">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-        </div>
-        <p className="text-center text-base-content/70">
-          {isChangingPage ? 'Loading more results...' : 'Loading results...'}
-        </p>
+        <LoadingSpinner 
+          message={isChangingPage ? 'Loading more results...' : 'Loading results...'}
+        />
       </div>
     )
   }
@@ -140,6 +206,7 @@ export function PaginatedResults({
     )
   }
 
+  // Existing results rendering remains unchanged
   return (
     <div className={`space-y-4 ${className}`}>
       <div className="flex justify-between items-center">
@@ -213,4 +280,51 @@ export function PaginatedResults({
       )}
     </div>
   )
+}
+
+// Existing formatCitation method remains unchanged
+function formatCitation(result: SearchResult): string {
+  // More strict checking for source properties
+  if (!result.source || typeof result.source !== 'object') {
+    return 'Unknown Source'
+  }
+
+  const { author, work } = result.source
+  if (!author || !work || author === 'Unknown' || work === 'Unknown') {
+    return 'Unknown Source'
+  }
+
+  const authorWork = `${author}, ${work}`
+  const locationParts: string[] = []
+
+  // Get all available location fields
+  const location = result.location || {}
+  const availableFields: AvailableFields = {
+    epistle: location.epistle ? `Epistle ${location.epistle}` : null,
+    fragment: location.fragment ? `Fragment ${location.fragment}` : null,
+    book: location.book ? `book ${location.book}` : null,
+    volume: location.volume ? `Volume ${location.volume}` : null,
+    page: location.page ? `Page ${location.page}` : null,
+    chapter: location.chapter ? `Chapter ${location.chapter}` : null,
+    section: location.section ? `Section ${location.section}` : null,
+    line: result.context?.line_numbers?.length ? (
+      result.context.line_numbers.length === 1 
+        ? `Line ${result.context.line_numbers[0]}`
+        : `Lines ${result.context.line_numbers[0]}-${result.context.line_numbers[result.context.line_numbers.length - 1]}`
+    ) : null
+  }
+
+  // Add fields in the order they appear in the work structure
+  // This ensures we respect the citation format for each work
+  const fieldOrder: LocationField[] = ['epistle', 'book', 'fragment', 'volume', 'page', 'chapter', 'section', 'line']
+  fieldOrder.forEach(field => {
+    const value = availableFields[field]
+    if (value) {
+      locationParts.push(value)
+    }
+  })
+  
+  const locationStr = locationParts.length > 0 ? ` (${locationParts.join(', ')})` : ''
+  
+  return `${authorWork}${locationStr}`
 }

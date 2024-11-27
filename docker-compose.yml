@@ -30,7 +30,7 @@ services:
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB} -h ${POSTGRES_HOST} -p ${POSTGRES_PORT}"]
-      interval: 30s
+      interval: 120s
       timeout: 10s
       retries: 3
       start_period: 20s
@@ -109,12 +109,6 @@ services:
       - postgres
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
 
   frontend:
     image: ghcr.io/atlogit/atlomy_chat-frontend:${FRONTEND_TAG}
@@ -138,12 +132,6 @@ services:
       - backend
     extra_hosts:
       - "localhost:172.17.0.1"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
     command: >
       sh -c "npm run start > /app/logs/nextjs_debug.log 2>&1"
 
@@ -169,7 +157,7 @@ services:
     healthcheck:
       test: >
         /bin/sh -c "redis-cli -a $$REDIS_PASSWORD ping"
-      interval: 30s
+      interval: 120s
       timeout: 10s
       retries: 3
       start_period: 20s

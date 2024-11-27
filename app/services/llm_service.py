@@ -10,6 +10,7 @@ from app.services.llm.base_service import LLMServiceError
 from app.services.llm.lexical_service import LexicalLLMService
 from app.services.llm.query_service import QueryLLMService
 from app.services.llm.analysis_service import AnalysisLLMService
+from app.services.citation_service import CitationService
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -20,8 +21,9 @@ class LLMService:
     def __init__(self, session: AsyncSession):
         """Initialize the LLM service components."""
         self.session = session
+        self.citation_service = CitationService(session)
         self.lexical_service = LexicalLLMService(session)
-        self.query_service = QueryLLMService(session)
+        self.query_service = QueryLLMService(session, self.citation_service)
         self.analysis_service = AnalysisLLMService(session)
         logger.info("Initialized LLM service components")
 

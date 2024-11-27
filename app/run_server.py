@@ -13,25 +13,19 @@ os.makedirs('logs', exist_ok=True)
 # Import settings first to get debug mode
 from app.core.config import settings
 
-# Load and apply logging configuration with debug consideration
-with open('logging_config.json', 'r') as f:
-    logging_config = json.load(f)
+def configure_logging():
+    # Load and apply logging configuration with debug consideration
+    with open('logging_config.json', 'r') as f:
+        logging_config = json.load(f)
+        
+    # Adjust logging levels based on debug mode and LOG_LEVEL
+    log_level = "DEBUG" if settings.DEBUG else settings.LOG_LEVEL.upper()
     
-# Adjust logging levels based on debug mode and LOG_LEVEL
-log_level = "DEBUG" if settings.DEBUG else settings.LOG_LEVEL.upper()
-
-# Update root logger
-logging_config["root"]["level"] = log_level
-
-# Update all handlers
-for handler in logging_config["handlers"].values():
-    handler["level"] = log_level
-
-# Update all loggers to use the specified log level
-for logger in logging_config["loggers"].values():
-    logger["level"] = log_level
-    
-logging.config.dictConfig(logging_config)
+    logging_config_str = json.dumps(logging_config).replace("${LOG_LEVEL}", log_level)
+    logging_config = json.loads(logging_config_str)
+    print("Modified logging config:", logging_config, flush=True)
+    logging.config.dictConfig(logging_config)
+    return logging_config # Ensure the updated configuration is returned
 
 # Now it's safe to import other modules
 from fastapi import FastAPI, Request
@@ -143,6 +137,7 @@ async def startup_event():
 
 def main():
     """Entry point for the application."""
+    logging_config=configure_logging()
     import uvicorn
     logger.info("Starting Uvicorn server")
     uvicorn.run(

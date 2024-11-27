@@ -15,7 +15,7 @@
         "file": {
             "class": "logging.handlers.RotatingFileHandler",
             "formatter": "standard",
-            "filename": "/amta/logs/atlomy_chat.log",
+            "filename": "./amta/logs/atlomy_chat.log",
             "maxBytes": 5242880,
             "backupCount": 5,
             "encoding": "utf8"
@@ -23,7 +23,7 @@
         "fastapi": {
             "class": "logging.handlers.RotatingFileHandler",
             "formatter": "standard",
-            "filename": "/amta/logs/fastapi_debug.log",
+            "filename": "./amta/logs/fastapi_debug.log",
             "maxBytes": 5242880,
             "backupCount": 5,
             "encoding": "utf8"
@@ -77,7 +77,7 @@
         },
         "watchfiles": {
             "handlers": ["console", "fastapi"],
-            "level": "${LOG_LEVEL}",
+            "level": "WARNING",
             "propagate": true
         }
     }

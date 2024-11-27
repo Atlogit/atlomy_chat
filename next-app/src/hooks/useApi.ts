@@ -1,131 +1,227 @@
 import { useState, useCallback } from 'react';
 import { fetchApi } from '../utils/api';
+import { ApiError } from '../utils/api/types/types';
 
-interface ApiError {
-  message: string;
-  status?: number;
-  detail?: string | { message: string; error_type?: string };
+interface ApiProgress {
+  current: number;
+  total: number;
+  percentage: number;
+  stage?: string;
 }
 
 interface ApiHookResult<T> {
   data: T | null;
   error: ApiError | null;
   isLoading: boolean;
-  progress: { current: number; total: number };
+  progress: ApiProgress;
   execute: (endpoint: string, options?: RequestInit, timeout?: number) => Promise<T | null>;
+  cancelRequest: () => void;
+  retry: () => Promise<T | null>;
 }
 
-const DEFAULT_TIMEOUT = 300000; // 5 minutes
-const MAX_RETRIES = 0;
+const DEFAULT_TIMEOUT = 600000; // 10 minutes
+const MAX_RETRIES = 1;
 const INITIAL_BACKOFF = 1000; // 1 second
 
 export function useApi<T>(): ApiHookResult<T> {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [progress, setProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
+  const [progress, setProgress] = useState<ApiProgress>({ 
+    current: 0, 
+    total: 0, 
+    percentage: 0,
+    stage: 'Initializing'
+  });
+  const [abortController, setAbortController] = useState<AbortController | null>(null);
+  
+  // Store last request details for retry
+  const [lastRequest, setLastRequest] = useState<{
+    endpoint: string;
+    options?: RequestInit;
+    timeout?: number;
+  } | null>(null);
 
-  const execute = useCallback(async (endpoint: string, options?: RequestInit, timeout: number = DEFAULT_TIMEOUT): Promise<T | null> => {
+  const cancelRequest = useCallback(() => {
+    if (abortController) {
+      abortController.abort();
+      setIsLoading(false);
+      setProgress({ current: 0, total: 0, percentage: 0, stage: 'Cancelled' });
+    }
+  }, [abortController]);
+
+  const retry = useCallback(async () => {
+    if (!lastRequest) {
+      console.error('No previous request to retry');
+      return null;
+    }
+
+    // Reset error state
+    setError(null);
+
+    // Execute the last request
+    return execute(
+      lastRequest.endpoint, 
+      lastRequest.options, 
+      lastRequest.timeout
+    );
+  }, [lastRequest]);
+
+  const execute = useCallback(async (
+    endpoint: string, 
+    options?: RequestInit, 
+    timeout: number = DEFAULT_TIMEOUT
+  ): Promise<T | null> => {
+    // Reset state
     setIsLoading(true);
     setError(null);
-    setData(null); // Clear previous data when starting new request
-    setProgress({ current: 0, total: 0 });
+    setData(null);
+    
+    // Store request details for potential retry
+    setLastRequest({ endpoint, options, timeout });
+    
+    // Create new abort controller
+    const controller = new AbortController();
+    setAbortController(controller);
+
+    // Set initial progress
+    setProgress({ 
+      current: 0, 
+      total: 0, 
+      percentage: 0,
+      stage: 'Starting request'
+    });
+
+    // Timeout handler
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, timeout);
 
     let retries = 0;
 
     while (retries <= MAX_RETRIES) {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), timeout);
-
       try {
-        const result = await fetchApi<T>(endpoint, {
-          ...options,
-          signal: controller.signal
-        }, (stage: string) => {
-          // Parse progress from stage string if available
-          const match = stage.match(/(\d+)\/(\d+)/);
-          if (match) {
-            setProgress({ current: parseInt(match[1]), total: parseInt(match[2]) });
+        const result = await fetchApi<T>(
+          endpoint, 
+          {
+            ...options,
+            signal: controller.signal
+          }, 
+          (progressInfo: string) => {
+            // Parse progress information
+            try {
+              const progressData = JSON.parse(progressInfo);
+              const current = progressData.current || 0;
+              const total = progressData.total || 0;
+              const percentage = total > 0 ? Math.round((current / total) * 100) : 0;
+
+              setProgress({
+                current,
+                total,
+                percentage,
+                stage: progressData.stage || 'Processing'
+              });
+            } catch {
+              // Fallback for simple string progress
+              const match = progressInfo.match(/(\d+)\/(\d+)/);
+              if (match) {
+                const current = parseInt(match[1]);
+                const total = parseInt(match[2]);
+                const percentage = total > 0 ? Math.round((current / total) * 100) : 0;
+
+                setProgress({
+                  current,
+                  total,
+                  percentage,
+                  stage: 'Processing'
+                });
+              }
+            }
           }
+        );
+
+        // Clear timeout and reset loading state
+        clearTimeout(timeoutId);
+        setIsLoading(false);
+        setProgress({ 
+          current: 100, 
+          total: 100, 
+          percentage: 100,
+          stage: 'Completed' 
         });
 
-        if (result !== null) {  // Only set data if we got a valid result
+        // Set data if result is not null
+        if (result !== null) {
           setData(result);
         }
         
-        setIsLoading(false);
-        clearTimeout(timeoutId);
         return result;
       } catch (err) {
-        console.error(`API Error (attempt ${retries + 1}):`, err);
         clearTimeout(timeoutId);
         
-        if (retries === MAX_RETRIES) {
-          // Enhanced error handling
-          let apiError: ApiError;
+        // Handle specific error types
+        const apiError = err as ApiError;
+        
+        // Determine if retry is appropriate based on error type
+        const retryableErrors = [
+          'database_error', 
+          'query_timeout', 
+          'unexpected_error', 
+          'empty_response'
+        ];
+        
+        // Safely extract error type
+        const errorType = typeof apiError.detail === 'object' 
+          ? apiError.detail.error_type 
+          : undefined;
+
+        const isRetryable = errorType 
+          ? retryableErrors.includes(errorType)
+          : false;
+
+        if (retries < MAX_RETRIES && isRetryable) {
+          // Exponential backoff for retries
+          const backoff = INITIAL_BACKOFF * Math.pow(2, retries);
+          await new Promise(resolve => setTimeout(resolve, backoff));
           
-          if (!err || (typeof err === 'object' && Object.keys(err).length === 0)) {
-            // Handle empty error case
-            apiError = {
-              message: 'API request failed',
-              status: 500,
-              detail: {
-                message: 'The server returned an empty response or no error details',
-                error_type: 'empty_response'
-              }
-            };
-          } else if ((err as ApiError).message) {
-            // Handle pre-formatted API errors
-            apiError = err as ApiError;
-          } else if (err instanceof Error) {
-            // Handle standard JS errors
-            apiError = {
-              message: err.message,
-              detail: {
-                message: err.stack || err.message,
-                error_type: 'js_error'
-              }
-            };
-          } else if (typeof err === 'object') {
-            // Handle structured error responses
-            const errorObj = err as Record<string, any>;
-            apiError = {
-              message: errorObj.message || 'An unknown error occurred',
-              status: errorObj.status,
-              detail: typeof errorObj.detail === 'object' 
-                ? errorObj.detail
-                : { 
-                    message: errorObj.detail || JSON.stringify(errorObj),
-                    error_type: 'structured_error'
-                  }
-            };
-          } else {
-            // Handle any other type of error
-            apiError = {
-              message: 'An unknown error occurred',
-              detail: {
-                message: String(err),
-                error_type: 'unknown_error'
-              }
-            };
-          }
+          retries++;
           
-          setError(apiError);
-          setIsLoading(false);
-          return null;
+          setProgress({
+            current: 0,
+            total: 0,
+            percentage: 0,
+            stage: `Retrying (${retries})`
+          });
+          
+          continue;
         }
 
-        // Exponential backoff for retries
-        const backoff = INITIAL_BACKOFF * Math.pow(2, retries);
-        await new Promise(resolve => setTimeout(resolve, backoff));
+        // Final error handling
+        setError(apiError);
+        setIsLoading(false);
+        setProgress({ 
+          current: 0, 
+          total: 0, 
+          percentage: 0,
+          stage: 'Error' 
+        });
         
-        retries++;
+        return null;
       }
     }
 
+    // Fallback return
     setIsLoading(false);
     return null;
   }, []);
 
-  return { data, error, isLoading, progress, execute };
+  return { 
+    data, 
+    error, 
+    isLoading, 
+    progress, 
+    execute,
+    cancelRequest,
+    retry
+  };
 }

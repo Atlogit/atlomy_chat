@@ -12,6 +12,7 @@ from app.core.secrets_manager import SecretsManager
 from app.services.corpus_service import CorpusService
 from app.services.lexical_service import LexicalService
 from app.services.llm_service import LLMService
+from app.services.citation_service import CitationService
 
 # Singleton instances
 _llm_service = None
@@ -70,8 +71,15 @@ async def get_llm_service(
         _llm_service = LLMService(session)
     return _llm_service
 
+async def get_citation_service(
+    session: AsyncSession = Depends(get_db)
+) -> CitationService:
+    """Get CitationService instance."""
+    return CitationService(session)
+
 # Type annotations for dependency injection
 CorpusServiceDep = Annotated[CorpusService, Depends(get_corpus_service)]
 LexicalServiceDep = Annotated[LexicalService, Depends(get_lexical_service)]
 LLMServiceDep = Annotated[LLMService, Depends(get_llm_service)]
+CitationServiceDep = Annotated[CitationService, Depends(get_citation_service)]
 RedisDep = Annotated[redis_client.__class__, Depends(get_redis)]

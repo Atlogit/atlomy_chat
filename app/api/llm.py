@@ -7,14 +7,17 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
-from app.dependencies import LLMServiceDep
+from app.dependencies import LLMServiceDep, CitationServiceDep
 from app.services.llm_service import LLMServiceError
 from app.models.citations import Citation, SearchResponse
 from app.models.text_line import TextLine
 from app.models.text_division import TextDivision, TextResponse
 from app.core.config import settings
-
+import logging
 router = APIRouter()
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 # Request/Response Models
 class AnalysisRequest(BaseModel):
@@ -118,7 +121,8 @@ async def analyze_term(
 @router.post("/generate-query", response_model=QueryResponse)
 async def generate_query(
     data: QueryGenerationRequest,
-    llm_service: LLMServiceDep
+    llm_service: LLMServiceDep,
+    citation_service: CitationServiceDep
 ) -> Dict:
     """Generate and execute a SQL query from a natural language question."""
     try:
@@ -128,11 +132,16 @@ async def generate_query(
             max_tokens=data.max_tokens
         )
         
+        # Retrieve total results from metadata
+        meta_key = f"{settings.redis.SEARCH_RESULTS_PREFIX}{results_id}:meta"
+        meta = await citation_service.redis.get(meta_key)
+        total_results = meta.get("total_results", len(first_page))
+        
         return {
             "sql": sql_query,
             "results": first_page,
             "results_id": results_id,
-            "total_results": len(first_page),
+            "total_results": total_results,  # Use total results from metadata
             "usage": {},
             "model": "",
             "raw_response": None,
@@ -165,19 +174,19 @@ async def generate_query(
 @router.post("/get-results-page", response_model=PaginatedResponse)
 async def get_results_page(
     params: PaginationParams,
-    llm_service: LLMServiceDep
+    citation_service: CitationServiceDep
 ) -> Dict:
     """Get a specific page of results using the results_id."""
     try:
         # Get the requested page of results
-        results = await llm_service.citation_service.get_paginated_results(
+        results = await citation_service.get_paginated_results(
             results_id=params.results_id,
             page=params.page,
             page_size=params.page_size
         )
         
         # Get total results count from metadata
-        meta = await llm_service.citation_service.redis.get(
+        meta = await citation_service.redis.get(
             f"{settings.redis.SEARCH_RESULTS_PREFIX}{params.results_id}:meta"
         )
         total_results = meta["total_results"] if meta else len(results)

@@ -14,7 +14,7 @@ if ! ./setup_services.sh; then
 fi
 
 # Directory for logs (using absolute path)
-LOG_DIR="${SCRIPT_DIR}/logs"
+LOG_DIR="${SCRIPT_DIR}/amta/logs"
 FASTAPI_LOG="${LOG_DIR}/fastapi_debug.log"
 NEXTJS_LOG="${LOG_DIR}/nextjs_debug.log"
 DB_LOG="${LOG_DIR}/database_debug.log"
@@ -195,13 +195,7 @@ log "INFO" "Starting FastAPI backend..."
         exit 1
     fi
     
-    uvicorn app.run_server:app \
-        --reload \
-        --log-level debug \
-        --host 0.0.0.0 \
-        --port 8081 \
-        --reload-dir app \
-        --log-config "$LOG_CONFIG" &
+    python -m app.run_server &
 } >> "${FASTAPI_LOG}" 2>&1
 
 FASTAPI_PID=$!

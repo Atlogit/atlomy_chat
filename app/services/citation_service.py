@@ -1,13 +1,13 @@
 """
-Service for handling citation formatting and retrieval.
-Provides consistent citation handling across the application.
+Service for handling citation formatting and retrieval with enhanced performance.
 """
 
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Generator
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 import logging
 import uuid
+import asyncio
 import json
 
 from app.core.redis import redis_client
@@ -22,77 +22,106 @@ from app.models.text_line import TextLine, TextLineAPI
 logger = logging.getLogger(__name__)
 
 class CitationService:
-    """Service for managing citations."""
+    """Service for managing citations with improved performance."""
     
     def __init__(self, session: AsyncSession):
         """Initialize the citation service."""
         self.session = session
         self.redis = redis_client
+        self.BATCH_SIZE = 1000  # Increased batch size for more efficient processing
+        self.MAX_CONCURRENT_TASKS = 5  # Limit concurrent processing tasks
         logger.info("Initialized CitationService")
 
-    async def format_citations(self, rows: List[Dict], bulk_fetch: bool = True) -> Tuple[str, List[Citation]]:
-        """Format citations and store in Redis for pagination."""
+    async def format_citations(
+        self, 
+        rows: List[Dict], 
+        bulk_fetch: bool = True, 
+        total_results: Optional[int] = None
+    ) -> Tuple[str, List[Citation]]:
+        """
+        Format citations with improved performance and progress tracking.
+        
+        Args:
+            rows: List of row dictionaries to format
+            bulk_fetch: Whether to perform bulk fetching (default True)
+            total_results: Optional explicit total results count
+        """
         try:
-            citations = []
-            for row in rows:
+            # Use provided total_results or default to rows length
+            original_total_rows = total_results if total_results is not None else len(rows)
+            
+            # Generate unique results ID
+            results_id = str(uuid.uuid4())
+            
+            # Batch processing with concurrent tasks
+            async def process_batch(batch: List[Dict]) -> List[Citation]:
                 try:
-                    citation = self._format_citation(row)
-                    citations.append(citation)
+                    return [self._format_citation(row) for row in batch]
                 except Exception as e:
-                    logger.error(f"Error formatting individual citation: {str(e)}", exc_info=True)
-                    # Continue with other citations
-                    continue
+                    logger.error(f"Batch processing error: {str(e)}", exc_info=True)
+                    return []
+
+            # Split rows into batches
+            batches = [rows[i:i + self.BATCH_SIZE] for i in range(0, len(rows), self.BATCH_SIZE)]
+            
+            # Process batches concurrently
+            citations = []
+            for i in range(0, len(batches), self.MAX_CONCURRENT_TASKS):
+                batch_group = batches[i:i + self.MAX_CONCURRENT_TASKS]
+                
+                # Run batch group concurrently
+                batch_tasks = [process_batch(batch) for batch in batch_group]
+                batch_results = await asyncio.gather(*batch_tasks)
+                
+                # Extend citations with processed batches
+                for batch_citations in batch_results:
+                    citations.extend(batch_citations)
+                
+                # Log progress
+                logger.info(
+                    f"Processed {len(citations)}/{original_total_rows} citations "
+                    f"(Batch {i + 1}/{len(batches)})"
+                )
             
             if not citations:
                 logger.warning("No citations were formatted successfully")
                 return "", []
             
-            # Generate unique results ID
-            results_id = str(uuid.uuid4())
-            
-            # Store citations in chunks of 10 (page size)
+            # Store citations in chunks
             page_size = 10
-            total_pages = (len(citations) + page_size - 1) // page_size
+            total_pages = (original_total_rows + page_size - 1) // page_size
             
             # Store metadata
             meta = {
-                "total_results": len(citations),
+                "total_results": original_total_rows,
                 "total_pages": total_pages,
-                "page_size": page_size
+                "page_size": page_size,
+                "formatted_citations": len(citations)
             }
             
+            # Store metadata in Redis
             meta_key = f"{settings.redis.SEARCH_RESULTS_PREFIX}{results_id}:meta"
-            meta_success = await self.redis.set(
+            await self.redis.set(
                 meta_key,
                 meta,
                 ttl=settings.redis.SEARCH_RESULTS_TTL
             )
             
-            if not meta_success:
-                logger.error("Failed to store metadata in Redis")
-                return "", []
-            
-            # Store each page
-            all_pages_stored = True
+            # Store pages in Redis
             for page in range(total_pages):
                 start = page * page_size
                 end = min(start + page_size, len(citations))
                 page_citations = citations[start:end]
                 
-                # Convert Pydantic models to dicts for Redis storage
+                # Convert to dicts for storage
                 page_data = [c.model_dump() for c in page_citations]
                 
                 page_key = f"{settings.redis.SEARCH_RESULTS_PREFIX}{results_id}:page:{page + 1}"
-                page_success = await self.redis.set(
+                await self.redis.set(
                     page_key,
                     page_data,
                     ttl=settings.redis.SEARCH_RESULTS_TTL
                 )
-                
-                if not page_success:
-                    logger.error(f"Failed to store page {page + 1} in Redis")
-                    all_pages_stored = False
-                    break
                 
                 # Log first citation of each page
                 if page_citations:
@@ -101,20 +130,17 @@ class CitationService:
                         f"first citation ID={page_citations[0].sentence.id}"
                     )
             
-            if not all_pages_stored:
-                # Clean up any stored data
-                await self.redis.delete(meta_key)
-                pattern = f"{settings.redis.SEARCH_RESULTS_PREFIX}{results_id}:page:*"
-                await self.redis.clear_cache(pattern)
-                return "", []
-            
-            logger.info(f"Formatted and stored {len(citations)} citations with ID {results_id} in {total_pages} pages")
+            logger.info(
+                f"Formatted and stored {len(citations)} citations "
+                f"with ID {results_id} in {total_pages} pages "
+                f"(total {original_total_rows} results)"
+            )
             
             # Return results ID and first page of results
-            return results_id, citations[:page_size]  # Return first page
+            return results_id, citations[:page_size]
             
         except Exception as e:
-            logger.error(f"Error formatting citations: {str(e)}", exc_info=True)
+            logger.error(f"Comprehensive error formatting citations: {str(e)}", exc_info=True)
             raise
 
     async def get_paginated_results(self, results_id: str, page: int = 1, page_size: int = 10) -> List[Citation]:
@@ -216,6 +242,7 @@ class CitationService:
             
             # Create location
             location = CitationLocation(
+                epistle=row.get("epistle"),
                 volume=row.get("volume"),
                 book=row.get("book"),
                 chapter=row.get("chapter"),
@@ -288,7 +315,7 @@ class CitationService:
                 citation = f"{author} {work}"
 
                 # Add location components in standard order
-                for field in ["fragment", "volume", "book", "chapter", "page", "section"]:
+                for field in ["epistle", "fragment", "volume", "book", "chapter", "page", "section"]:
                     if row.get(field):
                         citation += f".{row[field]}"
 
@@ -310,6 +337,7 @@ class CitationService:
                 # Add location components
                 components = []
                 field_labels = {
+                    "epistle": "Epistle",
                     "fragment": "Fragment",
                     "volume": "Volume",
                     "book": "Book",

@@ -22,6 +22,7 @@ WITH sentence_matches AS (
         td.section,
         td.page,
         td.fragment,
+        td.epistle,
         -- Get previous and next sentences for context
         LAG(s.content) OVER (
             PARTITION BY td.id 
@@ -45,7 +46,7 @@ WITH sentence_matches AS (
         td.id, td.author_name, td.work_name,
         td.author_id_field, td.work_number_field,
         t.title, a.name,
-        td.book, td.volume, td.chapter, td.section, td.page, td.fragment
+        td.book, td.volume, td.chapter, td.section, td.page, td.fragment, td.epistle
 )
 SELECT * FROM sentence_matches
 ORDER BY division_id, line_numbers[1]
