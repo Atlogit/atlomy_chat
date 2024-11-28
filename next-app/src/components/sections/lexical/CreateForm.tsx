@@ -2,34 +2,36 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { Button } from '../../../components/ui/Button'
-import { ResultsDisplay } from '../../../components/ui/ResultsDisplay'
 import { useApi } from '../../../hooks/useApi'
-import { API, LexicalValue, CreateResponse, TaskStatus, LemmaCreate } from '../../../utils/api'
+import { API } from '../../../utils/api/endpoints'
+import { SearchResult, ProcessingStatus } from '../../../utils/api/types/types'
+import { LexicalValue, CreateResponse, TaskStatus, LemmaCreate } from '../../../utils/api/types/lexical'
 
-interface Citation {
+/**
+ * Converts a LexicalValue to a SearchResult for standardized display
+ */
+const convertToSearchResult = (entry: LexicalValue): SearchResult => ({
   sentence: {
-    id: string;
-    text: string;
-    prev_sentence?: string;
-    next_sentence?: string;
-    tokens?: Record<string, any>;
-  };
-  citation: string;
+    id: entry.id,
+    text: entry.long_description || entry.short_description || entry.translation || '',
+    prev_sentence: entry.references?.citations[0]?.sentence?.prev_sentence,
+    next_sentence: entry.references?.citations[0]?.sentence?.next_sentence
+  },
+  citation: `${entry.lemma} (Version ${entry.version})`,
   context: {
-    line_id: string;
-    line_text: string;
-    line_numbers: number[];
-  };
+    line_id: entry.id,
+    line_text: entry.translation || '',
+    line_numbers: []
+  },
   location: {
-    volume?: string;
-    chapter?: string;
-    section?: string;
-  };
+    volume: entry.version,
+    page: entry.version
+  },
   source: {
-    author: string;
-    work: string;
-  };
-}
+    author: 'Lexical Entry',
+    work: entry.lemma
+  }
+})
 
 /**
  * CreateForm Component
@@ -45,7 +47,7 @@ export function CreateForm() {
   const [taskId, setTaskId] = useState<string | null>(null)
   const [taskStatus, setTaskStatus] = useState<TaskStatus | null>(null)
   const [retryCount, setRetryCount] = useState(0)
-  const [selectedCitation, setSelectedCitation] = useState<Citation | string | null>(null)
+  const [selectedCitation, setSelectedCitation] = useState<SearchResult | string | null>(null)
   const [showCitationModal, setShowCitationModal] = useState(false)
   
   const createApi = useApi<CreateResponse>()
@@ -172,29 +174,9 @@ export function CreateForm() {
   }
 
   /**
-   * Formats a citation for display
-   */
-  const formatCitation = (citation: Citation | string) => {
-    if (typeof citation === 'string') {
-    // For string citations (from LLM analysis), return as is
-    return citation
-    }
-
-    // For full citation objects, format with all details
-    const authorWork = `${citation.source.author}, ${citation.source.work}`
-    const location = [
-      citation.location.volume && `Volume ${citation.location.volume}`,
-      citation.location.chapter && `Chapter ${citation.location.chapter}`,
-      citation.location.section && `Section ${citation.location.section}`
-    ].filter(Boolean).join(', ')
-    
-    return `${authorWork} (${location})`
-  }
-
-  /**
    * Renders a citation with context preview
    */
-  const renderCitation = (citation: Citation | string) => {
+  const renderCitation = (citation: SearchResult | string) => {
     if (typeof citation === 'string') {
       // For string citations (from LLM analysis)
       return (
@@ -203,11 +185,12 @@ export function CreateForm() {
         </div>
       )
     }
+    
     // For full citation objects
     return (
-      <div key={citation.sentence.id} className="card bg-base-200 p-4 mb-4">
+      <div key={citation.sentence?.id} className="card bg-base-200 p-4 mb-4">
         <div className="flex justify-between items-start">
-          <div className="font-medium">{formatCitation(citation)}</div>
+          <div>{citation.citation || 'Lexical Entry Citation'}</div>
           <Button
             onClick={() => {
               setSelectedCitation(citation)
@@ -220,9 +203,11 @@ export function CreateForm() {
           </Button>
         </div>
         <div className="mt-2 text-sm">
-          {citation.sentence.text.length > 100 
-            ? citation.sentence.text.substring(0, 100) + '...'
-            : citation.sentence.text}
+          {citation.sentence?.text && (
+            citation.sentence.text.length > 100 
+              ? citation.sentence.text.substring(0, 100) + '...'
+              : citation.sentence.text
+          )}
         </div>
       </div>
     )
@@ -302,6 +287,9 @@ export function CreateForm() {
             <h2 className="card-title">{taskStatus.entry.lemma}</h2>
             <p className="text-lg">{taskStatus.entry.translation}</p>
             
+            <div className="divider">Standardized Citation</div>
+            <p>{convertToSearchResult(taskStatus.entry).citation}</p>
+            
             <div className="divider">Short Description</div>
             <p>{taskStatus.entry.short_description}</p>
             
@@ -317,7 +305,7 @@ export function CreateForm() {
             
             <div className="divider">Citations Used</div>
             <div className="space-y-4">
-              {taskStatus.entry.citations_used?.map((citation: Citation | string, index: number) => (
+              {taskStatus.entry.citations_used?.map((citation: SearchResult | string, index: number) => (
                 <div key={index}>
                   {renderCitation(citation)}
                 </div>
@@ -326,7 +314,7 @@ export function CreateForm() {
 
             <div className="divider">References</div>
             <div className="space-y-4">
-              {taskStatus.entry.references?.citations?.map((citation: Citation, index: number) => (
+              {taskStatus.entry.references?.citations?.map((citation, index: number) => (
                 <div key={index}>
                   {renderCitation(citation)}
                 </div>
@@ -362,11 +350,11 @@ export function CreateForm() {
           <div className="modal-box">
             <h3 className="font-bold text-lg">Citation Context</h3>
             <div className="py-4">
-              {selectedCitation.sentence.prev_sentence && (
+              {selectedCitation.sentence?.prev_sentence && (
                 <p className="text-sm opacity-70">{selectedCitation.sentence.prev_sentence}</p>
               )}
-              <p className="font-medium my-2">{selectedCitation.sentence.text}</p>
-              {selectedCitation.sentence.next_sentence && (
+              <p className="font-medium my-2">{selectedCitation.sentence?.text}</p>
+              {selectedCitation.sentence?.next_sentence && (
                 <p className="text-sm opacity-70">{selectedCitation.sentence.next_sentence}</p>
               )}
             </div>
