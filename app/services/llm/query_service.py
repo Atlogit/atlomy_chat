@@ -9,6 +9,7 @@ import logging
 import asyncio
 import time
 import json
+import re
 
 from app.services.llm.base_service import BaseLLMService, LLMServiceError
 from app.services.llm.prompts import (
@@ -39,13 +40,14 @@ class QueryLLMService(BaseLLMService):
             self,
             question: str,
             max_tokens: Optional[int] = None
-        ) -> Tuple[str, str, List[Citation]]:
+        ) -> Tuple[str, str, List[Citation], Dict[str, Any]]:
             """
             Generate and execute a SQL query with enhanced error handling and performance tracking.
             """
             start_time = time.time()
             sql_query = ""
             progress_callback = None
+            no_results_metadata = {}
 
             try:
                 # Generate the SQL query
@@ -65,12 +67,14 @@ class QueryLLMService(BaseLLMService):
                     total_rows = len(rows)
                     logger.info(f"Query returned {total_rows} rows")
 
-                    # If no results, return empty results instead of raising an error
+                    # If no results, return detailed no-results metadata
                     if total_rows == 0:
-                        logger.info("Query returned no results")
-                        return sql_query, "", []
+                        # Analyze why no results might have been returned
+                        no_results_metadata = await self._analyze_no_results(question, sql_query)
+                        logger.info(f"No results metadata: {no_results_metadata}")
+                        return sql_query, "", [], no_results_metadata
                     
-                    # Detailed progress tracking
+                    # Rest of the method remains the same as before...
                     def track_progress(current, total):
                         progress_data = {
                             'current': current,
@@ -140,7 +144,7 @@ class QueryLLMService(BaseLLMService):
                             }
                         )
 
-                    return sql_query, results_id or "", first_page or []
+                    return sql_query, results_id or "", first_page or [], {}
                 
                 except asyncio.TimeoutError:
                     logger.error(
@@ -182,6 +186,39 @@ class QueryLLMService(BaseLLMService):
                         "sql_query": sql_query
                     }
                 )
+
+    async def _analyze_no_results(self, question: str, sql_query: str) -> Dict[str, Any]:
+        """
+        Analyze the SQL query to explain what was being searched for when no results were found.
+        """
+        no_results_metadata = {
+            "original_question": question,
+            "generated_query": sql_query,
+            "search_description": f"Searching based on: {question}",
+            "search_criteria": {}
+        }
+
+        try:
+            # Extract the WHERE clause to show what was being searched
+            where_match = re.search(r'WHERE\s+(.+?)(?:\n|$)', sql_query, re.DOTALL | re.IGNORECASE)
+            
+            if where_match:
+                where_clause = where_match.group(1).strip()
+                
+                # Clean up the WHERE clause to make it more readable
+                where_clause = re.sub(r'\s+', ' ', where_clause)  # Normalize whitespace
+                where_clause = re.sub(r'\s*AND\s*', ' and ', where_clause)  # Standardize AND
+                
+                no_results_metadata['search_description'] = f"Searching with conditions: {where_clause}"
+                
+                # Try to extract any specific conditions
+                conditions = re.findall(r'(\w+)\s*(?:ILIKE|=|>|<|>=|<=)\s*[\'"]?([^\'"\s]+)[\'"]?', where_clause)
+                no_results_metadata['search_criteria'] = dict(conditions)
+        except Exception as e:
+            # Log the error but keep the default metadata
+            logger.error(f"Error analyzing no results metadata: {str(e)}")
+
+        return no_results_metadata
 
     async def generate_query(
         self,

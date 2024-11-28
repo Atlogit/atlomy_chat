@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { SearchResult, ProcessingStatus } from '../../utils/api/types/types'
+import { SearchResult, ProcessingStatus, NoResultsMetadata } from '../../utils/api/types/types'
 import { ProgressIndicator, LoadingSpinner, ErrorDisplay } from './ProgressIndicator'
 import { API } from '../../utils/api/endpoints'
 import { fetchApi } from '../../utils/api/fetch'
@@ -13,9 +13,10 @@ interface PaginatedResultsProps {
   processingStatus?: ProcessingStatus
   onPageChange?: (page: number, pageSize: number) => Promise<SearchResult[]>
   totalResults?: number
+  noResultsMetadata?: NoResultsMetadata  // New optional prop
 }
 
-type LocationField = 'epistle' | 'book' | 'fragment' | 'volume' | 'page' | 'chapter' | 'section' | 'line'
+type LocationField = 'epistle' | 'fragment' | 'volume' | 'book' | 'chapter' | 'section' | 'page' | 'line'
 type AvailableFields = Record<LocationField, string | null>
 
 export function PaginatedResults({
@@ -27,6 +28,7 @@ export function PaginatedResults({
   processingStatus,
   onPageChange,
   totalResults,
+  noResultsMetadata,  // Add to destructured props
 }: PaginatedResultsProps) {
   const [currentPage, setCurrentPage] = useState(1)
   const [paginatedResults, setPaginatedResults] = useState<SearchResult[]>([])
@@ -157,7 +159,6 @@ export function PaginatedResults({
     }
   }
 
-  // Rest of the existing component code remains unchanged
   // (formatCitation method and rendering logic)
 
   // Processing status rendering
@@ -198,6 +199,42 @@ export function PaginatedResults({
     )
   }
 
+  // If no results and noResultsMetadata is provided, show detailed no-results information
+  if (!results.length && noResultsMetadata) {
+    return (
+      <div className={`space-y-4 ${className}`}>
+        <div className="card bg-yellow-50 border border-yellow-200 p-4 mb-4">
+          <h3 className="text-lg font-semibold text-yellow-800 mb-2">No Results Found</h3>
+          
+          <div className="space-y-2">
+            <p className="text-yellow-700">
+              <strong>Search Description:</strong> {noResultsMetadata.search_description}
+            </p>
+            
+            <div className="bg-yellow-100 rounded p-2">
+              <h4 className="font-medium text-yellow-900">Search Criteria:</h4>
+              <ul className="list-disc list-inside text-yellow-800">
+                {Object.entries(noResultsMetadata.search_criteria).map(([key, value]) => (
+                  <li key={key}>
+                    {key}: <span className="font-semibold">{value}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            
+            <details className="text-yellow-700 mt-2">
+              <summary>Original Query Details</summary>
+              <pre className="bg-yellow-100 p-2 rounded text-xs overflow-x-auto">
+                {noResultsMetadata.generated_query}
+              </pre>
+            </details>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Existing no results state
   if (!results.length) {
     return (
       <div className={`space-y-4 ${className}`}>
@@ -206,7 +243,6 @@ export function PaginatedResults({
     )
   }
 
-  // Existing results rendering remains unchanged
   return (
     <div className={`space-y-4 ${className}`}>
       <div className="flex justify-between items-center">
@@ -282,8 +318,12 @@ export function PaginatedResults({
   )
 }
 
-// Existing formatCitation method remains unchanged
 function formatCitation(result: SearchResult): string {
+  // First, check for a pre-existing full citation
+  if (result.citation) {
+    return result.citation
+  }
+
   // More strict checking for source properties
   if (!result.source || typeof result.source !== 'object') {
     return 'Unknown Source'
@@ -302,11 +342,11 @@ function formatCitation(result: SearchResult): string {
   const availableFields: AvailableFields = {
     epistle: location.epistle ? `Epistle ${location.epistle}` : null,
     fragment: location.fragment ? `Fragment ${location.fragment}` : null,
-    book: location.book ? `book ${location.book}` : null,
     volume: location.volume ? `Volume ${location.volume}` : null,
-    page: location.page ? `Page ${location.page}` : null,
+    book: location.book ? `book ${location.book}` : null,
     chapter: location.chapter ? `Chapter ${location.chapter}` : null,
     section: location.section ? `Section ${location.section}` : null,
+    page: location.page ? `Page ${location.page}` : null,
     line: result.context?.line_numbers?.length ? (
       result.context.line_numbers.length === 1 
         ? `Line ${result.context.line_numbers[0]}`
@@ -316,7 +356,7 @@ function formatCitation(result: SearchResult): string {
 
   // Add fields in the order they appear in the work structure
   // This ensures we respect the citation format for each work
-  const fieldOrder: LocationField[] = ['epistle', 'book', 'fragment', 'volume', 'page', 'chapter', 'section', 'line']
+  const fieldOrder: LocationField[] = ['epistle', 'fragment', 'book', 'volume', 'page', 'chapter', 'section', 'line']
   fieldOrder.forEach(field => {
     const value = availableFields[field]
     if (value) {

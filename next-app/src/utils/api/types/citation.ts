@@ -14,12 +14,13 @@ export interface CitationObject {
     
   };
   location: {
+    epistle?: string;
+    fragment?: string;
     volume?: string;
     book?: string;
     chapter?: string;
     section?: string;
     page?: string;
-    fragment?: string;
     line?: string;
   };
   source: {

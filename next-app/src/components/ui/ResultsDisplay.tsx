@@ -1,4 +1,5 @@
 import { LexicalValue, Citation, CitationObject } from '../../utils/api'
+import { NoResultsMetadata } from '../../utils/api/types/types'
 
 interface ResultsDisplayProps {
   title?: string
@@ -7,6 +8,7 @@ interface ResultsDisplayProps {
   className?: string
   isHtml?: boolean
   onShowCitation?: (citation: Citation) => void
+  noResultsMetadata?: NoResultsMetadata  // New optional prop
 }
 
 function sanitizeHtml(html: string): string {
@@ -28,12 +30,13 @@ function formatCitation(citation: Citation): string {
     'Unknown Source'
 
   const locationParts = [
-    citation.location.book && `book ${citation.location.book}`,
+    citation.location.epistle && `Epistle ${citation.location.epistle}`,
+    citation.location.fragment && `Fragment ${citation.location.fragment}`,
     citation.location.volume && `Volume ${citation.location.volume}`,
+    citation.location.book && `book ${citation.location.book}`,
     citation.location.chapter && `Chapter ${citation.location.chapter}`,
     citation.location.section && `Section ${citation.location.section}`,
     citation.location.page && `Page ${citation.location.page}`,
-    citation.location.fragment && `Fragment ${citation.location.fragment}`,
     // Add "Line" prefix to location.line if it doesn't have it
     citation.location.line && (
       citation.location.line.includes('-')
@@ -122,7 +125,44 @@ export function ResultsDisplay({
   className = '',
   isHtml = false,
   onShowCitation,
+  noResultsMetadata,  // Add to destructured props
 }: ResultsDisplayProps) {
+  // If no results metadata is provided, show the no results display
+  if (noResultsMetadata) {
+    return (
+      <div className={`mt-6 ${className}`}>
+        <h3 className="font-bold mb-2">{title}</h3>
+        <div className="card bg-yellow-50 border border-yellow-200 p-4 mb-4">
+          <h3 className="text-lg font-semibold text-yellow-800 mb-2">No Results Found</h3>
+          
+          <div className="space-y-2">
+            <p className="text-yellow-700">
+              <strong>Search Description:</strong> {noResultsMetadata.search_description}
+            </p>
+            
+            <div className="bg-yellow-100 rounded p-2">
+              <h4 className="font-medium text-yellow-900">Search Criteria:</h4>
+              <ul className="list-disc list-inside text-yellow-800">
+                {Object.entries(noResultsMetadata.search_criteria).map(([key, value]) => (
+                  <li key={key}>
+                    {key}: <span className="font-semibold">{value}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            
+            <details className="text-yellow-700 mt-2">
+              <summary>Original Query Details</summary>
+              <pre className="bg-yellow-100 p-2 rounded text-xs overflow-x-auto">
+                {noResultsMetadata.generated_query}
+              </pre>
+            </details>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   if (!content && !error) return null
 
   return (
