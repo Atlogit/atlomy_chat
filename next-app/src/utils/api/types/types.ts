@@ -1,5 +1,12 @@
 export type UUID = string;
 
+export interface NoResultsMetadata {
+  original_question: string;
+  generated_query: string;
+  search_description: string;
+  search_criteria: Record<string, string>;
+}
+
 export interface ApiError {
   message: string;
   status?: number;
@@ -34,7 +41,7 @@ export interface SearchResult {
     text: string;
     prev_sentence?: string;
     next_sentence?: string;
-    tokens?: string[];
+    tokens?: Record<string, any>;
   };
   citation?: string;
   context?: {
@@ -61,4 +68,23 @@ export interface SearchResult {
     work_abbreviation?: string;
     author_abbreviation?: string;
   };
+}
+
+export interface QueryResponse {
+  sql: string;
+  results: SearchResult[];
+  results_id: string;
+  total_results: number;
+  usage: Record<string, number>;
+  model: string;
+  raw_response?: Record<string, any>;
+  error?: string;
+  no_results_metadata?: NoResultsMetadata;
+}
+
+export interface SearchResponse {
+  results: SearchResult[];
+  results_id: string;
+  total_results: number;
+  no_results_metadata?: NoResultsMetadata;
 }
