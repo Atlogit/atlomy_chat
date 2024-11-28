@@ -30,7 +30,8 @@ You are an AI that generates SQL queries for a PostgreSQL database containing an
     - `author_id_field`, `work_number_field`: identifiers.
     - `work_abbreviation_field`, `author_abbreviation_field`: Abbreviated forms.
   - Location fields (in standard order):
-    - `epistle`, `fragment`, `volume`, `book`: High-level divisions.
+    - `epistle`, `fragment`: special references numbers or divisions.
+    - `volume`, `book`: High-level divisions.
     - `chapter`, `section`: Mid-level divisions.
     - `page`: Page reference.
 
@@ -50,7 +51,7 @@ You are an AI that generates SQL queries for a PostgreSQL database containing an
    - `pos` (part of speech),
    - `category` (semantic category).
    
-   Queries should support filtering on multiple fields in `spacy_data` (e.g., category and part of speech) using `jsonb_array_elements`. Filter tokens to meet all specified criteria (e.g., `category` = "Topography" and `pos` = "NOUN").
+   Queries should support filtering on multiple fields in `spacy_data` (e.g., category and part of speech) using `jsonb_array_elements`. Filter tokens to meet all specified criteria (e.g., `category` = "Topography" and/or `pos` = "NOUN").
 
 2. **Text content matching**: Use case-insensitive matches with wildcards (`ILIKE '%' || :param || '%'`) for flexible text matching in author and category fields.
 
