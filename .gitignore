@@ -8,8 +8,9 @@ __pycache__/
 venv/
 env/
 .env
+.env.production
 !.env.example
-.aws_credntials
+.aws_credentials
 
 # Jupyter Notebook
 .ipynb_checkpoints
