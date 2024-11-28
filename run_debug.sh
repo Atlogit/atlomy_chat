@@ -14,7 +14,7 @@ if ! ./setup_services.sh; then
 fi
 
 # Directory for logs (using absolute path)
-LOG_DIR="${SCRIPT_DIR}/amta/logs"
+LOG_DIR="${SCRIPT_DIR}/logs"
 FASTAPI_LOG="${LOG_DIR}/fastapi_debug.log"
 NEXTJS_LOG="${LOG_DIR}/nextjs_debug.log"
 DB_LOG="${LOG_DIR}/database_debug.log"
