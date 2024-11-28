@@ -73,9 +73,6 @@ services:
 
   backend:
     image: ghcr.io/atlogit/atlomy_chat-backend:${BACKEND_TAG}
-    #build: 
-    #  context: .
-    #  dockerfile: Dockerfile.backend
     container_name: amta-backend
     networks:
       amta-network:
@@ -85,6 +82,7 @@ services:
       - ~/amta/logs:/amta/logs
       - ./.env:/amta/.env
       - ./alembic:/amta/alembic
+      - ~/amta/lexical_values:/mnt/data/lexical_values  # Update JSON storage volume
     env_file:
       - .env
     environment:
@@ -104,6 +102,7 @@ services:
       - LOGGING_CONFIG=/amta/logging_config.json
       - LOG_LEVEL=debug
       - DEBUG=true
+      - JSON_STORAGE_BASE_DIR=/mnt/data/lexical_values  # Maintain JSON storage base directory
     restart: unless-stopped
     depends_on:
       - postgres

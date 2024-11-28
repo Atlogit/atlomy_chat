@@ -1,6 +1,6 @@
 """
 Service for managing JSON storage of lexical values.
-Handles file creation, updates, and versioning.
+Handles file creation, updates, and versioning with EC2 deployment support.
 """
 
 import json
@@ -16,23 +16,31 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class JSONStorageService:
-    """Service for managing JSON storage of lexical values."""
+    """Service for managing JSON storage of lexical values with EC2 support."""
     
-    def __init__(self, base_dir: str = "lexical_values"):
+    def __init__(self, base_dir: Optional[str] = None):
         """Initialize the JSON storage service.
         
         Args:
-            base_dir: Base directory for JSON storage
+            base_dir: Base directory for JSON storage. 
+                      If None, uses environment variable or default.
         """
+        # Prioritize input base_dir, then environment variable, then default
+        if base_dir is None:
+            base_dir = os.environ.get(
+                'JSON_STORAGE_BASE_DIR', 
+                "/mnt/data/lexical_values"  # EC2-friendly default path
+            )
+        
         self.base_dir = Path(base_dir)
         self._ensure_directory_structure()
 
     def _ensure_directory_structure(self):
         """Ensure the required directory structure exists."""
-        # Create main directories
-        (self.base_dir / "current").mkdir(parents=True, exist_ok=True)
-        (self.base_dir / "versions").mkdir(parents=True, exist_ok=True)
-        (self.base_dir / "backup").mkdir(parents=True, exist_ok=True)
+        # Create main directories with more permissive permissions for EC2
+        os.makedirs(self.base_dir / "current", mode=0o755, exist_ok=True)
+        os.makedirs(self.base_dir / "versions", mode=0o755, exist_ok=True)
+        os.makedirs(self.base_dir / "backup", mode=0o755, exist_ok=True)
 
     def _get_file_path(self, lemma: str, version: Optional[str] = None) -> Path:
         """Get the file path for a lexical value.
@@ -70,18 +78,22 @@ class JSONStorageService:
             create_version: Whether to create a versioned copy
         """
         try:
+            # Sanitize lemma to prevent directory traversal
+            safe_lemma = "".join(c for c in lemma if c.isalnum() or c in ['_', '-'])
+            
             # Create backup of existing file
-            self._create_backup(lemma)
+            self._create_backup(safe_lemma)
             
             # Add metadata
             data["metadata"] = {
                 "created_at": datetime.now().isoformat(),
                 "updated_at": datetime.now().isoformat(),
-                "version": data.get("metadata", {}).get("version", "1.0")
+                "version": data.get("metadata", {}).get("version", "1.0"),
+                "storage_location": str(self.base_dir)
             }
             
             # Save current version with proper JSON serialization
-            current_file = self._get_file_path(lemma)
+            current_file = self._get_file_path(safe_lemma)
             with open(current_file, 'w', encoding='utf-8') as f:
                 json.dump(data, f, ensure_ascii=False, indent=2, default=str)
             logger.info(f"Saved current version: {current_file}")
@@ -89,7 +101,7 @@ class JSONStorageService:
             # Create versioned copy if requested
             if create_version:
                 version = datetime.now().strftime("%Y%m%d_%H%M%S")
-                version_file = self._get_file_path(lemma, version)
+                version_file = self._get_file_path(safe_lemma, version)
                 shutil.copy2(current_file, version_file)
                 logger.info(f"Created version: {version_file}")
                 
@@ -108,7 +120,10 @@ class JSONStorageService:
             The loaded data or None if not found
         """
         try:
-            file_path = self._get_file_path(lemma, version)
+            # Sanitize lemma to prevent directory traversal
+            safe_lemma = "".join(c for c in lemma if c.isalnum() or c in ['_', '-'])
+            
+            file_path = self._get_file_path(safe_lemma, version)
             if not file_path.exists():
                 return None
                 
@@ -131,10 +146,13 @@ class JSONStorageService:
             List of version strings
         """
         try:
+            # Sanitize lemma to prevent directory traversal
+            safe_lemma = "".join(c for c in lemma if c.isalnum() or c in ['_', '-'])
+            
             versions_dir = self.base_dir / "versions"
             versions = []
-            for file in versions_dir.glob(f"{lemma}_*.json"):
-                version = file.stem.replace(f"{lemma}_", "")
+            for file in versions_dir.glob(f"{safe_lemma}_*.json"):
+                version = file.stem.replace(f"{safe_lemma}_", "")
                 versions.append(version)
             return sorted(versions)
             
@@ -153,12 +171,15 @@ class JSONStorageService:
             True if successful, False if file not found
         """
         try:
-            current_file = self._get_file_path(lemma)
+            # Sanitize lemma to prevent directory traversal
+            safe_lemma = "".join(c for c in lemma if c.isalnum() or c in ['_', '-'])
+            
+            current_file = self._get_file_path(safe_lemma)
             if not current_file.exists():
                 return False
                 
             # Create final backup before deletion
-            self._create_backup(lemma)
+            self._create_backup(safe_lemma)
             
             # Delete current file
             current_file.unlink()
@@ -166,7 +187,7 @@ class JSONStorageService:
             
             # Delete versions if requested
             if delete_versions:
-                for version_file in (self.base_dir / "versions").glob(f"{lemma}_*.json"):
+                for version_file in (self.base_dir / "versions").glob(f"{safe_lemma}_*.json"):
                     version_file.unlink()
                     logger.info(f"Deleted version: {version_file}")
                     
