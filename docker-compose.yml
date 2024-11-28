@@ -16,11 +16,10 @@ services:
       - POSTGRES_PORT=${POSTGRES_PORT}
       - DEPLOYMENT_MODE=${DEPLOYMENT_MODE:-production}
       - POSTGRES_DATA_DIR=${POSTGRES_DATA_DIR:-postgres_data}
-      # Add performance tuning parameters
-      - POSTGRES_MAX_CONNECTIONS=100
-      - POSTGRES_SHARED_BUFFERS=256MB
-      - POSTGRES_EFFECTIVE_CACHE_SIZE=768MB
-      # Explicitly set logging parameters
+      # Conservative performance tuning parameters
+      - POSTGRES_MAX_CONNECTIONS=50  # Reduced from previous config
+      - POSTGRES_SHARED_BUFFERS=512MB  # Moderate setting for t2.medium
+      - POSTGRES_EFFECTIVE_CACHE_SIZE=1536MB  # 3/4 of available memory
       - LOG_LEVEL=debug
     volumes:
       - ${POSTGRES_DATA_DIR:-postgres_data}:/var/lib/postgresql/data
@@ -37,31 +36,31 @@ services:
     command:
       - "postgres"
       - "-c"
-      - "max_connections=100"
+      - "max_connections=50"
       - "-c"
-      - "shared_buffers=256MB"
+      - "shared_buffers=512MB"
       - "-c"
-      - "effective_cache_size=768MB"
+      - "effective_cache_size=1536MB"
       - "-c"
-      - "work_mem=16MB"
+      - "work_mem=32MB"  # Moderate setting
       - "-c"
       - "maintenance_work_mem=256MB"
       - "-c"
       - "random_page_cost=1.1"
       - "-c"
-      - "temp_file_limit=10GB"
+      - "temp_file_limit=5GB"  # Reduced to conserve space
       - "-c"
-      - "log_min_duration_statement=200ms"
+      - "log_min_duration_statement=500ms"
       - "-c"
-      - "idle_in_transaction_session_timeout=10s"
+      - "idle_in_transaction_session_timeout=15s"
       - "-c"
-      - "lock_timeout=1s"
+      - "lock_timeout=2s"
       - "-c"
-      - "statement_timeout=60s"
+      - "statement_timeout=120s"  # 2 minutes
       - "-c"
       - "shared_preload_libraries=pg_stat_statements"
       - "-c"
-      - "pg_stat_statements.max=10000"
+      - "pg_stat_statements.max=5000"
       - "-c"
       - "pg_stat_statements.track=all"
     ulimits:
@@ -69,7 +68,7 @@ services:
       nofile:
         soft: 26677
         hard: 46677
-    shm_size: '256mb'
+    shm_size: '512mb'  # Reduced from previous config
 
   backend:
     image: ghcr.io/atlogit/atlomy_chat-backend:${BACKEND_TAG}
@@ -137,7 +136,13 @@ services:
   redis:
     image: redis:6.2-alpine
     container_name: amta-redis
-    command: redis-server --databases 16 --port ${REDIS_PORT}
+    command: >
+      redis-server 
+      --databases 16 
+      --port ${REDIS_PORT} 
+      --maxmemory 1gb  # Conservative memory allocation
+      --maxmemory-policy allkeys-lru  # Least Recently Used eviction policy
+      --save 900 1 300 10 60 10000  # Persistent storage configuration
     networks:
       amta-network:
     ports:
@@ -161,12 +166,13 @@ services:
       retries: 3
       start_period: 20s
     sysctls:
-      net.core.somaxconn: 1024
+      net.core.somaxconn: 2048  # Moderate setting
     ulimits:
       nproc: 65535
       nofile:
         soft: 26677
         hard: 46677
+
 
 volumes:
   postgres_data:
