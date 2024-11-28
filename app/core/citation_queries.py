@@ -12,17 +12,22 @@ WITH sentence_matches AS (
         s.spacy_data->'tokens' as sentence_tokens,  -- Extract just the tokens array
         array_agg(DISTINCT tl.line_number ORDER BY tl.line_number) as line_numbers,  -- Get all unique line numbers
         td.id as division_id,
+        -- Source fields
         COALESCE(td.author_name, a.name) as author_name,
         COALESCE(td.work_name, t.title) as work_name,
         td.author_id_field,
         td.work_number_field,
-        td.book,
+        td.work_abbreviation_field,
+        td.author_abbreviation_field,
+        -- Location fields (ordered to match CitationLocation)
+        td.epistle,
+        td.fragment,
         td.volume,
+        td.book,
         td.chapter,
         td.section,
         td.page,
-        td.fragment,
-        td.epistle,
+        -- Line is handled through line_numbers array
         -- Get previous and next sentences for context
         LAG(s.content) OVER (
             PARTITION BY td.id 
@@ -45,8 +50,10 @@ WITH sentence_matches AS (
         s.id, s.content,
         td.id, td.author_name, td.work_name,
         td.author_id_field, td.work_number_field,
+        td.work_abbreviation_field, td.author_abbreviation_field,
         t.title, a.name,
-        td.book, td.volume, td.chapter, td.section, td.page, td.fragment, td.epistle
+        td.epistle, td.fragment, td.volume, td.book,
+        td.chapter, td.section, td.page
 )
 SELECT * FROM sentence_matches
 ORDER BY division_id, line_numbers[1]

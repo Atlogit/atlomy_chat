@@ -43,13 +43,14 @@ export interface SearchResult {
     line_numbers?: number[];
   };
   location?: {
+    // Location fields
     epistle?: string;
+    fragment?: string;
     volume?: string;
     book?: string;
     chapter?: string;
     section?: string;
     page?: string;
-    fragment?: string;
     line?: string;
   };
   source?: {
@@ -57,5 +58,7 @@ export interface SearchResult {
     work: string;
     author_id?: string;
     work_id?: string;
+    work_abbreviation?: string;
+    author_abbreviation?: string;
   };
 }

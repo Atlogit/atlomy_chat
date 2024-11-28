@@ -25,8 +25,14 @@ You are an AI that generates SQL queries for a PostgreSQL database containing an
 - **`text_divisions`**: Represents divisions of a work (e.g., chapters).
   - `id`: Unique identifier.
   - `text_id`: Foreign key referencing `texts`.
-  - `author_name`, `work_name`: Details of the text's division.
-  - `volume`, `chapter`, `section`: Citation information.
+  - Source fields:
+    - `author_name`, `work_name`: Details of the text's division.
+    - `author_id_field`, `work_number_field`: identifiers.
+    - `work_abbreviation_field`, `author_abbreviation_field`: Abbreviated forms.
+  - Location fields (in standard order):
+    - `epistle`, `fragment`, `volume`, `book`: High-level divisions.
+    - `chapter`, `section`: Mid-level divisions.
+    - `page`: Page reference.
 
 - **`texts`**: Metadata about the overall text.
   - `id`: Unique identifier for the text.
@@ -58,13 +64,22 @@ WITH sentence_matches AS (
         s.spacy_data->'tokens' as sentence_tokens,
         array_agg(tl.line_number ORDER BY tl.line_number) as line_numbers,
         td.id as division_id,
+        -- Source fields
         COALESCE(td.author_name, a.name) as author_name,
         COALESCE(td.work_name, t.title) as work_name,
         td.author_id_field,
         td.work_number_field,
+        td.work_abbreviation_field,
+        td.author_abbreviation_field,
+        -- Location fields
+        td.epistle,
+        td.fragment,
         td.volume,
+        td.book,
         td.chapter,
         td.section,
+        td.page,
+        -- Context
         LAG(s.content) OVER (
             PARTITION BY td.id 
             ORDER BY MIN(tl.line_number)
@@ -90,8 +105,10 @@ WITH sentence_matches AS (
         s.id, s.content,
         td.id, td.author_name, td.work_name,
         td.author_id_field, td.work_number_field,
+        td.work_abbreviation_field, td.author_abbreviation_field,
         t.title, a.name,
-        td.volume, td.chapter, td.section,
+        td.epistle, td.fragment, td.volume, td.book,
+        td.chapter, td.section, td.page,
         tl.content
 )
 SELECT * FROM sentence_matches
@@ -115,13 +132,22 @@ WITH sentence_matches AS (
         s.spacy_data->'tokens' as sentence_tokens,
         array_agg(tl.line_number ORDER BY tl.line_number) as line_numbers,
         td.id as division_id,
+        -- Source fields
         COALESCE(td.author_name, a.name) as author_name,
         COALESCE(td.work_name, t.title) as work_name,
         td.author_id_field,
         td.work_number_field,
+        td.work_abbreviation_field,
+        td.author_abbreviation_field,
+        -- Location fields
+        td.epistle,
+        td.fragment,
         td.volume,
+        td.book,
         td.chapter,
         td.section,
+        td.page,
+        -- Context
         LAG(s.content) OVER (
             PARTITION BY td.id 
             ORDER BY MIN(tl.line_number)
@@ -143,8 +169,10 @@ WITH sentence_matches AS (
         s.id, s.content,
         td.id, td.author_name, td.work_name,
         td.author_id_field, td.work_number_field,
+        td.work_abbreviation_field, td.author_abbreviation_field,
         t.title, a.name,
-        td.volume, td.chapter, td.section,
+        td.epistle, td.fragment, td.volume, td.book,
+        td.chapter, td.section, td.page,
         tl.content
 )
 SELECT * FROM sentence_matches
@@ -166,13 +194,22 @@ WITH sentence_matches AS (
         s.spacy_data->'tokens' as sentence_tokens,
         array_agg(tl.line_number ORDER BY tl.line_number) as line_numbers,
         td.id as division_id,
+        -- Source fields
         COALESCE(td.author_name, a.name) as author_name,
         COALESCE(td.work_name, t.title) as work_name,
         td.author_id_field,
         td.work_number_field,
+        td.work_abbreviation_field,
+        td.author_abbreviation_field,
+        -- Location fields
+        td.epistle,
+        td.fragment,
         td.volume,
+        td.book,
         td.chapter,
         td.section,
+        td.page,
+        -- Context
         LAG(s.content) OVER (
             PARTITION BY td.id 
             ORDER BY MIN(tl.line_number)
@@ -193,8 +230,10 @@ WITH sentence_matches AS (
         s.id, s.content,
         td.id, td.author_name, td.work_name,
         td.author_id_field, td.work_number_field,
+        td.work_abbreviation_field, td.author_abbreviation_field,
         t.title, a.name,
-        td.volume, td.chapter, td.section,
+        td.epistle, td.fragment, td.volume, td.book,
+        td.chapter, td.section, td.page,
         tl.content
 )
 SELECT * FROM sentence_matches

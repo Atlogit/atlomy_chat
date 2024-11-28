@@ -53,24 +53,25 @@ class CitationLocation(BaseModel):
     """
     Represents the structural location within a work.
     Supports various citation schemes (volume-based, chapter-based, etc.).
+    Fields are ordered according to standard citation format.
     
     Attributes:
-        epistle: epistle number if applicable
+        epistle: Epistle number if applicable
+        fragment: Fragment number if applicable
         volume: Volume number if applicable
+        book: Book number if applicable
         chapter: Chapter number if applicable
         section: Section number if applicable
-        book: Book number if applicable
         page: Page number if applicable
-        fragment: Fragment number if applicable
         line: Line number or range
     """
     epistle: Optional[str] = None
-    volume: Optional[str]
-    chapter: Optional[str]
-    section: Optional[str]
-    book: Optional[str] = None
-    page: Optional[str] = None
     fragment: Optional[str] = None
+    volume: Optional[str] = None
+    book: Optional[str] = None
+    chapter: Optional[str] = None
+    section: Optional[str] = None
+    page: Optional[str] = None
     line: Optional[str] = None
 
 class CitationSource(BaseModel):
@@ -80,13 +81,17 @@ class CitationSource(BaseModel):
     Attributes:
         author: Full author name
         work: Full work title
-        author_id: TLG author ID if available
-        work_id: TLG work ID if available
+        author_id: Author identifier
+        work_id: Work identifier
+        work_abbreviation: Abbreviated work name if available
+        author_abbreviation: Abbreviated author name if available
     """
     author: str
     work: str
     author_id: Optional[str] = None
     work_id: Optional[str] = None
+    work_abbreviation: Optional[str] = None
+    author_abbreviation: Optional[str] = None
 
 class Citation(BaseModel):
     """

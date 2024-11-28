@@ -22,14 +22,31 @@ from .text_line import TextLine, TextLineAPI
 class TextDivisionResponse(BaseModel):
     """API response model for text divisions."""
     id: str
+    
+    # Source fields (matching CitationSource)
     author_name: Optional[str] = None
     work_name: Optional[str] = None
+    author_id_field: Optional[str] = None
+    work_number_field: Optional[str] = None
+    work_abbreviation_field: Optional[str] = None
+    author_abbreviation_field: Optional[str] = None
+    
+    # Location fields (matching CitationLocation order)
+    epistle: Optional[str] = None
+    fragment: Optional[str] = None
     volume: Optional[str] = None
+    book: Optional[str] = None
     chapter: Optional[str] = None
     section: Optional[str] = None
+    page: Optional[str] = None
+    line: Optional[str] = None
+    
+    # Title fields
     is_title: bool
     title_number: Optional[str] = None
     title_text: Optional[str] = None
+    
+    # Additional data
     metadata: Optional[Dict] = None
     lines: Optional[List[TextLineAPI]] = None
 
@@ -67,11 +84,11 @@ class TextDivision(Base):
     author_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     work_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     
-    # Structural components
+    # Structural components (ordered to match CitationLocation)
     epistle: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     fragment: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     volume: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    book: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # Added book field
+    book: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     chapter: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     section: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     page: Mapped[Optional[str]] = mapped_column(String, nullable=True)
@@ -160,9 +177,6 @@ class TextDivision(Base):
         # Fallback default structure if parser is not available
         return ['volume', 'chapter', 'section', 'line']
 
-    # Rest of the class remains the same as in the previous implementation
-    # ... (all other methods remain unchanged)
-
     def _get_location_components(self, structure: Optional[List[str]] = None) -> List[str]:
         """Get location components in the correct order based on work structure."""
         components = []
@@ -174,7 +188,7 @@ class TextDivision(Base):
                 'epistle': ('epistle', 'Epistle'),
                 'fragment': ('fragment', 'Fragment'),
                 'volume': ('volume', 'Volume'),
-                'book': ('book', 'Book'),  # Added book mapping
+                'book': ('book', 'Book'),
                 'page': ('page', 'Page'),
                 'chapter': ('chapter', 'Chapter'),
                 'section': ('section', 'Section'),
@@ -195,7 +209,7 @@ class TextDivision(Base):
                 components.append(f"Fragment {self.fragment}")
             if self.volume:
                 components.append(f"Volume {self.volume}")
-            if self.book:  # Added book component
+            if self.book:
                 components.append(f"Book {self.book}")
             if self.chapter:
                 components.append(f"Chapter {self.chapter}")
@@ -261,7 +275,7 @@ class TextDivision(Base):
                     'epistle': self.epistle,
                     'fragment': self.fragment,
                     'volume': self.volume,
-                    'book': self.book,  # Added book field
+                    'book': self.book,
                     'page': self.page,
                     'chapter': self.chapter,
                     'section': self.section,
@@ -280,7 +294,7 @@ class TextDivision(Base):
                     citation += f".{self.fragment}"
                 if self.volume:
                     citation += f".{self.volume}"
-                if self.book:  # Added book field
+                if self.book:
                     citation += f".{self.book}"
                 if self.chapter:
                     citation += f".{self.chapter}"
@@ -347,12 +361,11 @@ class TextDivision(Base):
                 self.section = citation.section
             if citation.volume:
                 self.volume = citation.volume
-            if citation.book:  # Added book field
+            if citation.book:
                 self.book = citation.book
             if citation.chapter:
                 self.chapter = citation.chapter
             if citation.page:
                 self.page = citation.page
             if citation.line:
-                self.line = citation.line
                 self.line = citation.line

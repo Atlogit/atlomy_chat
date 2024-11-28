@@ -64,6 +64,11 @@ class QueryLLMService(BaseLLMService):
 
                     total_rows = len(rows)
                     logger.info(f"Query returned {total_rows} rows")
+
+                    # If no results, return empty results instead of raising an error
+                    if total_rows == 0:
+                        logger.info("Query returned no results")
+                        return sql_query, "", []
                     
                     # Detailed progress tracking
                     def track_progress(current, total):
@@ -123,8 +128,8 @@ class QueryLLMService(BaseLLMService):
                         f"Results ID: {results_id}"
                     )
 
-                    # Ensure we have a results_id and first page
-                    if not results_id or not first_page:
+                    # For successful queries with results, ensure we have processed data
+                    if total_rows > 0 and (not results_id or not first_page):
                         raise LLMServiceError(
                             "Failed to process query results",
                             {
@@ -135,7 +140,7 @@ class QueryLLMService(BaseLLMService):
                             }
                         )
 
-                    return sql_query, results_id, first_page
+                    return sql_query, results_id or "", first_page or []
                 
                 except asyncio.TimeoutError:
                     logger.error(

@@ -199,6 +199,9 @@ class CitationService:
     def _format_citation(self, row: Dict) -> Citation:
         """Format a single citation directly from query result."""
         try:
+            # Log the row data for debugging
+            logger.debug(f"Formatting citation from row: {row}")
+            
             # Get line numbers and ensure it's a list
             line_numbers = row.get('line_numbers', [])
             if not isinstance(line_numbers, list):
@@ -243,21 +246,23 @@ class CitationService:
             # Create location
             location = CitationLocation(
                 epistle=row.get("epistle"),
+                fragment=row.get("fragment"),
                 volume=row.get("volume"),
                 book=row.get("book"),
                 chapter=row.get("chapter"),
                 section=row.get("section"),
                 page=row.get("page"),
-                fragment=row.get("fragment"),
                 line=line_value
             )
             
-            # Create source
+            # Create source with abbreviation fields
             source = CitationSource(
                 author=row.get("author_name", "Unknown"),
                 work=row.get("work_name", "Unknown"),
                 author_id=row.get("author_id_field"),
-                work_id=row.get("work_number_field")
+                work_id=row.get("work_number_field"),
+                work_abbreviation=row.get("work_abbreviation_field"),
+                author_abbreviation=row.get("author_abbreviation_field")
             )
             
             # Create full citation
@@ -273,43 +278,50 @@ class CitationService:
             
         except Exception as e:
             logger.error(f"Error formatting citation: {str(e)}", exc_info=True)
+            logger.error(f"Problematic row data: {row}")
             raise
 
     def _format_citation_text(self, row: Dict, abbreviated: bool = False) -> str:
         """Format citation as text string directly from query result."""
         try:
             if abbreviated:
-                # Get abbreviated author name
-                author = row.get("author_name", "")
-                if author:
-                    parts = author.split()
-                    if parts:
-                        # Get first 3 letters of first word
-                        abbrev = parts[0][:3] + "."
-                        # Add designation if present
-                        if len(parts) > 1 and len(parts[-1]) <= 4:
-                            abbrev += f" {parts[-1]}"
-                        author = abbrev
-                else:
-                    author = row.get("author_id_field", "")
+                # Use provided abbreviations if available
+                author = row.get("author_abbreviation_field", "")
+                if not author:
+                    # Generate abbreviation if not provided
+                    author_name = row.get("author_name", "")
+                    if author_name:
+                        parts = author_name.split()
+                        if parts:
+                            # Get first 3 letters of first word
+                            abbrev = parts[0][:3] + "."
+                            # Add designation if present
+                            if len(parts) > 1 and len(parts[-1]) <= 4:
+                                abbrev += f" {parts[-1]}"
+                            author = abbrev
+                    else:
+                        author = row.get("author_id_field", "")
 
-                # Get abbreviated work name
-                work = row.get("work_name", "")
-                if work:
-                    words = work.split()
-                    if words:
-                        # Take first letter of each significant word
-                        abbrev = ""
-                        for word in words:
-                            if word.lower() not in ["de", "in", "et", "ad", "the", "a", "an"]:
-                                if word:
-                                    abbrev += word[0].upper()
-                        # If no abbreviation was created, use first 3 letters
-                        if not abbrev and words:
-                            abbrev = words[0][:3].capitalize()
-                        work = abbrev + "."
-                else:
-                    work = row.get("work_number_field", "")
+                # Use provided work abbreviation if available
+                work = row.get("work_abbreviation_field", "")
+                if not work:
+                    # Generate abbreviation if not provided
+                    work_name = row.get("work_name", "")
+                    if work_name:
+                        words = work_name.split()
+                        if words:
+                            # Take first letter of each significant word
+                            abbrev = ""
+                            for word in words:
+                                if word.lower() not in ["de", "in", "et", "ad", "the", "a", "an"]:
+                                    if word:
+                                        abbrev += word[0].upper()
+                            # If no abbreviation was created, use first 3 letters
+                            if not abbrev and words:
+                                abbrev = words[0][:3].capitalize()
+                            work = abbrev + "."
+                    else:
+                        work = row.get("work_number_field", "")
 
                 # Start with author and work
                 citation = f"{author} {work}"
@@ -334,7 +346,7 @@ class CitationService:
                 work = row.get("work_name", row.get("work_number_field", "Unknown"))
                 citation = f"{author}, {work}"
 
-                # Add location components
+                # Add location components in standard order
                 components = []
                 field_labels = {
                     "epistle": "Epistle",
@@ -342,8 +354,8 @@ class CitationService:
                     "volume": "Volume",
                     "book": "Book",
                     "chapter": "Chapter",
-                    "page": "Page",
-                    "section": "Section"
+                    "section": "Section",
+                    "page": "Page"
                 }
 
                 for field, label in field_labels.items():
@@ -365,4 +377,5 @@ class CitationService:
             
         except Exception as e:
             logger.error(f"Error formatting citation text: {str(e)}", exc_info=True)
+            logger.error(f"Problematic row data: {row}")
             raise
