@@ -30,7 +30,7 @@
         }
     },
     "root": {
-        "handlers": ["console"],
+        "handlers": ["console", "file"],
         "level": "${LOG_LEVEL}",
         "propagate": false
     },
