@@ -1,11 +1,17 @@
 """
-LLM service for SQL query generation with enhanced error handling and performance.
+LLM service for SQL query generation with enhanced error handling and connection management.
 """
 
 from typing import Dict, Any, Optional, Tuple, List
 from sqlalchemy import text
-from sqlalchemy.exc import SQLAlchemyError, DatabaseError
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import (
+    SQLAlchemyError, 
+    DatabaseError, 
+    OperationalError, 
+    InterfaceError, 
+    PendingRollbackError
+)
+from sqlalchemy.ext.asyncio import AsyncSession, AsyncEngine
 import logging
 import asyncio
 import time
@@ -25,9 +31,15 @@ from app.services.citation_service import CitationService
 # Configure logging
 logger = logging.getLogger(__name__)
 
+class QueryType:
+    """Enum-like class for query types."""
+    NATURAL_LANGUAGE = "natural_language"
+    LEMMA = "lemma"
+    CATEGORY = "category"
+
 class QueryLLMService(BaseLLMService):
     """
-    Enhanced service for SQL query generation with improved error handling and performance.
+    Enhanced service for SQL query generation with robust connection management.
     """
 
     def __init__(self, session, citation_service: CitationService):
@@ -36,7 +48,8 @@ class QueryLLMService(BaseLLMService):
         self.citation_service = citation_service
         self.CHUNK_SIZE = 10000  # Process results in chunks
         self.QUERY_TIMEOUT = 900  # 15 minutes maximum query execution time
-        self.PROGRESS_UPDATE_INTERVAL = 1000  # Update progress every 1000 rows
+        self.MAX_RETRIES = 3  # Maximum connection retry attempts
+        self.RETRY_DELAY = 2  # Base delay between retries
 
     async def _safe_execute_query(
         self, 
@@ -45,7 +58,7 @@ class QueryLLMService(BaseLLMService):
         max_retries: int = 3
     ) -> List[Dict[str, Any]]:
         """
-        Safely execute a database query with retry mechanism.
+        Safely execute a database query with comprehensive error handling.
         
         Args:
             query: SQL query to execute
@@ -55,13 +68,22 @@ class QueryLLMService(BaseLLMService):
         Returns:
             List of query results as dictionaries
         """
+        last_error = None
         for attempt in range(max_retries):
             try:
-                # Use a new session to avoid connection state issues
+                # Create a new session for each attempt to ensure clean state
                 async with AsyncSession(self.session.bind, expire_on_commit=False) as db_session:
                     logger.info(f"[{trace_id}] Executing query (Attempt {attempt + 1})")
                     
-                    # Execute with timeout
+                    try:
+                        # Rollback any pending transactions
+                        await db_session.rollback()
+                    except Exception as rollback_error:
+                        logger.warning(
+                            f"[{trace_id}] Error during pre-query rollback: {str(rollback_error)}"
+                        )
+                    
+                    # Execute query with timeout
                     result = await asyncio.wait_for(
                         db_session.execute(text(query)),
                         timeout=self.QUERY_TIMEOUT
@@ -76,8 +98,21 @@ class QueryLLMService(BaseLLMService):
                     logger.info(f"[{trace_id}] Query successful. Rows: {len(rows)}")
                     return rows
             
-            except asyncio.TimeoutError:
+            except (
+                InterfaceError, 
+                OperationalError, 
+                PendingRollbackError
+            ) as connection_error:
                 logger.warning(
+                    f"[{trace_id}] Connection error on attempt {attempt + 1}: {str(connection_error)}"
+                )
+                last_error = connection_error
+                
+                # Exponential backoff
+                await asyncio.sleep(self.RETRY_DELAY * (2 ** attempt))
+            
+            except asyncio.TimeoutError:
+                logger.error(
                     f"[{trace_id}] Query timeout on attempt {attempt + 1}. "
                     f"Timeout: {self.QUERY_TIMEOUT} seconds"
                 )
@@ -96,26 +131,34 @@ class QueryLLMService(BaseLLMService):
                     f"[{trace_id}] Database error on attempt {attempt + 1}: {str(db_error)}", 
                     exc_info=True
                 )
-                if attempt == max_retries - 1:
-                    raise LLMServiceError(
-                        "Error executing SQL query",
-                        {
-                            "trace_id": trace_id,
-                            "message": str(db_error),
-                            "error_type": "database_error"
-                        }
-                    )
+                last_error = db_error
                 
-                # Wait before retry with exponential backoff
-                await asyncio.sleep(2 ** attempt)
+                # Exponential backoff
+                await asyncio.sleep(self.RETRY_DELAY * (2 ** attempt))
+        
+        # If all retries fail
+        logger.error(
+            f"[{trace_id}] Failed to execute query after {max_retries} attempts. "
+            f"Last error: {str(last_error)}"
+        )
+        raise LLMServiceError(
+            "Persistent database connection error",
+            {
+                "trace_id": trace_id,
+                "message": "Could not establish a stable database connection",
+                "error_type": "connection_failure",
+                "last_error": str(last_error)
+            }
+        )
 
     async def generate_and_execute_query(
             self,
             question: str,
+            query_type: str = QueryType.NATURAL_LANGUAGE,
             max_tokens: Optional[int] = None
         ) -> Tuple[str, str, List[Citation], Dict[str, Any]]:
             """
-            Generate and execute a SQL query with enhanced error handling and performance tracking.
+            Generate and execute a SQL query with enhanced error handling and connection management.
             """
             trace_id = str(uuid.uuid4())
             start_time = time.time()
@@ -123,23 +166,28 @@ class QueryLLMService(BaseLLMService):
             no_results_metadata = {}
 
             try:
-                # Log query generation start
-                logger.info(f"[{trace_id}] Generating query for: {question}")
-
-                # Generate SQL query
-                response = await self.generate_query(question, max_tokens)
+                # Determine query generation method based on type
+                if query_type == QueryType.LEMMA:
+                    response = await self.generate_lemma_query(question, max_tokens)
+                elif query_type == QueryType.CATEGORY:
+                    response = await self.generate_category_query(question, max_tokens)
+                else:
+                    response = await self.generate_query(question, max_tokens)
+                
                 sql_query = response.text.strip()
-                logger.info(f"[{trace_id}] Generated SQL query: {sql_query}")
+                logger.info(f"[{trace_id}] Generated {query_type} query: {sql_query}")
 
-                # Execute query safely
+                # Execute query with safe execution
                 try:
                     rows = await self._safe_execute_query(sql_query, trace_id)
                     total_rows = len(rows)
 
                     # Handle no results scenario
                     if total_rows == 0:
-                        no_results_metadata = await self._analyze_no_results(question, sql_query)
-                        logger.warning(f"[{trace_id}] No results found. Metadata: {no_results_metadata}")
+                        # Only add no results metadata for natural language queries
+                        if query_type == QueryType.NATURAL_LANGUAGE:
+                            no_results_metadata = await self._analyze_no_results(question, sql_query)
+                            logger.warning(f"[{trace_id}] No results found. Metadata: {no_results_metadata}")
                         return sql_query, "", [], no_results_metadata
 
                     # Process results in chunks
@@ -227,39 +275,7 @@ class QueryLLMService(BaseLLMService):
                     }
                 )
 
-    async def _analyze_no_results(self, question: str, sql_query: str) -> Dict[str, Any]:
-        """
-        Analyze the SQL query to explain what was being searched for when no results were found.
-        """
-        no_results_metadata = {
-            "original_question": question,
-            "generated_query": sql_query,
-            "search_description": f"Searching based on: {question}",
-            "search_criteria": {}
-        }
-
-        try:
-            # Extract the WHERE clause to show what was being searched
-            where_match = re.search(r'WHERE\s+(.+?)(?:\n|$)', sql_query, re.DOTALL | re.IGNORECASE)
-            
-            if where_match:
-                where_clause = where_match.group(1).strip()
-                
-                # Clean up the WHERE clause to make it more readable
-                where_clause = re.sub(r'\s+', ' ', where_clause)  # Normalize whitespace
-                where_clause = re.sub(r'\s*AND\s*', ' and ', where_clause)  # Standardize AND
-                
-                no_results_metadata['search_description'] = f"Searching with conditions: {where_clause}"
-                
-                # Try to extract any specific conditions
-                conditions = re.findall(r'(\w+)\s*(?:ILIKE|=|>|<|>=|<=)\s*[\'"]?([^\'"\s]+)[\'"]?', where_clause)
-                no_results_metadata['search_criteria'] = dict(conditions)
-        except Exception as e:
-            logger.error(f"Error analyzing no results metadata: {str(e)}")
-
-        return no_results_metadata
-
-    # Existing methods remain unchanged
+    # Remaining methods (generate_query, generate_lemma_query, etc.) remain unchanged
     async def generate_query(
         self,
         question: str,
@@ -298,3 +314,36 @@ class QueryLLMService(BaseLLMService):
             max_tokens=max_tokens
         )
         return response
+
+    # Existing methods remain unchanged
+    async def _analyze_no_results(self, question: str, sql_query: str) -> Dict[str, Any]:
+        """
+        Analyze the SQL query to explain what was being searched for when no results were found.
+        """
+        no_results_metadata = {
+            "original_question": question,
+            "generated_query": sql_query,
+            "search_description": f"Searching based on: {question}",
+            "search_criteria": {}
+        }
+
+        try:
+            # Extract the WHERE clause to show what was being searched
+            where_match = re.search(r'WHERE\s+(.+?)(?:\n|$)', sql_query, re.DOTALL | re.IGNORECASE)
+            
+            if where_match:
+                where_clause = where_match.group(1).strip()
+                
+                # Clean up the WHERE clause to make it more readable
+                where_clause = re.sub(r'\s+', ' ', where_clause)  # Normalize whitespace
+                where_clause = re.sub(r'\s*AND\s*', ' and ', where_clause)  # Standardize AND
+                
+                no_results_metadata['search_description'] = f"Searching with conditions: {where_clause}"
+                
+                # Try to extract any specific conditions
+                conditions = re.findall(r'(\w+)\s*(?:ILIKE|=|>|<|>=|<=)\s*[\'"]?([^\'"\s]+)[\'"]?', where_clause)
+                no_results_metadata['search_criteria'] = dict(conditions)
+        except Exception as e:
+            logger.error(f"Error analyzing no results metadata: {str(e)}")
+
+        return no_results_metadata
