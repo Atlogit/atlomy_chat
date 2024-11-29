@@ -53,41 +53,45 @@ class CitationService:
             # Generate unique results ID
             results_id = str(uuid.uuid4())
             
-            # Batch processing with concurrent tasks
-            async def process_batch(batch: List[Dict]) -> List[Citation]:
-                try:
-                    return [self._format_citation(row) for row in batch]
-                except Exception as e:
-                    logger.error(f"Batch processing error: {str(e)}", exc_info=True)
-                    return []
+            # Process citations in smaller chunks to avoid long-running transactions
+            async def process_chunk(chunk: List[Dict]) -> List[Citation]:
+                formatted_citations = []
+                async with AsyncSession(self.session.bind) as chunk_session:
+                    for row in chunk:
+                        try:
+                            citation = await self._format_citation(row, chunk_session)
+                            if citation:
+                                formatted_citations.append(citation)
+                        except Exception as e:
+                            logger.error(f"Error formatting citation in chunk: {str(e)}")
+                            continue
+                return formatted_citations
 
-            # Split rows into batches
-            batches = [rows[i:i + self.BATCH_SIZE] for i in range(0, len(rows), self.BATCH_SIZE)]
+            # Split rows into manageable chunks
+            chunk_size = 50  # Smaller chunks for better connection management
+            chunks = [rows[i:i + chunk_size] for i in range(0, len(rows), chunk_size)]
             
-            # Process batches concurrently
-            citations = []
-            for i in range(0, len(batches), self.MAX_CONCURRENT_TASKS):
-                batch_group = batches[i:i + self.MAX_CONCURRENT_TASKS]
+            # Process chunks with controlled concurrency
+            all_citations = []
+            for i in range(0, len(chunks), self.MAX_CONCURRENT_TASKS):
+                current_chunks = chunks[i:i + self.MAX_CONCURRENT_TASKS]
+                chunk_tasks = [process_chunk(chunk) for chunk in current_chunks]
+                chunk_results = await asyncio.gather(*chunk_tasks)
                 
-                # Run batch group concurrently
-                batch_tasks = [process_batch(batch) for batch in batch_group]
-                batch_results = await asyncio.gather(*batch_tasks)
-                
-                # Extend citations with processed batches
-                for batch_citations in batch_results:
-                    citations.extend(batch_citations)
+                for chunk_citations in chunk_results:
+                    all_citations.extend(chunk_citations)
                 
                 # Log progress
                 logger.info(
-                    f"Processed {len(citations)}/{original_total_rows} citations "
-                    f"(Batch {i + 1}/{len(batches)})"
+                    f"Processed {len(all_citations)}/{original_total_rows} citations "
+                    f"(Chunk group {i + 1}/{len(chunks)})"
                 )
             
-            if not citations:
+            if not all_citations:
                 logger.warning("No citations were formatted successfully")
                 return "", []
             
-            # Store citations in chunks
+            # Store results in Redis with pagination
             page_size = 10
             total_pages = (original_total_rows + page_size - 1) // page_size
             
@@ -96,7 +100,7 @@ class CitationService:
                 "total_results": original_total_rows,
                 "total_pages": total_pages,
                 "page_size": page_size,
-                "formatted_citations": len(citations)
+                "formatted_citations": len(all_citations)
             }
             
             # Store metadata in Redis
@@ -108,36 +112,45 @@ class CitationService:
             )
             
             # Store pages in Redis
+            store_tasks = []
             for page in range(total_pages):
                 start = page * page_size
-                end = min(start + page_size, len(citations))
-                page_citations = citations[start:end]
+                end = min(start + page_size, len(all_citations))
+                page_citations = all_citations[start:end]
+                
+                if not page_citations:
+                    continue
                 
                 # Convert to dicts for storage
                 page_data = [c.model_dump() for c in page_citations]
                 
                 page_key = f"{settings.redis.SEARCH_RESULTS_PREFIX}{results_id}:page:{page + 1}"
-                await self.redis.set(
-                    page_key,
-                    page_data,
-                    ttl=settings.redis.SEARCH_RESULTS_TTL
+                store_tasks.append(
+                    self.redis.set(
+                        page_key,
+                        page_data,
+                        ttl=settings.redis.SEARCH_RESULTS_TTL
+                    )
                 )
                 
                 # Log first citation of each page
-                if page_citations:
-                    logger.debug(
-                        f"Stored page {page + 1} ({len(page_citations)} citations): "
-                        f"first citation ID={page_citations[0].sentence.id}"
-                    )
+                logger.debug(
+                    f"Preparing page {page + 1} ({len(page_citations)} citations): "
+                    f"first citation ID={page_citations[0].sentence.id}"
+                )
+            
+            # Store all pages concurrently
+            if store_tasks:
+                await asyncio.gather(*store_tasks)
             
             logger.info(
-                f"Formatted and stored {len(citations)} citations "
+                f"Formatted and stored {len(all_citations)} citations "
                 f"with ID {results_id} in {total_pages} pages "
                 f"(total {original_total_rows} results)"
             )
             
             # Return results ID and first page of results
-            return results_id, citations[:page_size]
+            return results_id, all_citations[:page_size]
             
         except Exception as e:
             logger.error(f"Comprehensive error formatting citations: {str(e)}", exc_info=True)
@@ -196,7 +209,7 @@ class CitationService:
             logger.error(f"Error getting paginated results: {str(e)}", exc_info=True)
             return []
 
-    def _format_citation(self, row: Dict) -> Citation:
+    async def _format_citation(self, row: Dict, session: AsyncSession) -> Optional[Citation]:
         """Format a single citation directly from query result."""
         try:
             # Get line numbers and ensure it's a list
@@ -273,7 +286,7 @@ class CitationService:
             
         except Exception as e:
             logger.error(f"Error formatting citation: {str(e)}", exc_info=True)
-            raise
+            return None
 
     def _format_citation_text(self, row: Dict, abbreviated: bool = False) -> str:
         """Format citation as text string directly from query result."""

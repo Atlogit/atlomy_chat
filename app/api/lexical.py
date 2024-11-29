@@ -30,6 +30,11 @@ class LexicalCreateSchema(BaseModel):
     lemma: str
     search_lemma: bool = True  # Default to True since all inputs are lemmas
 
+class LexicalListSchema(BaseModel):
+    """Schema for lexical value list request."""
+    offset: int = 0
+    limit: int = 100
+
 def format_entry_for_response(entry: Dict[str, Any]) -> Dict[str, Any]:
     """Format entry data to match frontend expectations."""
     if not entry:
@@ -297,19 +302,35 @@ async def get_lexical_versions(
         )
 
 @router.get("/list")
+@router.post("/list")
 async def list_lexical_values(
+    data: Optional[LexicalListSchema] = None,
     offset: int = 0,
     limit: int = 100,
     db: AsyncSession = Depends(get_db)
 ):
-    """List lexical values with pagination."""
+    """List lexical values with pagination. Supports both GET and POST methods."""
     try:
-        logger.info(f"Listing lexical values - offset: {offset}, limit: {limit}")
+        # Use data from POST body if provided, otherwise use query parameters
+        effective_offset = data.offset if data else offset
+        effective_limit = data.limit if data else limit
+
+        logger.info(f"Listing lexical values - offset: {effective_offset}, limit: {effective_limit}")
         lexical_service = LexicalService(db)
-        values = await lexical_service.list_lexical_values(offset, limit)
-        formatted_values = [format_entry_for_response(v) for v in values]
-        logger.debug(f"Found {len(values)} lexical values")
-        return {"values": formatted_values}
+        result = await lexical_service.list_lexical_values(effective_offset, effective_limit)
+        
+        # Format values for response
+        formatted_values = []
+        if "results" in result:
+            formatted_values = [format_entry_for_response(v) for v in result["results"]]
+        
+        logger.debug(f"Found {len(formatted_values)} lexical values")
+        
+        # Return with pagination metadata
+        return {
+            "values": formatted_values,
+            "pagination": result.get("pagination", {})
+        }
     except Exception as e:
         logger.error(f"Error listing lexical values: {str(e)}", exc_info=True)
         raise HTTPException(
@@ -317,8 +338,8 @@ async def list_lexical_values(
             detail={
                 "message": str(e),
                 "type": type(e).__name__,
-                "offset": offset,
-                "limit": limit
+                "offset": effective_offset,
+                "limit": effective_limit
             }
         )
 

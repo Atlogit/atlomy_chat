@@ -5,12 +5,13 @@ Handles creation, retrieval, and management of lexical entries.
 
 from typing import Dict, Any, Optional, List, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, text
+from sqlalchemy import select, text, func
 import logging
 import json
 import time
 import uuid
 
+from app.core.pagination_config import PaginationConfig
 from app.models.lexical_value import LexicalValue
 from app.models.text_division import TextDivision
 from app.models.text_line import TextLine
@@ -38,7 +39,8 @@ class LexicalService:
         self.json_storage = JSONStorageService()
         self.cache_ttl = 3600  # 1 hour cache TTL
         self.redis = redis_client
-        logger.info("Initialized LexicalService")
+        self.DEFAULT_PAGE_SIZE = PaginationConfig.get_page_size('lexical_entries')
+        logger.info(f"Initialized LexicalService with page size {self.DEFAULT_PAGE_SIZE}")
 
     async def _get_cached_value(self, lemma: str, version: Optional[str] = None) -> Optional[Dict]:
         """Get lexical value from cache if available."""
@@ -162,16 +164,19 @@ class LexicalService:
         logger.info(f"Starting creation of lexical entry for lemma: {lemma}")
         
         try:
-            # Check if entry already exists
-            existing = await self.get_lexical_value(lemma)
-            if existing:
-                logger.info(f"Lexical value already exists for {lemma}")
-                return {
-                    "success": False,
-                    "message": "Lexical value already exists",
-                    "entry": existing.to_dict(),
-                    "action": "update"
-                }
+            # Check if entry already exists - using a new session to avoid keeping it open
+            async with AsyncSession(self.session.bind) as check_session:
+                query = select(LexicalValue).where(LexicalValue.lemma == lemma)
+                result = await check_session.execute(query)
+                existing = result.scalar_one_or_none()
+                if existing:
+                    logger.info(f"Lexical value already exists for {lemma}")
+                    return {
+                        "success": False,
+                        "message": "Lexical value already exists",
+                        "entry": existing.to_dict(),
+                        "action": "update"
+                    }
 
             # Get citations with enhanced sentence context
             results_id, citations = await self._get_citations(lemma, search_lemma=True)
@@ -210,24 +215,27 @@ class LexicalService:
             
             # Ensure all required fields are present with proper initialization
             analysis.update({
-                'references': {'citations': [c.model_dump() for c in citations]},  # Store formatted citations properly
-                'sentence_contexts': sentence_contexts,  # Store sentence contexts
-                'citations_used': analysis.get('citations_used', [])  # Keep LLM's citation analysis
+                'references': {'citations': [c.model_dump() for c in citations]},
+                'sentence_contexts': sentence_contexts,
+                'citations_used': analysis.get('citations_used', [])
             })
+
+            # Create new entry in database using a fresh session
+            async with AsyncSession(self.session.bind) as db_session:
+                try:
+                    logger.info(f"Creating database entry for {lemma}")
+                    entry = LexicalValue.from_dict(analysis)
+                    db_session.add(entry)
+                    await db_session.commit()
+                    await db_session.refresh(entry)
+                    entry_dict = entry.to_dict()
+                except Exception as db_error:
+                    logger.error(f"Database error creating entry for {lemma}: {str(db_error)}")
+                    raise
             
-            # Create new entry in database
-            logger.info(f"Creating database entry for {lemma}")
-            entry = LexicalValue.from_dict(analysis)
-            self.session.add(entry)
-            await self.session.commit()
-            await self.session.refresh(entry)
-            
-            # Store in JSON format
-            entry_dict = entry.to_dict()
+            # Store in JSON format and cache after successful database insertion
             logger.debug(f"Entry dictionary: {entry_dict}")
             self.json_storage.save(lemma, entry_dict)
-            
-            # Cache the new entry
             await self._cache_value(lemma, entry_dict)
             
             duration = time.time() - start_time
@@ -272,24 +280,25 @@ class LexicalService:
             if version:
                 return None
 
-            # Query database for current version
-            query = (
-                select(LexicalValue)
-                .where(LexicalValue.lemma == lemma)
-                .join(Sentence, Sentence.id == LexicalValue.sentence_id, isouter=True)
-                .join(sentence_text_lines, sentence_text_lines.c.sentence_id == Sentence.id, isouter=True)
-                .join(TextLine, TextLine.id == sentence_text_lines.c.text_line_id, isouter=True)
-            )
-            result = await self.session.execute(query)
-            entry = result.scalar_one_or_none()
-            
-            if entry:
-                # Cache and store in JSON for future requests
-                entry_dict = entry.to_dict()
-                await self._cache_value(lemma, entry_dict)
-                self.json_storage.save(lemma, entry_dict)
+            # Query database for current version using a new session
+            async with AsyncSession(self.session.bind) as db_session:
+                query = (
+                    select(LexicalValue)
+                    .where(LexicalValue.lemma == lemma)
+                    .join(Sentence, Sentence.id == LexicalValue.sentence_id, isouter=True)
+                    .join(sentence_text_lines, sentence_text_lines.c.sentence_id == Sentence.id, isouter=True)
+                    .join(TextLine, TextLine.id == sentence_text_lines.c.text_line_id, isouter=True)
+                )
+                result = await db_session.execute(query)
+                entry = result.scalar_one_or_none()
                 
-            return entry
+                if entry:
+                    # Cache and store in JSON for future requests
+                    entry_dict = entry.to_dict()
+                    await self._cache_value(lemma, entry_dict)
+                    self.json_storage.save(lemma, entry_dict)
+                    
+                return entry
             
         except Exception as e:
             logger.error(f"Error getting lexical value for {lemma}: {str(e)}", exc_info=True)
@@ -302,39 +311,41 @@ class LexicalService:
     ) -> Dict[str, Any]:
         """Update an existing lexical value."""
         try:
-            entry = await self.get_lexical_value(lemma)
-            if not entry:
+            # Use a new session for the update operation
+            async with AsyncSession(self.session.bind) as db_session:
+                query = select(LexicalValue).where(LexicalValue.lemma == lemma)
+                result = await db_session.execute(query)
+                entry = result.scalar_one_or_none()
+                
+                if not entry:
+                    return {
+                        "success": False,
+                        "message": "Lexical value not found",
+                        "action": "update"
+                    }
+
+                # Update fields
+                for key, value in data.items():
+                    if hasattr(entry, key):
+                        if key == 'sentence_id' and value:
+                            setattr(entry, key, int(value))
+                        else:
+                            setattr(entry, key, value)
+
+                await db_session.commit()
+                await db_session.refresh(entry)
+                
+                # Update JSON storage and cache
+                entry_dict = entry.to_dict()
+                self.json_storage.save(lemma, entry_dict)
+                await self._invalidate_cache(lemma)
+                
                 return {
-                    "success": False,
-                    "message": "Lexical value not found",
+                    "success": True,
+                    "message": "Lexical value updated successfully",
+                    "entry": entry_dict,
                     "action": "update"
                 }
-
-            # Update fields
-            for key, value in data.items():
-                if hasattr(entry, key):
-                    if key == 'sentence_id' and value:
-                        # Ensure integer conversion for sentence_id
-                        setattr(entry, key, int(value))
-                    else:
-                        setattr(entry, key, value)
-
-            await self.session.commit()
-            await self.session.refresh(entry)
-            
-            # Update JSON storage
-            entry_dict = entry.to_dict()
-            self.json_storage.save(lemma, entry_dict)
-            
-            # Invalidate cache
-            await self._invalidate_cache(lemma)
-            
-            return {
-                "success": True,
-                "message": "Lexical value updated successfully",
-                "entry": entry_dict,
-                "action": "update"
-            }
             
         except Exception as e:
             logger.error(f"Error updating lexical value for {lemma}: {str(e)}", exc_info=True)
@@ -345,15 +356,16 @@ class LexicalService:
         try:
             success = False
             
-            # Delete from database if it exists
-            query = select(LexicalValue).where(LexicalValue.lemma == lemma)
-            result = await self.session.execute(query)
-            entry = result.scalar_one_or_none()
-            
-            if entry:
-                await self.session.delete(entry)
-                await self.session.commit()
-                success = True
+            # Delete from database if it exists using a new session
+            async with AsyncSession(self.session.bind) as db_session:
+                query = select(LexicalValue).where(LexicalValue.lemma == lemma)
+                result = await db_session.execute(query)
+                entry = result.scalar_one_or_none()
+                
+                if entry:
+                    await db_session.delete(entry)
+                    await db_session.commit()
+                    success = True
             
             # Always try to delete from JSON storage
             try:
@@ -375,21 +387,62 @@ class LexicalService:
     async def list_lexical_values(
         self,
         offset: int = 0,
-        limit: int = 100
-    ) -> List[Dict[str, Any]]:
-        """List lexical values with pagination."""
+        limit: Optional[int] = None,
+        page_size: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """
+        List lexical values with dynamic pagination.
+        
+        Args:
+            offset: Starting offset for results
+            limit: Optional explicit limit
+            page_size: Optional custom page size
+        
+        Returns:
+            Dictionary with pagination metadata and results
+        """
         try:
-            query = (
-                select(LexicalValue)
-                .join(Sentence, Sentence.id == LexicalValue.sentence_id, isouter=True)
-                .join(sentence_text_lines, sentence_text_lines.c.sentence_id == Sentence.id, isouter=True)
-                .join(TextLine, TextLine.id == sentence_text_lines.c.text_line_id, isouter=True)
-                .offset(offset)
-                .limit(limit)
-            )
-            result = await self.session.execute(query)
-            entries = result.scalars().all()
-            return [entry.to_dict() for entry in entries]
+            # Use a new session for listing operations
+            async with AsyncSession(self.session.bind) as db_session:
+                # Determine effective page size
+                effective_page_size = page_size or limit or self.DEFAULT_PAGE_SIZE
+                
+                # Count total lexical values
+                count_query = select(func.count()).select_from(LexicalValue)
+                total_count = await db_session.scalar(count_query)
+                
+                # Calculate pagination details
+                total_pages = (total_count + effective_page_size - 1) // effective_page_size
+                current_page = (offset // effective_page_size) + 1
+                
+                # Query lexical values with pagination
+                query = (
+                    select(LexicalValue)
+                    .join(Sentence, Sentence.id == LexicalValue.sentence_id, isouter=True)
+                    .join(sentence_text_lines, sentence_text_lines.c.sentence_id == Sentence.id, isouter=True)
+                    .join(TextLine, TextLine.id == sentence_text_lines.c.text_line_id, isouter=True)
+                    .offset(offset)
+                    .limit(effective_page_size)
+                )
+                
+                result = await db_session.execute(query)
+                entries = result.scalars().all()
+                
+                # Convert to dictionaries
+                entries_dict = [entry.to_dict() for entry in entries]
+                
+                # Prepare response with pagination metadata
+                return {
+                    "results": entries_dict,
+                    "pagination": {
+                        "total_results": total_count,
+                        "total_pages": total_pages,
+                        "current_page": current_page,
+                        "page_size": effective_page_size,
+                        "has_next": current_page < total_pages,
+                        "has_previous": current_page > 1
+                    }
+                }
             
         except Exception as e:
             logger.error(f"Error listing lexical values: {str(e)}", exc_info=True)
