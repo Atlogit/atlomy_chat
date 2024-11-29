@@ -25,7 +25,7 @@ from app.core.citation_queries import (
     TEXT_CITATION_QUERY
 )
 
-# Configure logging
+# Use the standard logging configuration
 logger = logging.getLogger(__name__)
 
 class LexicalService:
@@ -41,37 +41,49 @@ class LexicalService:
         self.redis = redis_client
         self.DEFAULT_PAGE_SIZE = PaginationConfig.get_page_size('lexical_entries')
         logger.info(f"Initialized LexicalService with page size {self.DEFAULT_PAGE_SIZE}")
+        logger.debug(f"Session initialized: {session}")
 
     async def _get_cached_value(self, lemma: str, version: Optional[str] = None) -> Optional[Dict]:
-        """Get lexical value from cache if available."""
+        """Get lexical value from cache with enhanced error handling and logging."""
         try:
             cache_key = f"lexical_value:{lemma}:{version}" if version else f"lexical_value:{lemma}"
             cached = await self.redis.get(cache_key)
+            
             if cached:
                 logger.info(f"Cache hit for lexical value: {lemma} (version: {version})")
-                return json.loads(cached)
-            else:
-                logger.info(f"Cache miss for lexical value: {lemma} (version: {version})")
-                return None
+                try:
+                    return json.loads(cached)
+                except json.JSONDecodeError as e:
+                    logger.error(f"JSON decoding error for cached value {lemma}: {e}")
+                    return None
+            
+            logger.debug(f"Cache miss for lexical value: {lemma} (version: {version})")
+            return None
+        
         except Exception as e:
-            logger.error(f"Cache error for lexical value {lemma}: {str(e)}")
+            logger.error(f"Comprehensive cache retrieval error for {lemma}: {e}", exc_info=True)
             return None
 
     async def _cache_value(self, lemma: str, data: Dict, version: Optional[str] = None):
-        """Cache lexical value data."""
+        """Cache lexical value data with enhanced error handling."""
         try:
             cache_key = f"lexical_value:{lemma}:{version}" if version else f"lexical_value:{lemma}"
+            
+            # Add additional logging for cache operations
+            logger.debug(f"Attempting to cache {lemma} with key {cache_key}")
+            
             await self.redis.set(
                 cache_key,
                 json.dumps(data),
                 ttl=self.cache_ttl
             )
-            logger.info(f"Cached lexical value: {lemma} (version: {version})")
+            logger.info(f"Successfully cached lexical value: {lemma} (version: {version})")
         except Exception as e:
-            logger.error(f"Failed to cache lexical value {lemma}: {str(e)}")
+            # More comprehensive error logging
+            logger.error(f"Failed to cache lexical value {lemma}: {str(e)}", exc_info=True)
 
     async def _invalidate_cache(self, lemma: str):
-        """Invalidate lexical value cache."""
+        """Invalidate lexical value cache with improved logging."""
         try:
             # Get all versions
             versions = await self.get_json_versions(lemma)
@@ -85,7 +97,7 @@ class LexicalService:
                 
             logger.info(f"Invalidated cache for lexical value: {lemma} and all versions")
         except Exception as e:
-            logger.error(f"Failed to invalidate cache for {lemma}: {str(e)}")
+            logger.error(f"Failed to invalidate cache for {lemma}: {str(e)}", exc_info=True)
 
     async def _get_citations(self, word: str, search_lemma: bool) -> Tuple[str, List[Dict[str, Any]]]:
         """Get citations with full sentence context for a word/lemma."""
@@ -152,6 +164,53 @@ class LexicalService:
         except Exception as e:
             logger.error(f"Error getting citations for {word}: {str(e)}", exc_info=True)
             raise ValueError(f"Failed to get citations: {str(e)}")
+
+    async def get_lexical_value(self, lemma: str, version: Optional[str] = None) -> Optional[LexicalValue]:
+        """Get a lexical value with improved connection management and logging."""
+        try:
+            # Try cache first
+            cached = await self._get_cached_value(lemma, version)
+            if cached:
+                return LexicalValue.from_dict(cached)
+
+            # Try JSON storage with version
+            json_data = self.json_storage.load(lemma, version)
+            if json_data:
+                await self._cache_value(lemma, json_data, version)
+                return LexicalValue.from_dict(json_data)
+
+            # If version was requested but not found, return None
+            if version:
+                return None
+
+            # Query database for current version using a new session
+            async with AsyncSession(self.session.bind, expire_on_commit=False) as db_session:
+                try:
+                    query = (
+                        select(LexicalValue)
+                        .where(LexicalValue.lemma == lemma)
+                        .join(Sentence, Sentence.id == LexicalValue.sentence_id, isouter=True)
+                        .join(sentence_text_lines, sentence_text_lines.c.sentence_id == Sentence.id, isouter=True)
+                        .join(TextLine, TextLine.id == sentence_text_lines.c.text_line_id, isouter=True)
+                    )
+                    result = await db_session.execute(query)
+                    entry = result.scalar_one_or_none()
+                    
+                    if entry:
+                        # Cache and store in JSON for future requests
+                        entry_dict = entry.to_dict()
+                        await self._cache_value(lemma, entry_dict)
+                        self.json_storage.save(lemma, entry_dict)
+                        
+                    return entry
+                
+                except Exception as query_error:
+                    logger.error(f"Database query error for {lemma}: {query_error}", exc_info=True)
+                    raise
+            
+        except Exception as e:
+            logger.error(f"Comprehensive error getting lexical value for {lemma}: {str(e)}", exc_info=True)
+            raise
 
     async def create_lexical_entry(
         self,
