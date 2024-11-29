@@ -2,14 +2,16 @@
 LLM service for SQL query generation with enhanced error handling and performance.
 """
 
-from typing import Dict, Any, Optional, Tuple, List, Generator
+from typing import Dict, Any, Optional, Tuple, List
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError, DatabaseError
+from sqlalchemy.ext.asyncio import AsyncSession
 import logging
 import asyncio
 import time
 import json
 import re
+import uuid
 
 from app.services.llm.base_service import BaseLLMService, LLMServiceError
 from app.services.llm.prompts import (
@@ -36,6 +38,77 @@ class QueryLLMService(BaseLLMService):
         self.QUERY_TIMEOUT = 900  # 15 minutes maximum query execution time
         self.PROGRESS_UPDATE_INTERVAL = 1000  # Update progress every 1000 rows
 
+    async def _safe_execute_query(
+        self, 
+        query: str, 
+        trace_id: str, 
+        max_retries: int = 3
+    ) -> List[Dict[str, Any]]:
+        """
+        Safely execute a database query with retry mechanism.
+        
+        Args:
+            query: SQL query to execute
+            trace_id: Unique trace identifier for logging
+            max_retries: Maximum number of retry attempts
+        
+        Returns:
+            List of query results as dictionaries
+        """
+        for attempt in range(max_retries):
+            try:
+                # Use a new session to avoid connection state issues
+                async with AsyncSession(self.session.bind, expire_on_commit=False) as db_session:
+                    logger.info(f"[{trace_id}] Executing query (Attempt {attempt + 1})")
+                    
+                    # Execute with timeout
+                    result = await asyncio.wait_for(
+                        db_session.execute(text(query)),
+                        timeout=self.QUERY_TIMEOUT
+                    )
+                    
+                    # Commit transaction
+                    await db_session.commit()
+                    
+                    # Convert results to list of dictionaries
+                    rows = result.mappings().all()
+                    
+                    logger.info(f"[{trace_id}] Query successful. Rows: {len(rows)}")
+                    return rows
+            
+            except asyncio.TimeoutError:
+                logger.warning(
+                    f"[{trace_id}] Query timeout on attempt {attempt + 1}. "
+                    f"Timeout: {self.QUERY_TIMEOUT} seconds"
+                )
+                if attempt == max_retries - 1:
+                    raise LLMServiceError(
+                        "Query execution timed out",
+                        {
+                            "trace_id": trace_id,
+                            "message": f"Query took longer than {self.QUERY_TIMEOUT} seconds",
+                            "error_type": "query_timeout"
+                        }
+                    )
+            
+            except (SQLAlchemyError, DatabaseError) as db_error:
+                logger.error(
+                    f"[{trace_id}] Database error on attempt {attempt + 1}: {str(db_error)}", 
+                    exc_info=True
+                )
+                if attempt == max_retries - 1:
+                    raise LLMServiceError(
+                        "Error executing SQL query",
+                        {
+                            "trace_id": trace_id,
+                            "message": str(db_error),
+                            "error_type": "database_error"
+                        }
+                    )
+                
+                # Wait before retry with exponential backoff
+                await asyncio.sleep(2 ** attempt)
+
     async def generate_and_execute_query(
             self,
             question: str,
@@ -44,47 +117,32 @@ class QueryLLMService(BaseLLMService):
             """
             Generate and execute a SQL query with enhanced error handling and performance tracking.
             """
+            trace_id = str(uuid.uuid4())
             start_time = time.time()
             sql_query = ""
-            progress_callback = None
             no_results_metadata = {}
 
             try:
-                # Generate the SQL query
+                # Log query generation start
+                logger.info(f"[{trace_id}] Generating query for: {question}")
+
+                # Generate SQL query
                 response = await self.generate_query(question, max_tokens)
                 sql_query = response.text.strip()
-                logger.info(f"Generated SQL query: {sql_query}")
+                logger.info(f"[{trace_id}] Generated SQL query: {sql_query}")
 
-                # Execute the query with extended timeout
+                # Execute query safely
                 try:
-                    # Use asyncio.wait_for to implement query timeout
-                    result = await asyncio.wait_for(
-                        self.session.execute(text(sql_query)),
-                        timeout=self.QUERY_TIMEOUT
-                    )
-                    rows = result.mappings().all()
-
+                    rows = await self._safe_execute_query(sql_query, trace_id)
                     total_rows = len(rows)
-                    logger.info(f"Query returned {total_rows} rows")
 
-                    # If no results, return detailed no-results metadata
+                    # Handle no results scenario
                     if total_rows == 0:
-                        # Analyze why no results might have been returned
                         no_results_metadata = await self._analyze_no_results(question, sql_query)
-                        logger.info(f"No results metadata: {no_results_metadata}")
+                        logger.warning(f"[{trace_id}] No results found. Metadata: {no_results_metadata}")
                         return sql_query, "", [], no_results_metadata
-                    
-                    # Rest of the method remains the same as before...
-                    def track_progress(current, total):
-                        progress_data = {
-                            'current': current,
-                            'total': total,
-                            'stage': 'Processing citations',
-                            'percentage': round((current / total) * 100, 2) if total > 0 else 0
-                        }
-                        logger.info(f"Progress: {json.dumps(progress_data)}")
-                    
-                    # Process results in chunks to prevent memory issues
+
+                    # Process results in chunks
                     results_id = None
                     first_page = None
                     processed_rows = 0
@@ -93,97 +151,79 @@ class QueryLLMService(BaseLLMService):
                         chunk_end = min(chunk_start + self.CHUNK_SIZE, total_rows)
                         chunk_rows = rows[chunk_start:chunk_end]
                         
-                        # Format citations for this chunk
                         try:
                             chunk_results_id, chunk_first_page = await self.citation_service.format_citations(
                                 chunk_rows, 
                                 total_results=total_rows
                             )
                             
-                            # Use the first chunk's results_id and first page
+                            logger.info(
+                                f"[{trace_id}] Citation chunk {chunk_start}-{chunk_end}: "
+                                f"Results ID: {chunk_results_id}, "
+                                f"First Page Length: {len(chunk_first_page)}"
+                            )
+                            
+                            # Use first chunk's results
                             if results_id is None:
                                 results_id = chunk_results_id
                                 first_page = chunk_first_page
                             
-                            # Update processed rows and track progress
                             processed_rows += len(chunk_rows)
-                            track_progress(processed_rows, total_rows)
-                            
-                            logger.info(
-                                f"Processed chunk {chunk_start}-{chunk_end} of {total_rows} rows. "
-                                f"Results ID: {chunk_results_id}"
-                            )
                         
                         except Exception as format_error:
                             logger.error(
-                                f"Error formatting citations for chunk {chunk_start}-{chunk_end}: {str(format_error)}", 
+                                f"[{trace_id}] Citation formatting error for chunk {chunk_start}-{chunk_end}: "
+                                f"{str(format_error)}", 
                                 exc_info=True
                             )
-                            # Continue processing other chunks if possible
                             continue
                     
-                    # Log overall query performance
+                    # Log performance metrics
                     execution_time = time.time() - start_time
                     logger.info(
-                        f"Query processed successfully. "
+                        f"[{trace_id}] Query processed. "
                         f"Total Rows: {total_rows}, "
                         f"Processed Rows: {processed_rows}, "
-                        f"Execution Time: {execution_time:.2f} seconds, "
+                        f"Execution Time: {execution_time:.2f}s, "
                         f"Results ID: {results_id}"
                     )
 
-                    # For successful queries with results, ensure we have processed data
+                    # Validate results
                     if total_rows > 0 and (not results_id or not first_page):
+                        logger.error(
+                            f"[{trace_id}] Failed to process query results. "
+                            f"Results ID: {results_id}, First Page: {first_page}"
+                        )
                         raise LLMServiceError(
                             "Failed to process query results",
                             {
+                                "trace_id": trace_id,
                                 "message": "Could not generate results ID or first page",
                                 "error_type": "citation_format_error",
-                                "sql_query": sql_query,
                                 "row_count": total_rows
                             }
                         )
 
                     return sql_query, results_id or "", first_page or [], {}
                 
-                except asyncio.TimeoutError:
+                except Exception as query_error:
                     logger.error(
-                        f"Query execution timed out after {self.QUERY_TIMEOUT} seconds"
-                    )
-                    raise LLMServiceError(
-                        "Query execution timed out",
-                        {
-                            "message": f"Query took longer than {self.QUERY_TIMEOUT} seconds",
-                            "error_type": "query_timeout",
-                            "sql_query": sql_query
-                        }
-                    )
-
-                except SQLAlchemyError as db_error:
-                    logger.error(
-                        f"Database error executing query: {str(db_error)}", 
+                        f"[{trace_id}] Query execution error: {str(query_error)}", 
                         exc_info=True
                     )
-                    raise LLMServiceError(
-                        "Error executing SQL query",
-                        {
-                            "message": str(db_error),
-                            "error_type": "database_error",
-                            "sql_query": sql_query
-                        }
-                    )
+                    raise
 
             except Exception as e:
                 logger.error(
-                    f"Unexpected error in query generation/execution: {str(e)}", 
+                    f"[{trace_id}] Unexpected error in query processing: {str(e)}", 
                     exc_info=True
                 )
                 raise LLMServiceError(
                     "Unexpected error in query processing",
                     {
+                        "trace_id": trace_id,
                         "message": str(e),
-                        "error_type": "unexpected_error",
-                        "sql_query": sql_query
+                        "error_type": "unexpected_error"
                     }
                 )
 
@@ -215,11 +255,11 @@ class QueryLLMService(BaseLLMService):
                 conditions = re.findall(r'(\w+)\s*(?:ILIKE|=|>|<|>=|<=)\s*[\'"]?([^\'"\s]+)[\'"]?', where_clause)
                 no_results_metadata['search_criteria'] = dict(conditions)
         except Exception as e:
-            # Log the error but keep the default metadata
             logger.error(f"Error analyzing no results metadata: {str(e)}")
 
         return no_results_metadata
 
+    # Existing methods remain unchanged
     async def generate_query(
         self,
         question: str,
