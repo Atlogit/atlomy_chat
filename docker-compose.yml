@@ -140,9 +140,9 @@ services:
       redis-server 
       --databases 16 
       --port ${REDIS_PORT} 
-      --maxmemory 1gb  # Conservative memory allocation
-      --maxmemory-policy allkeys-lru  # Least Recently Used eviction policy
-      --save 900 1 300 10 60 10000  # Persistent storage configuration
+      --maxmemory 1gb
+      --maxmemory-policy allkeys-lru
+      --save 900 1 300 10 60 10000
     networks:
       amta-network:
     ports:
