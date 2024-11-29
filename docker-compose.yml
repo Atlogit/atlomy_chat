@@ -81,7 +81,7 @@ services:
       - ~/amta/logs:/amta/logs
       - ./.env:/amta/.env
       - ./alembic:/amta/alembic
-      - ~/amta/lexical_values:/mnt/data/lexical_values  # Update JSON storage volume
+      - lexical_values:${JSON_STORAGE_BASE_DIR:-/home/ec2-user/amta/lexical_values}
     env_file:
       - .env
     environment:
@@ -101,7 +101,7 @@ services:
       - LOGGING_CONFIG=/amta/logging_config.json
       - LOG_LEVEL=debug
       - DEBUG=true
-      - JSON_STORAGE_BASE_DIR=/mnt/data/lexical_values  # Maintain JSON storage base directory
+      - JSON_STORAGE_BASE_DIR=${JSON_STORAGE_BASE_DIR:-/home/ec2-user/amta/lexical_values}
     restart: unless-stopped
     depends_on:
       - postgres
@@ -110,9 +110,6 @@ services:
 
   frontend:
     image: ghcr.io/atlogit/atlomy_chat-frontend:${FRONTEND_TAG}
-    #build:
-    #  context: ./next-app
-    #  dockerfile: Dockerfile
     container_name: amta-frontend
     networks:
       amta-network:
@@ -178,4 +175,6 @@ volumes:
   postgres_data:
     driver: local
   redis_data:
+    driver: local
+  lexical_values:
     driver: local

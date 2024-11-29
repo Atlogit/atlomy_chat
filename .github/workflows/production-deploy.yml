@@ -385,8 +385,18 @@ jobs:
             mkdir -p \$HOME_DIR/amta/logs
             chmod 750 \$HOME_DIR/amta/logs
             mkdir -p \$HOME_DIR/amta/next-app
-            chmod 750 \$HOME_DIR/amta/logs
-
+            
+            # Create lexical_values directory with subdirectories
+            mkdir -p \$HOME_DIR/amta/lexical_values/current
+            mkdir -p \$HOME_DIR/amta/lexical_values/versions
+            mkdir -p \$HOME_DIR/amta/lexical_values/backup
+            
+            # Set permissions for lexical_values directory
+            chmod 777 \$HOME_DIR/amta/lexical_values
+            chmod 777 \$HOME_DIR/amta/lexical_values/current
+            chmod 777 \$HOME_DIR/amta/lexical_values/versions
+            chmod 777 \$HOME_DIR/amta/lexical_values/backup
+            
             echo "Deployment initiated at \$(date)" > \$HOME_DIR/amta/logs/deployment.log
           SETUP_EOF
 
