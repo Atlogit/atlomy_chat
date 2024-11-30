@@ -2,6 +2,13 @@ import { useState, useCallback } from 'react';
 import { fetchApi } from '../utils/api';
 import { ApiError } from '../utils/api/types/types';
 
+// Enhanced debugging configuration
+const DEBUG_CONFIG = {
+  NATURAL_LANGUAGE_QUERY: true,
+  GENERAL_API_CALLS: false,
+  PROGRESS_TRACKING: true
+};
+
 interface ApiProgress {
   current: number;
   total: number;
@@ -20,7 +27,7 @@ interface ApiHookResult<T> {
 }
 
 const DEFAULT_TIMEOUT = 600000; // 10 minutes
-const MAX_RETRIES = 1;
+const MAX_RETRIES = 3;
 const INITIAL_BACKOFF = 1000; // 1 second
 
 export function useApi<T>(): ApiHookResult<T> {
@@ -72,6 +79,16 @@ export function useApi<T>(): ApiHookResult<T> {
     options?: RequestInit, 
     timeout: number = DEFAULT_TIMEOUT
   ): Promise<T | null> => {
+    // Enhanced debugging for specific query types
+    const isNaturalLanguageQuery = endpoint.includes('/generate-query');
+    
+    if (DEBUG_CONFIG.NATURAL_LANGUAGE_QUERY && isNaturalLanguageQuery) {
+      console.group('🔍 Natural Language Query Debug');
+      console.log('Endpoint:', endpoint);
+      console.log('Options:', JSON.stringify(options, null, 2));
+      console.groupEnd();
+    }
+
     // Reset state
     setIsLoading(true);
     setError(null);
@@ -108,6 +125,11 @@ export function useApi<T>(): ApiHookResult<T> {
             signal: controller.signal
           }, 
           (progressInfo: string) => {
+            // Enhanced progress tracking
+            if (DEBUG_CONFIG.PROGRESS_TRACKING) {
+              console.log('Progress:', progressInfo);
+            }
+
             // Parse progress information
             try {
               const progressData = JSON.parse(progressInfo);
@@ -150,6 +172,15 @@ export function useApi<T>(): ApiHookResult<T> {
           stage: 'Completed' 
         });
 
+        // Debugging for query results
+        if (DEBUG_CONFIG.NATURAL_LANGUAGE_QUERY && isNaturalLanguageQuery && result) {
+          console.group('✅ Query Results');
+          console.log('Result Type:', typeof result);
+          console.log('Result Keys:', Object.keys(result as object));
+          console.log('Full Result:', JSON.stringify(result, null, 2));
+          console.groupEnd();
+        }
+
         // Set data if result is not null
         if (result !== null) {
           setData(result);
@@ -162,17 +193,33 @@ export function useApi<T>(): ApiHookResult<T> {
         // Handle specific error types
         const apiError = err as ApiError;
         
+        // Detailed error logging for natural language queries
+        if (isNaturalLanguageQuery) {
+          console.group('❌ Query Error');
+          console.error('Error Details:', apiError);
+          
+          // Safe error type extraction
+          const errorType = typeof apiError.detail === 'object' 
+            ? (apiError.detail as { error_type?: string }).error_type 
+            : undefined;
+          
+          console.log('Error Type:', errorType);
+          console.log('Error Message:', apiError.message);
+          console.groupEnd();
+        }
+        
         // Determine if retry is appropriate based on error type
         const retryableErrors = [
           'database_error', 
           'query_timeout', 
           'unexpected_error', 
-          'empty_response'
+          'empty_response',
+          'connection_error'
         ];
         
         // Safely extract error type
         const errorType = typeof apiError.detail === 'object' 
-          ? apiError.detail.error_type 
+          ? (apiError.detail as { error_type?: string }).error_type 
           : undefined;
 
         const isRetryable = errorType 

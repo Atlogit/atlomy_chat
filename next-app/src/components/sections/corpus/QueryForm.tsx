@@ -11,9 +11,16 @@ import {
   TextSearchRequest, 
   QueryGenerationRequest,
   QueryResponse,
-  PaginatedResponse,
-  SearchResponse 
+  SearchResponse,
+  PaginatedResponse
 } from '../../../utils/api'
+
+// Type guard functions defined outside the component
+const isQueryResponse = (result: any): result is QueryResponse => 
+  result && 'sql' in result && 'results' in result;
+
+const isSearchResponse = (result: any): result is SearchResponse => 
+  result && 'results' in result && 'results_id' in result;
 
 type QueryType = 'natural' | 'lemma_search' | 'category_search' | 'citation_search';
 
@@ -36,13 +43,18 @@ export function QueryForm() {
   const [queryResults, setQueryResults] = useState<SearchResult[]>([])
   const [resultsId, setResultsId] = useState<string>('')
   const [totalResults, setTotalResults] = useState<number>(0)
-  const { data: searchResults, error: searchError, isLoading: isSearching, execute: executeSearch } = useApi<SearchResponse>()
-  const { data: queryData, error: queryError, isLoading: isGenerating, execute: executeGenerate } = useApi<QueryResponse>()
-  const { data: pageData, error: pageError, isLoading: isLoadingPage, execute: executePage } = useApi<PaginatedResponse>()
+  const [queryError, setQueryError] = useState<any>(null)
+
+  // Use a union type to handle both QueryResponse and SearchResponse
+  const { data: searchResults, error: searchError, isLoading: isSearching, execute: executeSearch } = 
+    useApi<SearchResponse | QueryResponse>()
   
-  /**
-   * Handles fetching additional pages of results
-   */
+  const { data: queryData, error: queryGenerationError, isLoading: isGenerating, execute: executeGenerate } = 
+    useApi<QueryResponse>()
+  
+  const { data: pageData, error: pageError, isLoading: isLoadingPage, execute: executePage } = 
+    useApi<PaginatedResponse>()
+  
   const fetchResultsPage = useCallback(async (page: number, pageSize: number) => {
     if (!resultsId || isLoadingPage) return [];
 
@@ -74,14 +86,20 @@ export function QueryForm() {
    * @function
    */
   const handleSubmit = useCallback(async () => {
-    if (isSearching || isGenerating) return; // Prevent multiple submissions while loading
+    if (isSearching || isGenerating) return;
+
+    // Reset previous state
+    setQueryError(null);
+    setQueryResults([]);
+    setResultsId('');
+    setTotalResults(0);
+    setGeneratedQuery('');
 
     try {
       switch (queryType) {
         case 'natural':
-          if (!question.trim()) return
+          if (!question.trim()) return;
 
-          // Generate the appropriate search query using LLM
           const request: QueryGenerationRequest = {
             question: question.trim(),
             max_tokens: 1000
@@ -90,20 +108,45 @@ export function QueryForm() {
           const queryResult = await executeGenerate(API.llm.generateQuery, {
             method: 'POST',
             body: JSON.stringify(request)
-          })
+          });
 
-          if (queryResult?.sql) {
-            setGeneratedQuery(queryResult.sql)
-            if (queryResult.results) {
-              setQueryResults(queryResult.results)
-              setResultsId(queryResult.results_id)
-              setTotalResults(queryResult.total_results)
+          console.log('Raw Natural Language Query Result:', queryResult);
+
+          if (isQueryResponse(queryResult)) {
+            // Handle QueryResponse specific fields
+            if (queryResult.sql) {
+              setGeneratedQuery(queryResult.sql);
             }
-          }
-          break
 
+            // Process results
+            const results = queryResult.results || [];
+            const resultsId = queryResult.results_id || '';
+            const totalCount = queryResult.total_results || results.length;
+
+            if (results.length > 0) {
+              setQueryResults(results);
+              setResultsId(resultsId);
+              setTotalResults(totalCount);
+            } else {
+              // Handle no results scenario
+              setQueryError({
+                message: 'No Results Found',
+                detail: queryResult.no_results_metadata 
+                  ? `Search Description: ${queryResult.no_results_metadata.search_description}` 
+                  : 'The query did not return any results.'
+              });
+            }
+          } else {
+            setQueryError({
+              message: 'Query Failed',
+              detail: 'Unexpected response format from server.'
+            });
+          }
+          break;
+
+        // Other query types remain unchanged
         case 'lemma_search':
-          if (!lemma.trim()) return
+          if (!lemma.trim()) return;
           
           const lemmaRequest: TextSearchRequest = {
             query: lemma.trim(),
@@ -113,27 +156,28 @@ export function QueryForm() {
           const lemmaResult = await executeSearch(API.corpus.search, {
             method: 'POST',
             body: JSON.stringify(lemmaRequest)
-          })
+          });
 
-          if (lemmaResult) {
-            setQueryResults(lemmaResult.results)
-            setResultsId(lemmaResult.results_id)
-            setTotalResults(lemmaResult.total_results)
+          if (isSearchResponse(lemmaResult)) {
+            setQueryResults(lemmaResult.results);
+            setResultsId(lemmaResult.results_id);
+            setTotalResults(lemmaResult.total_results);
           }
-          break
+          break;
 
         case 'category_search':
-          if (!category.trim()) return
-          const categoryResult = await executeSearch(API.corpus.category(category.trim()))
-          if (categoryResult) {
-            setQueryResults(categoryResult.results)
-            setResultsId(categoryResult.results_id)
-            setTotalResults(categoryResult.total_results)
+          if (!category.trim()) return;
+          const categoryResult = await executeSearch(API.corpus.category(category.trim()));
+          
+          if (isSearchResponse(categoryResult)) {
+            setQueryResults(categoryResult.results);
+            setResultsId(categoryResult.results_id);
+            setTotalResults(categoryResult.total_results);
           }
-          break
+          break;
 
         case 'citation_search':
-          if (!authorId.trim() || !workNumber.trim()) return
+          if (!authorId.trim() || !workNumber.trim()) return;
           const citationRequest: TextSearchRequest = {
             query: `${authorId.trim()} ${workNumber.trim()}`,
             search_lemma: false
@@ -142,19 +186,23 @@ export function QueryForm() {
           const citationResult = await executeSearch(API.corpus.search, {
             method: 'POST',
             body: JSON.stringify(citationRequest)
-          })
+          });
 
-          if (citationResult) {
-            setQueryResults(citationResult.results)
-            setResultsId(citationResult.results_id)
-            setTotalResults(citationResult.total_results)
+          if (isSearchResponse(citationResult)) {
+            setQueryResults(citationResult.results);
+            setResultsId(citationResult.results_id);
+            setTotalResults(citationResult.total_results);
           }
-          break
+          break;
       }
     } catch (err) {
-      console.error('Error in handleSubmit:', err)
+      console.error('Error in handleSubmit:', err);
+      setQueryError({
+        message: 'Unexpected Error',
+        detail: err instanceof Error ? err.message : String(err)
+      });
     }
-  }, [queryType, question, lemma, category, authorId, workNumber, executeSearch, executeGenerate, isSearching, isGenerating])
+  }, [queryType, question, lemma, category, authorId, workNumber, executeSearch, executeGenerate, isSearching, isGenerating]);
 
   const renderQueryInputs = () => {
     switch (queryType) {

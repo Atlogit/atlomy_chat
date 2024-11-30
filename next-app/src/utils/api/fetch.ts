@@ -5,7 +5,28 @@ export async function fetchApi<T>(
   options: RequestInit = {},
   onProgress?: (stage: string) => void
 ): Promise<T> {
+  // Enhanced debugging for natural language queries
+  const IS_NATURAL_LANGUAGE_QUERY = endpoint.includes('/generate-query');
+  
+  const DEBUG_CONFIG = {
+    ENABLED: IS_NATURAL_LANGUAGE_QUERY,
+    VERBOSE_LOGGING: true
+  };
+
   try {
+    // Detailed request logging for natural language queries
+    if (DEBUG_CONFIG.ENABLED && DEBUG_CONFIG.VERBOSE_LOGGING) {
+      console.group('🚀 Natural Language Query Request');
+      console.log('Endpoint:', endpoint);
+      console.log('Request Options:', JSON.stringify(options, null, 2));
+      
+      // Log request body if present
+      if (options.body) {
+        console.log('Request Body:', options.body);
+      }
+      console.groupEnd();
+    }
+
     console.log('API Request:', { endpoint, options });
 
     onProgress?.('Sending request...');
@@ -25,6 +46,16 @@ export async function fetchApi<T>(
     let responseText: string;
     try {
       responseText = await response.text();
+      
+      // Detailed response logging for natural language queries
+      if (DEBUG_CONFIG.ENABLED && DEBUG_CONFIG.VERBOSE_LOGGING) {
+        console.group('📥 Natural Language Query Response');
+        console.log('Response Status:', response.status);
+        console.log('Response Text Length:', responseText.length);
+        console.log('First 500 characters:', responseText.substring(0, 500));
+        console.groupEnd();
+      }
+
       console.log('API Response Text Length:', responseText.length);
     } catch (e) {
       console.error('Error reading response text:', e);
@@ -61,7 +92,19 @@ export async function fetchApi<T>(
         try {
           const errorJson = JSON.parse(responseText);
           
-          // Handle different error response structures
+          // Comprehensive error logging for natural language queries
+          if (IS_NATURAL_LANGUAGE_QUERY) {
+            console.group('❌ Natural Language Query Error');
+            console.error('Full Error Response:', errorJson);
+            console.log('Error Context:', {
+              endpoint,
+              requestBody: options.body,
+              errorStatus: response.status
+            });
+            console.groupEnd();
+          }
+          
+          // Existing error parsing logic...
           if (errorJson.error) {
             errorMessage = errorJson.error.message || errorMessage;
             errorDetail = {
@@ -129,6 +172,24 @@ export async function fetchApi<T>(
     try {
       const jsonResponse = JSON.parse(responseText);
       
+      // Detailed result logging for natural language queries
+      if (IS_NATURAL_LANGUAGE_QUERY) {
+        console.group('✅ Natural Language Query Result');
+        console.log('Result Type:', typeof jsonResponse);
+        console.log('Result Keys:', Object.keys(jsonResponse));
+        console.log('Result Preview:', JSON.stringify(jsonResponse, null, 2).substring(0, 500));
+        
+        // Additional diagnostic checks
+        if (jsonResponse && typeof jsonResponse === 'object') {
+          console.log('Diagnostic Checks:');
+          console.log('  Has Results:', !!jsonResponse.results);
+          console.log('  Results Length:', jsonResponse.results ? jsonResponse.results.length : 'N/A');
+          console.log('  Total Results:', jsonResponse.total_results || 'N/A');
+        }
+        
+        console.groupEnd();
+      }
+
       // Additional progress tracking for parsed response
       if (Array.isArray(jsonResponse)) {
         updateProgress('Parsing results', jsonResponse.length, jsonResponse.length);

@@ -2,13 +2,14 @@
 Service for handling citation formatting and retrieval with enhanced performance.
 """
 
-from typing import Dict, List, Optional, Tuple, Generator
+from typing import Dict, List, Optional, Tuple, Generator, Callable, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 import logging
 import uuid
 import asyncio
 import json
+import random
 
 from app.core.redis import redis_client
 from app.core.config import settings
@@ -30,8 +31,8 @@ class CitationService:
         self.redis = redis_client
         self.BATCH_SIZE = 1000  # Increased batch size for more efficient processing
         self.MAX_CONCURRENT_TASKS = 5  # Limit concurrent processing tasks
+        self.MAX_REDIS_RETRIES = 3  # Maximum Redis operation retries
         logger.info("Initialized CitationService")
-
     async def format_citations(
         self, 
         rows: List[Dict], 
@@ -39,7 +40,7 @@ class CitationService:
         total_results: Optional[int] = None
     ) -> Tuple[str, List[Citation]]:
         """
-        Format citations with improved performance and progress tracking.
+        Format citations with improved performance and robust error handling.
         
         Args:
             rows: List of row dictionaries to format
@@ -63,7 +64,7 @@ class CitationService:
                             if citation:
                                 formatted_citations.append(citation)
                         except Exception as e:
-                            logger.error(f"Error formatting citation in chunk: {str(e)}")
+                            logger.error(f"Error formatting individual citation: {str(e)}")
                             continue
                 return formatted_citations
 
@@ -75,11 +76,19 @@ class CitationService:
             all_citations = []
             for i in range(0, len(chunks), self.MAX_CONCURRENT_TASKS):
                 current_chunks = chunks[i:i + self.MAX_CONCURRENT_TASKS]
-                chunk_tasks = [process_chunk(chunk) for chunk in current_chunks]
-                chunk_results = await asyncio.gather(*chunk_tasks)
                 
-                for chunk_citations in chunk_results:
-                    all_citations.extend(chunk_citations)
+                try:
+                    chunk_tasks = [process_chunk(chunk) for chunk in current_chunks]
+                    chunk_results = await asyncio.gather(*chunk_tasks, return_exceptions=True)
+                    
+                    for result in chunk_results:
+                        if isinstance(result, Exception):
+                            logger.error(f"Chunk processing error: {str(result)}")
+                        else:
+                            all_citations.extend(result)
+                    
+                except Exception as gather_error:
+                    logger.error(f"Comprehensive chunk processing error: {str(gather_error)}")
                 
                 # Log progress
                 logger.info(
@@ -103,16 +112,15 @@ class CitationService:
                 "formatted_citations": len(all_citations)
             }
             
-            # Store metadata in Redis
+            # Store metadata in Redis with enhanced error handling
             meta_key = f"{settings.redis.SEARCH_RESULTS_PREFIX}{results_id}:meta"
-            await self.redis.set(
-                meta_key,
-                meta,
-                ttl=settings.redis.SEARCH_RESULTS_TTL
-            )
+            try:
+                await self._safe_redis_set(meta_key, meta, settings.redis.SEARCH_RESULTS_TTL)
+            except Exception as meta_store_error:
+                logger.error(f"Failed to store metadata: {str(meta_store_error)}")
             
-            # Store pages in Redis
-            store_tasks = []
+            # Store pages in Redis with improved error handling
+            successful_page_storage = 0
             for page in range(total_pages):
                 start = page * page_size
                 end = min(start + page_size, len(all_citations))
@@ -125,28 +133,22 @@ class CitationService:
                 page_data = [c.model_dump() for c in page_citations]
                 
                 page_key = f"{settings.redis.SEARCH_RESULTS_PREFIX}{results_id}:page:{page + 1}"
-                store_tasks.append(
-                    self.redis.set(
-                        page_key,
-                        page_data,
-                        ttl=settings.redis.SEARCH_RESULTS_TTL
+                try:
+                    await self._safe_redis_set(
+                        page_key, 
+                        page_data, 
+                        settings.redis.SEARCH_RESULTS_TTL
                     )
-                )
-                
-                # Log first citation of each page
-                logger.debug(
-                    f"Preparing page {page + 1} ({len(page_citations)} citations): "
-                    f"first citation ID={page_citations[0].sentence.id}"
-                )
-            
-            # Store all pages concurrently
-            if store_tasks:
-                await asyncio.gather(*store_tasks)
+                    successful_page_storage += 1
+                except Exception as page_store_error:
+                    logger.error(
+                        f"Failed to store page {page + 1}: {str(page_store_error)}"
+                    )
             
             logger.info(
                 f"Formatted and stored {len(all_citations)} citations "
                 f"with ID {results_id} in {total_pages} pages "
-                f"(total {original_total_rows} results)"
+                f"(Stored {successful_page_storage}/{total_pages} pages)"
             )
             
             # Return results ID and first page of results
@@ -155,6 +157,41 @@ class CitationService:
         except Exception as e:
             logger.error(f"Comprehensive error formatting citations: {str(e)}", exc_info=True)
             raise
+
+    async def _safe_redis_set(
+        self, 
+        key: str, 
+        value: Any, 
+        ttl: int, 
+        max_retries: int = 3
+    ) -> bool:
+        """
+        Safely set a Redis key with retry mechanism and detailed error handling.
+        
+        Args:
+            key: Redis key to set
+            value: Value to store
+            ttl: Time to live for the key
+            max_retries: Maximum number of retry attempts
+        
+        Returns:
+            Boolean indicating successful storage
+        """
+        for attempt in range(max_retries):
+            try:
+                await self.redis.set(key, value, ttl=ttl)
+                return True
+            except Exception as e:
+                logger.warning(
+                    f"Redis set attempt {attempt + 1} failed for key {key}: {str(e)}"
+                )
+                if attempt == max_retries - 1:
+                    logger.error(f"Failed to set Redis key {key} after {max_retries} attempts")
+                    raise
+                # Exponential backoff with jitter
+                await asyncio.sleep(2 ** attempt * (1 + random.random()))
+        
+        return False
 
     async def get_paginated_results(self, results_id: str, page: int = 1, page_size: int = 10) -> List[Citation]:
         """Get a page of results from Redis."""

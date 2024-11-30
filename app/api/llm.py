@@ -2,7 +2,7 @@
 API routes for LLM operations.
 """
 
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Union
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
@@ -40,7 +40,7 @@ class QueryResponse(BaseModel):
     results: List[Citation]  # First page of results
     results_id: str  # ID for fetching more results
     total_results: int  # Total number of results available
-    usage: Dict[str, int]
+    usage: Dict[str, Union[int, float]]  # Allow both int and float values
     model: str
     raw_response: Optional[Dict[str, Any]]
     error: Optional[str] = None
@@ -127,25 +127,21 @@ async def generate_query(
     """Generate and execute a SQL query from a natural language question."""
     try:
         # Generate and execute query
-        sql_query, results_id, first_page = await llm_service.generate_and_execute_query(
+        query_result = await llm_service.generate_and_execute_query(
             question=data.question,
             max_tokens=data.max_tokens
         )
         
-        # Retrieve total results from metadata
-        meta_key = f"{settings.redis.SEARCH_RESULTS_PREFIX}{results_id}:meta"
-        meta = await citation_service.redis.get(meta_key)
-        total_results = meta.get("total_results", len(first_page))
-        
+        # Use the dictionary returned by generate_and_execute_query
         return {
-            "sql": sql_query,
-            "results": first_page,
-            "results_id": results_id,
-            "total_results": total_results,  # Use total results from metadata
-            "usage": {},
-            "model": "",
-            "raw_response": None,
-            "error": None
+            "sql": query_result.get("sql", ""),
+            "results": query_result.get("results", []),
+            "results_id": query_result.get("results_id", ""),
+            "total_results": query_result.get("total_results", 0),
+            "usage": query_result.get("usage", {}),
+            "model": query_result.get("model", ""),
+            "raw_response": query_result.get("raw_response", None),
+            "error": query_result.get("error", None)
         }
     except LLMServiceError as e:
         error_msg = str(e.detail) if hasattr(e, 'detail') else str(e)
@@ -212,7 +208,8 @@ async def get_results_page(
 @router.post("/generate-precise-query", response_model=QueryResponse)
 async def generate_precise_query(
     data: PreciseQueryRequest,
-    llm_service: LLMServiceDep
+    llm_service: LLMServiceDep,
+    citation_service: CitationServiceDep
 ) -> Dict:
     """Generate and execute a precise SQL query based on specific parameters."""
     try:
@@ -257,20 +254,29 @@ async def generate_precise_query(
             """
 
         # Generate and execute query
-        sql_query, results_id, first_page = await llm_service.generate_and_execute_query(
+        query_result = await llm_service.generate_and_execute_query(
             question=question,
             max_tokens=data.max_tokens
         )
         
+        # Retrieve total results from metadata
+        results_id = query_result.get("results_id", "")
+        if results_id:
+            meta_key = f"{settings.redis.SEARCH_RESULTS_PREFIX}{results_id}:meta"
+            meta = await citation_service.redis.get(meta_key)
+            total_results = meta.get("total_results", len(query_result.get("results", [])))
+        else:
+            total_results = len(query_result.get("results", []))
+        
         return {
-            "sql": sql_query,
-            "results": first_page,
+            "sql": query_result.get("sql", ""),
+            "results": query_result.get("results", []),
             "results_id": results_id,
-            "total_results": len(first_page),
-            "usage": {},
-            "model": "",
-            "raw_response": None,
-            "error": None
+            "total_results": total_results,
+            "usage": query_result.get("usage", {}),
+            "model": query_result.get("model", ""),
+            "raw_response": query_result.get("raw_response", None),
+            "error": query_result.get("error", None)
         }
     except (LLMServiceError, ValueError) as e:
         error_msg = str(e.detail) if hasattr(e, 'detail') else str(e)
