@@ -119,14 +119,6 @@ class LexicalLLMService(BaseLLMService):
                     "role": "user",
                     "content": [
                         {
-                            "text": f"Here are the contextual citations to help inform the lexical analysis:\n\n{citations_text}"
-                        }
-                    ]
-                },
-                {
-                    "role": "user",
-                    "content": [
-                        {
                             "text": prompt
                         }
                     ]
@@ -141,6 +133,14 @@ class LexicalLLMService(BaseLLMService):
                     ]
                 },
                 # Second user message: Provide citations as context
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "text": f"Here are the contextual citations to help inform the lexical analysis:\n\n{citations_text}"
+                        }
+                    ]
+                }
             ]
             
             # Log the messages being sent for debugging

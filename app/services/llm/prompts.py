@@ -2,7 +2,7 @@
 LLM prompt templates for SQL query generation.
 """
 
-# Base query template with schema definition
+# Base query template with improved schema definition and joining
 QUERY_TEMPLATE = """
 You are an AI that generates SQL queries for a PostgreSQL database containing ancient texts with NLP annotations, metadata, and structured text information. The database schema is as follows:
 
@@ -44,20 +44,24 @@ You are an AI that generates SQL queries for a PostgreSQL database containing an
   - `id`: Unique identifier for the author.
   - `name`: Name of the author.
 
-### Query Instructions:
-1. **`spacy_data` JSON**: `spacy_data` holds a `tokens` array, each token a JSON object with:
+### Query Generation Guidelines:
+1. Always join `sentences` with `sentence_text_lines`, `text_lines`, `text_divisions`, `texts`, and `authors`.
+2. Use explicit joins: `JOIN texts t ON td.text_id = t.id` and `JOIN authors a ON t.author_id = a.id`
+3. Handle cases where `author_name` might be empty by using `COALESCE(td.author_name, a.name)`
+4. Support flexible text and author matching using `ILIKE` with wildcards
+5. Implement robust JSONB array element filtering
+6. **`spacy_data` JSON**: `spacy_data` holds a `tokens` array, each token a JSON object with:
    - `text` (original token),
    - `lemma` (base form),
    - `pos` (part of speech),
    - `category` (semantic category).
    
    Queries should support filtering on multiple fields in `spacy_data` (e.g., category and part of speech) using `jsonb_array_elements`. Filter tokens to meet all specified criteria (e.g., `category` = "Topography" and/or `pos` = "NOUN").
+7. **Text content matching**: Use case-insensitive matches with wildcards (`ILIKE '%' || :param || '%'`) for flexible text matching in author and category fields.
 
-2. **Text content matching**: Use case-insensitive matches with wildcards (`ILIKE '%' || :param || '%'`) for flexible text matching in author and category fields.
+8. **General structure**: Use a `WITH` clause for the main query logic, joining necessary tables as shown, and ordering results by citation. Return fields like `sentence_id`, `sentence_text`, `sentence_tokens`, and citation details.
 
-3. **General structure**: Use a `WITH` clause for the main query logic, joining necessary tables as shown, and ordering results by citation. Return fields like `sentence_id`, `sentence_text`, `sentence_tokens`, and citation details.
-
-### SQL Query Template:
+### SQL Query Structure Template:
 WITH sentence_matches AS (
     SELECT DISTINCT ON (s.id)
         s.id as sentence_id,
@@ -65,14 +69,12 @@ WITH sentence_matches AS (
         s.spacy_data->'tokens' as sentence_tokens,
         array_agg(tl.line_number ORDER BY tl.line_number) as line_numbers,
         td.id as division_id,
-        -- Source fields
         COALESCE(td.author_name, a.name) as author_name,
         COALESCE(td.work_name, t.title) as work_name,
         td.author_id_field,
         td.work_number_field,
         td.work_abbreviation_field,
         td.author_abbreviation_field,
-        -- Location fields
         td.epistle,
         td.fragment,
         td.volume,
@@ -80,7 +82,6 @@ WITH sentence_matches AS (
         td.chapter,
         td.section,
         td.page,
-        -- Context
         LAG(s.content) OVER (
             PARTITION BY td.id 
             ORDER BY MIN(tl.line_number)
@@ -95,13 +96,22 @@ WITH sentence_matches AS (
     JOIN text_lines tl ON stl.text_line_id = tl.id
     JOIN text_divisions td ON tl.division_id = td.id
     JOIN texts t ON td.text_id = t.id
-    LEFT JOIN authors a ON t.author_id = a.id
-    WHERE EXISTS (
-        SELECT 1
-        FROM jsonb_array_elements(s.spacy_data::jsonb->'tokens') AS token
-        WHERE token->>'category' ILIKE '%Topography%'
-        AND token->>'pos' = '%NOUN%'
-    )
+    JOIN authors a ON t.author_id = a.id
+    WHERE 
+        EXISTS (
+            SELECT 1
+            FROM jsonb_array_elements(s.spacy_data::jsonb->'tokens') AS token
+            WHERE token->>'lemma' = :lemma_pattern
+        )
+        AND EXISTS (
+            SELECT 1
+            FROM jsonb_array_elements(s.spacy_data::jsonb->'tokens') AS token
+            WHERE token->>'category' ILIKE '%Topography%'
+        )
+        AND (
+            a.name ILIKE :author_pattern 
+            OR td.author_name ILIKE :author_pattern
+        )
     GROUP BY 
         s.id, s.content,
         td.id, td.author_name, td.work_name,
