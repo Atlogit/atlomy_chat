@@ -2,19 +2,33 @@
 LLM service for lexical value generation.
 """
 
-from typing import Dict, Any, Optional, AsyncGenerator, Union, List
+from typing import Dict, Any, Optional, AsyncGenerator, Union, List, Tuple
 import json
 import logging
 import re
 
 from app.services.llm.base_service import BaseLLMService, LLMServiceError
+from app.services.llm.base import LLMResponse
 from app.services.llm.lexical_prompts import LEXICAL_VALUE_TEMPLATE
+from app.services.citation_service import CitationService
+from app.models.citations import Citation
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
 class LexicalLLMService(BaseLLMService):
     """Service for lexical value generation using LLM."""
+
+    def __init__(self, client, citation_service: CitationService):
+        """
+        Initialize LexicalLLMService.
+        
+        Args:
+            client: LLM client
+            citation_service: Service for handling citations
+        """
+        super().__init__(client)
+        self.citation_service = citation_service
 
     def _sanitize_json_string(self, text: str) -> str:
         """Sanitize and fix common JSON formatting issues."""
@@ -33,50 +47,118 @@ class LexicalLLMService(BaseLLMService):
         
         return text
 
+    def _format_citations(self, citations: List[Union[Citation, Dict[str, Any]]]) -> str:
+        """
+        Format citations as text, preserving the original citation format.
+        
+        Args:
+            citations: List of Citation objects or dictionaries
+            
+        Returns:
+            Formatted citations text
+        """
+        if not citations:
+            logger.warning("No citations provided for formatting")
+            return "No citations available."
+
+        formatted_citations = []
+        for citation in citations:
+            try:
+                if isinstance(citation, Citation):
+                    # Use Citation object's attributes
+                    citation_text = f"{citation.citation}: {citation.sentence.text}"
+                elif isinstance(citation, dict):
+                    # Use dictionary keys
+                    citation_text = f"{citation.get('citation', '')}: {citation.get('sentence', {}).get('text', '')}"
+                else:
+                    logger.warning(f"Unexpected citation type: {type(citation)}")
+                    continue
+                
+                formatted_citations.append(citation_text)
+            except Exception as e:
+                logger.warning(f"Error formatting citation: {str(e)}")
+        
+        return "\n".join(formatted_citations) if formatted_citations else "No valid citations."
+
     async def create_lexical_value(
         self,
         word: str,
-        citations: List[Dict[str, Any]],
+        citations: List[Union[Citation, Dict[str, Any]]],
         max_tokens: Optional[int] = None,
         stream: bool = False
-    ) -> Union[Dict[str, Any], AsyncGenerator[str, None]]:
+    ) -> Union[Tuple[Dict[str, Any], Dict[str, int]], AsyncGenerator[str, None]]:
         """Generate a lexical value analysis for a word/lemma."""
         try:
             logger.info(f"Creating lexical value for word: {word}")
             logger.debug(f"Number of citations: {len(citations)}")
-            logger.debug(f"Raw citations: {citations}")
             
-            # Format citations with both reference and text
-            citations_text = "\n".join(
-                f"{citation.citation}: {citation.sentence.text}"  # Include both citation and its text
-                for citation in citations
-            )
+            # Validate input word
+            if not word or not isinstance(word, str):
+                raise ValueError(f"Invalid word input: {word}")
             
-            logger.debug(f"Formatted citations text:\n{citations_text}")
+            # Format citations as text
+            citations_text = self._format_citations(citations)
             
-            # Format the prompt using template from prompts.py
-            prompt = LEXICAL_VALUE_TEMPLATE.format(
-                word=word,
-                citations=citations_text
-            )
+            # Prepare template JSON for assistant message
+            template_json = json.dumps({
+                "lemma": word,
+                "translation": "Placeholder translation",
+                "short_description": "Placeholder short description",
+                "long_description": "Placeholder long description with\\n line breaks",
+                "related_terms": ["placeholder_term1", "placeholder_term2"],
+                "citations_used": ["Placeholder citation 1"]
+            }, indent=2)
             
-            logger.debug(f"Complete prompt:\n{prompt}")
+            # Prepare messages for Converse API
+            messages = [
+                # First message: Introduce the task and word
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "text": f"follow your system prompt instructions for the word '{word}'. "
+                        }
+                    ]
+                },
+                # Assistant response with template JSON
+                {
+                    "role": "assistant",
+                    "content": [
+                        {
+                            "text": f"I'll help you create a lexical entry for '{word}' using the specified JSON format:\n\n{template_json}"
+                        }
+                    ]
+                },
+                # Second user message: Provide citations as context
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "text": f"Here are the contextual citations to help inform the lexical analysis:\n\n{citations_text}"
+                        }
+                    ]
+                }
+            ]
+            
+            # Log the messages being sent for debugging
+            logger.debug(f"Prepared messages:\n{json.dumps(messages, indent=2)}")
             
             # Get response from LLM
             if stream:
                 return self.client.stream_generate(
-                    prompt=prompt,
+                    messages=messages,
+                    system_prompt=LEXICAL_VALUE_TEMPLATE.format(word=word),
                     max_tokens=max_tokens
                 )
             
-            response = await self.client.generate(
-                prompt=prompt,
+            response: LLMResponse = await self.client.generate(
+                messages=messages,
+                system_prompt=LEXICAL_VALUE_TEMPLATE.format(word=word),
                 max_tokens=max_tokens
             )
             
             logger.debug(f"Raw LLM response:\n{response.text}")
-            
-            # Parse and validate the JSON response
+                        
             try:
                 # First try parsing the raw response
                 try:
@@ -131,7 +213,8 @@ class LexicalLLMService(BaseLLMService):
                         result[field] = [str(result[field])]
                     result[field] = [str(item) for item in result[field]]
                 
-                return result
+                # Return result with token usage directly from response
+                return result, response.usage
                 
             except json.JSONDecodeError as e:
                 logger.error(f"Failed to parse JSON from LLM response: {str(e)}")

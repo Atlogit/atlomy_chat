@@ -3,7 +3,7 @@ Service layer for managing lexical values.
 Handles creation, retrieval, and management of lexical entries.
 """
 
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Dict, Any, Optional, List, Tuple, Union
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text, func
 import logging
@@ -17,6 +17,7 @@ from app.models.text_division import TextDivision
 from app.models.text_line import TextLine
 from app.models.sentence import Sentence, sentence_text_lines
 from app.services.llm.lexical_service import LexicalLLMService
+from app.services.llm.bedrock import BedrockClient
 from app.services.citation_service import CitationService
 from app.services.json_storage_service import JSONStorageService
 from app.core.redis import redis_client
@@ -34,8 +35,19 @@ class LexicalService:
     def __init__(self, session: AsyncSession):
         """Initialize the lexical service."""
         self.session = session
-        self.lexical_llm = LexicalLLMService(session)
+        
+        # Initialize Bedrock client
+        self.bedrock_client = BedrockClient()
+        
+        # Initialize Citation Service
         self.citation_service = CitationService(session)
+        
+        # Initialize Lexical LLM Service with both client and citation service
+        self.lexical_llm = LexicalLLMService(
+            client=self.bedrock_client, 
+            citation_service=self.citation_service
+        )
+        
         self.json_storage = JSONStorageService()
         self.cache_ttl = 3600  # 1 hour cache TTL
         self.redis = redis_client
@@ -166,7 +178,7 @@ class LexicalService:
             raise ValueError(f"Failed to get citations: {str(e)}")
 
     async def get_lexical_value(self, lemma: str, version: Optional[str] = None) -> Optional[LexicalValue]:
-        """Get a lexical value with improved connection management and logging."""
+        """Get a lexical value by its lemma with linked citations, handling multiple entries."""
         try:
             # Try cache first
             cached = await self._get_cached_value(lemma, version)
@@ -184,34 +196,37 @@ class LexicalService:
                 return None
 
             # Query database for current version using a new session
-            async with AsyncSession(self.session.bind, expire_on_commit=False) as db_session:
-                try:
-                    query = (
-                        select(LexicalValue)
-                        .where(LexicalValue.lemma == lemma)
-                        .join(Sentence, Sentence.id == LexicalValue.sentence_id, isouter=True)
-                        .join(sentence_text_lines, sentence_text_lines.c.sentence_id == Sentence.id, isouter=True)
-                        .join(TextLine, TextLine.id == sentence_text_lines.c.text_line_id, isouter=True)
-                    )
-                    result = await db_session.execute(query)
-                    entry = result.scalar_one_or_none()
-                    
-                    if entry:
-                        # Cache and store in JSON for future requests
-                        entry_dict = entry.to_dict()
-                        await self._cache_value(lemma, entry_dict)
-                        self.json_storage.save(lemma, entry_dict)
-                        
-                    return entry
+            async with AsyncSession(self.session.bind) as db_session:
+                query = (
+                    select(LexicalValue)
+                    .where(LexicalValue.lemma == lemma)
+                    .join(Sentence, Sentence.id == LexicalValue.sentence_id, isouter=True)
+                    .join(sentence_text_lines, sentence_text_lines.c.sentence_id == Sentence.id, isouter=True)
+                    .join(TextLine, TextLine.id == sentence_text_lines.c.text_line_id, isouter=True)
+                    .order_by(LexicalValue.id.desc())  # Order by most recent first
+                )
+                result = await db_session.execute(query)
+                entries = result.scalars().all()
                 
-                except Exception as query_error:
-                    logger.error(f"Database query error for {lemma}: {query_error}", exc_info=True)
-                    raise
+                if not entries:
+                    return None
+                
+                if len(entries) > 1:
+                    logger.warning(f"Multiple lexical entries found for lemma: {lemma}. Selecting the most recent entry.")
+                
+                # Select the first (most recent) entry
+                entry = entries[0]
+                
+                # Cache and store in JSON for future requests
+                entry_dict = entry.to_dict()
+                await self._cache_value(lemma, entry_dict)
+                self.json_storage.save(lemma, entry_dict)
+                
+                return entry
             
         except Exception as e:
-            logger.error(f"Comprehensive error getting lexical value for {lemma}: {str(e)}", exc_info=True)
+            logger.error(f"Error getting lexical value for {lemma}: {str(e)}", exc_info=True)
             raise
-
     async def create_lexical_entry(
         self,
         lemma: str,
@@ -248,10 +263,16 @@ class LexicalService:
             
             # Generate lexical value using LLM
             logger.info(f"Generating lexical value using LLM for {lemma}")
-            analysis = await self.lexical_llm.create_lexical_value(
+            analysis_result = await self.lexical_llm.create_lexical_value(
                 word=lemma,
                 citations=citations
             )
+            
+            # Extract dictionary from tuple if needed
+            if isinstance(analysis_result, tuple):
+                analysis = analysis_result[0]
+            else:
+                analysis = analysis_result
             
             # Validate the analysis data
             logger.info(f"Validating analysis data for {lemma}")
@@ -311,57 +332,32 @@ class LexicalService:
             logger.error(f"Error creating lexical value for {lemma}: {str(e)}", exc_info=True)
             raise
 
-    def _validate_lexical_value(self, data: Dict[str, Any]):
-        """Validate lexical value data has all required fields."""
+    def _validate_lexical_value(self, data: Union[Dict[str, Any], Tuple[Dict[str, Any], Dict[str, int]]]):
+        """
+        Validate lexical value data has all required fields.
+        
+        Handles both direct dictionary input and tuple input from LLM service.
+        """
+        # If input is a tuple, extract the first item (dictionary)
+        if isinstance(data, tuple):
+            data = data[0]
+        
+        # Validate input is a dictionary
+        if not isinstance(data, dict):
+            logger.error(f"Invalid input type for lexical value validation: {type(data)}")
+            raise ValueError("Input must be a dictionary or a tuple containing a dictionary")
+        
+        # Define required fields
         required_fields = ['lemma', 'translation', 'short_description', 
                          'long_description', 'related_terms', 'citations_used']
+        
+        # Check for missing fields
         missing_fields = [field for field in required_fields if field not in data]
         
         if missing_fields:
             logger.error(f"Missing required fields in lexical value data: {missing_fields}")
             raise ValueError(f"Missing required fields: {', '.join(missing_fields)}")
 
-    async def get_lexical_value(self, lemma: str, version: Optional[str] = None) -> Optional[LexicalValue]:
-        """Get a lexical value by its lemma with linked citations."""
-        try:
-            # Try cache first
-            cached = await self._get_cached_value(lemma, version)
-            if cached:
-                return LexicalValue.from_dict(cached)
-
-            # Try JSON storage with version
-            json_data = self.json_storage.load(lemma, version)
-            if json_data:
-                await self._cache_value(lemma, json_data, version)
-                return LexicalValue.from_dict(json_data)
-
-            # If version was requested but not found, return None
-            if version:
-                return None
-
-            # Query database for current version using a new session
-            async with AsyncSession(self.session.bind) as db_session:
-                query = (
-                    select(LexicalValue)
-                    .where(LexicalValue.lemma == lemma)
-                    .join(Sentence, Sentence.id == LexicalValue.sentence_id, isouter=True)
-                    .join(sentence_text_lines, sentence_text_lines.c.sentence_id == Sentence.id, isouter=True)
-                    .join(TextLine, TextLine.id == sentence_text_lines.c.text_line_id, isouter=True)
-                )
-                result = await db_session.execute(query)
-                entry = result.scalar_one_or_none()
-                
-                if entry:
-                    # Cache and store in JSON for future requests
-                    entry_dict = entry.to_dict()
-                    await self._cache_value(lemma, entry_dict)
-                    self.json_storage.save(lemma, entry_dict)
-                    
-                return entry
-            
-        except Exception as e:
-            logger.error(f"Error getting lexical value for {lemma}: {str(e)}", exc_info=True)
-            raise
 
     async def update_lexical_value(
         self,

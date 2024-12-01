@@ -5,7 +5,7 @@ AWS Bedrock implementation of the LLM client interface.
 import json
 import asyncio
 import logging
-from typing import Dict, Any, Optional, AsyncGenerator
+from typing import Dict, Any, Optional, AsyncGenerator, List, Union
 import boto3
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
@@ -123,89 +123,104 @@ class BedrockClient(BaseLLMClient):
                 }
             )
 
-    def _prepare_request(
-        self,
-        prompt: str,
+    def _prepare_converse_payload(
+        self, 
+        messages: Optional[List[Dict[str, Any]]] = None,
+        content: Optional[List[Dict[str, Any]]] = None,
+        prompt: Optional[str] = None,
+        system_prompt: Optional[str] = None,
         max_tokens: Optional[int] = None,
         temperature: Optional[float] = None,
-        stream: bool = False,
         **kwargs
     ) -> Dict[str, Any]:
-        """Prepare the request body for Bedrock API."""
-        try:
-            logger.debug(f"Preparing request - max_tokens: {max_tokens}, temperature: {temperature}, stream: {stream}")
-            logger.debug(f"Using model ID: {self.model_id}")
-            
-            # Default to config values if not provided
-            max_tokens = max_tokens or settings.llm.MAX_TOKENS
-            temperature = temperature or settings.llm.TEMPERATURE
-            
-            # Format for Claude models
-            request = {
-                "anthropic_version": "bedrock-2023-05-31",
-                "max_tokens": max_tokens,
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": prompt
-                            }
-                        ]
-                    }
-                ],
+        """Prepare payload for Converse API."""
+        # Default to config values if not provided
+        max_tokens = max_tokens or settings.llm.MAX_TOKENS
+        temperature = temperature or settings.llm.TEMPERATURE
+
+        # Prepare payload
+        payload = {
+            "modelId": self.model_id,
+            "messages": [],
+            "inferenceConfig": {
+                "maxTokens": max_tokens,
                 "temperature": temperature,
-                "top_p": kwargs.get('top_p', settings.llm.TOP_P),
-                "stop_sequences": kwargs.get('stop_sequences', ["\n\nHuman:"])
+                "topP": kwargs.get('top_p', settings.llm.TOP_P)
             }
-            
-            if stream:
-                request['stream'] = True
-            
-            logger.debug(f"Prepared request body: {json.dumps(request, indent=2)}")
-            return request
-            
-        except Exception as e:
-            logger.error(f"Error preparing request: {str(e)}", exc_info=True)
-            raise BedrockClientError(
-                "Failed to prepare request",
+        }
+
+        # Add system prompt if provided
+        if system_prompt:
+            payload["system"] = [{"text": system_prompt}]
+
+        # Prepare messages
+        if messages:
+            # Use provided messages directly
+            payload["messages"] = messages
+        elif content:
+            # Create a user message from content
+            payload["messages"] = [
                 {
-                    "message": str(e),
-                    "error_type": "request_preparation_error",
-                    "service": "AWS Bedrock"
+                    "role": "user",
+                    "content": content
                 }
-            )
+            ]
+        elif prompt:
+            # Create a user message from prompt
+            payload["messages"] = [
+                {
+                    "role": "user",
+                    "content": [{"type": "text", "text": prompt}]
+                }
+            ]
+        else:
+            raise ValueError("Must provide either messages, content, or prompt")
+
+        # Add stop sequences
+        stop_sequences = kwargs.get('stop_sequences', ["\n\nHuman:"])
+        if stop_sequences:
+            payload["inferenceConfig"]["stopSequences"] = stop_sequences
+
+        return payload
 
     async def generate(
         self,
-        prompt: str,
+        prompt: Optional[str] = None,
         max_tokens: Optional[int] = None,
         temperature: Optional[float] = None,
         stream: bool = False,
+        content: Optional[List[Dict[str, Any]]] = None,
+        messages: Optional[List[Dict[str, Any]]] = None,
+        system_prompt: Optional[str] = None,
         **kwargs
     ) -> LLMResponse:
-        """Generate a response from AWS Bedrock."""
+        """Generate a response from AWS Bedrock with optional context."""
         try:
             logger.info("Generating response from AWS Bedrock")
-            logger.debug(f"Prompt length: {len(prompt)}")
             
-            request_body = self._prepare_request(
-                prompt,
-                max_tokens,
-                temperature,
-                stream=False,
+            # Prepare payload for Converse API
+            payload = self._prepare_converse_payload(
+                messages=messages,
+                content=content,
+                prompt=prompt,
+                system_prompt=system_prompt,
+                max_tokens=max_tokens,
+                temperature=temperature,
                 **kwargs
             )
+            
+            logger.debug(f"Full request payload: {json.dumps(payload, indent=2)}")
             
             # Run in executor to avoid blocking
             loop = asyncio.get_event_loop()
             try:
                 response = await loop.run_in_executor(
                     None,
-                    lambda: self.client.invoke_model(
-                        modelId=self.model_id,
-                        body=json.dumps(request_body)
+                    lambda: self.client.converse(
+                        modelId=payload["modelId"],
+                        messages=payload["messages"],
+                        system=payload.get("system"),
+                        inferenceConfig=payload.get("inferenceConfig")
                     )
                 )
             except ClientError as e:
@@ -223,11 +238,10 @@ class BedrockClient(BaseLLMClient):
                     }
                 )
             
-            response_body = json.loads(response['body'].read())
-            logger.debug(f"Raw response from Bedrock: {json.dumps(response_body, indent=2)}")
-            
-            # Extract completion from Claude response format
-            completion = response_body.get('content', [{}])[0].get('text', '')
+            # Extract response from Converse API format
+            output = response.get('output', {}).get('message', {})
+            completion_content = output.get('content', [{}])[0]
+            completion = completion_content.get('text', '')
             
             if not completion:
                 logger.warning("Empty completion received from Bedrock")
@@ -238,20 +252,31 @@ class BedrockClient(BaseLLMClient):
                         "error_type": "empty_response",
                         "service": "AWS Bedrock",
                         "model_id": self.model_id,
-                        "response_body": response_body
+                        "response": response
                     }
                 )
+            
+            # Extract token usage
+            usage = response.get('usage', {})
+            input_tokens = usage.get('inputTokens', 0)
+            output_tokens = usage.get('outputTokens', 0)
+            
+            # Log token usage details
+            logger.info(f"Token Usage:")
+            logger.info(f"  Input Tokens: {input_tokens}")
+            logger.info(f"  Output Tokens: {output_tokens}")
+            logger.info(f"  Total Tokens: {input_tokens + output_tokens}")
             
             logger.info(f"Successfully generated response (length: {len(completion)})")
             return LLMResponse(
                 text=completion,
                 usage={
-                    'prompt_tokens': response_body.get('usage', {}).get('input_tokens', 0),
-                    'completion_tokens': response_body.get('usage', {}).get('output_tokens', 0),
-                    'total_tokens': response_body.get('usage', {}).get('total_tokens', 0)
+                    'prompt_tokens': input_tokens,
+                    'completion_tokens': output_tokens,
+                    'total_tokens': input_tokens + output_tokens
                 },
                 model=self.model_id,
-                raw_response=response_body
+                raw_response=response
             )
             
         except BedrockClientError:
@@ -265,26 +290,32 @@ class BedrockClient(BaseLLMClient):
                     "error_type": "generation_error",
                     "service": "AWS Bedrock",
                     "model_id": self.model_id,
-                    "prompt_length": len(prompt)
+                    "prompt_length": len(prompt) if prompt else 0
                 }
             )
-
+            
     async def stream_generate(
         self,
-        prompt: str,
+        prompt: Optional[str] = None,
         max_tokens: Optional[int] = None,
         temperature: Optional[float] = None,
+        content: Optional[List[Dict[str, Any]]] = None,
+        messages: Optional[List[Dict[str, Any]]] = None,
+        system_prompt: Optional[str] = None,
         **kwargs
     ) -> AsyncGenerator[str, None]:
         """Stream a response from AWS Bedrock."""
         try:
             logger.info("Starting streaming response from AWS Bedrock")
             
-            request_body = self._prepare_request(
-                prompt,
-                max_tokens,
-                temperature,
-                stream=True,
+            # Prepare payload for Converse API
+            payload = self._prepare_converse_payload(
+                messages=messages,
+                content=content,
+                prompt=prompt,
+                system_prompt=system_prompt,
+                max_tokens=max_tokens,
+                temperature=temperature,
                 **kwargs
             )
             
@@ -293,9 +324,11 @@ class BedrockClient(BaseLLMClient):
             try:
                 response = await loop.run_in_executor(
                     None,
-                    lambda: self.client.invoke_model_with_response_stream(
-                        modelId=self.model_id,
-                        body=json.dumps(request_body)
+                    lambda: self.client.converse_stream(
+                        modelId=payload["modelId"],
+                        messages=payload["messages"],
+                        system=payload.get("system"),
+                        inferenceConfig=payload.get("inferenceConfig")
                     )
                 )
             except ClientError as e:
@@ -313,10 +346,12 @@ class BedrockClient(BaseLLMClient):
                     }
                 )
             
-            async for chunk in response['body']:
-                chunk_data = json.loads(chunk['chunk']['bytes'])
-                if 'content' in chunk_data:
-                    yield chunk_data['content'][0]['text']
+            # Stream the response
+            for chunk in response['stream']:
+                if 'contentBlockDelta' in chunk:
+                    delta = chunk['contentBlockDelta']
+                    if 'text' in delta:
+                        yield delta['text']
                     
             logger.info("Completed streaming response")
             
@@ -331,7 +366,7 @@ class BedrockClient(BaseLLMClient):
                     "error_type": "stream_error",
                     "service": "AWS Bedrock",
                     "model_id": self.model_id,
-                    "prompt_length": len(prompt)
+                    "prompt_length": len(prompt) if prompt else 0
                 }
             )
 
@@ -341,8 +376,8 @@ class BedrockClient(BaseLLMClient):
             logger.info("Counting tokens")
             logger.debug(f"Text length: {len(text)}")
             
-            # For Claude models, we can use a special prompt to get token count
-            request_body = self._prepare_request(
+            # Prepare payload for token counting
+            payload = self._prepare_converse_payload(
                 prompt=text,
                 max_tokens=0,  # We don't need any completion
                 temperature=0
@@ -352,9 +387,10 @@ class BedrockClient(BaseLLMClient):
             try:
                 response = await loop.run_in_executor(
                     None,
-                    lambda: self.client.invoke_model(
-                        modelId=self.model_id,
-                        body=json.dumps(request_body)
+                    lambda: self.client.converse(
+                        modelId=payload["modelId"],
+                        messages=payload["messages"],
+                        inferenceConfig=payload.get("inferenceConfig")
                     )
                 )
             except ClientError as e:
@@ -372,8 +408,9 @@ class BedrockClient(BaseLLMClient):
                     }
                 )
             
-            response_body = json.loads(response['body'].read())
-            token_count = response_body.get('usage', {}).get('input_tokens', 0)
+            # Extract token count from usage
+            usage = response.get('usage', {})
+            token_count = usage.get('inputTokens', 0)
             
             logger.info(f"Token count: {token_count}")
             return token_count
