@@ -17,25 +17,39 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class JSONStorageService:
-    """Service for managing JSON storage of lexical values with EC2 support."""
+    """Service for managing JSON storage of lexical values with flexible path support."""
     
     def __init__(self, base_dir: Optional[str] = None):
         """Initialize the JSON storage service.
         
         Args:
             base_dir: Base directory for JSON storage. 
-                      If None, uses environment variable or default.
+                      If None, uses environment variable or default project structure.
         """
-        # Prioritize input base_dir, then environment variable, then default
+        # Prioritize input base_dir, then environment variable, then default project paths
         if base_dir is None:
-            base_dir = os.environ.get(
-                'JSON_STORAGE_BASE_DIR', 
-                "/mnt/data/lexical_values"  # EC2-friendly default path
-            )
+            # Check environment variables first
+            base_dir = os.environ.get('JSON_STORAGE_BASE_DIR')
+            
+            # If no env var, use project-relative paths
+            if not base_dir:
+                # Determine the project root
+                project_root = Path(__file__).resolve().parents[2]
+                
+                # Prefer lexical_values in project root, fallback to amta/lexical_values
+                potential_paths = [
+                    project_root / 'lexical_values',
+                    project_root / 'amta' / 'lexical_values',
+                    Path.home() / 'amta' / 'lexical_values'
+                ]
+                
+                # Use the first existing path, or create the first preferred path
+                base_dir = next((str(p) for p in potential_paths if p.exists()), str(potential_paths[0]))
         
         self.base_dir = Path(base_dir)
         self._ensure_directory_structure()
 
+    # Rest of the class remains the same as in the previous implementation
     def _ensure_directory_structure(self):
         """Ensure the required directory structure exists with comprehensive logging."""
         try:
@@ -60,6 +74,9 @@ class JSONStorageService:
             logger.error(f"Failed to create directory structure: {e}")
             raise
 
+    # Remaining methods from the previous implementation stay the same
+    # (load, save, list_versions, delete, get_storage_info methods)
+    
     def _get_file_path(self, lemma: str, version: Optional[str] = None) -> Path:
         """Get the file path for a lexical value.
         
