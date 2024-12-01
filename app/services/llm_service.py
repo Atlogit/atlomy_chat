@@ -22,7 +22,7 @@ class LLMService:
         """Initialize the LLM service components."""
         self.session = session
         self.citation_service = CitationService(session)
-        self.lexical_service = LexicalLLMService(session)
+        self.lexical_service = LexicalLLMService(session, self.citation_service)
         self.query_service = QueryLLMService(session, self.citation_service)
         self.analysis_service = AnalysisLLMService(session)
         logger.info("Initialized LLM service components")
