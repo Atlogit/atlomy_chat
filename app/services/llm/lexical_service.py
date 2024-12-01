@@ -96,6 +96,8 @@ class LexicalLLMService(BaseLLMService):
             if not word or not isinstance(word, str):
                 raise ValueError(f"Invalid word input: {word}")
             
+            prompt = LEXICAL_VALUE_TEMPLATE.format(word=word)
+            
             # Format citations as text
             citations_text = self._format_citations(citations)
             
@@ -106,8 +108,9 @@ class LexicalLLMService(BaseLLMService):
                 "short_description": "Placeholder short description",
                 "long_description": "Placeholder long description with\\n line breaks",
                 "related_terms": ["placeholder_term1", "placeholder_term2"],
-                "citations_used": ["Placeholder citation 1"]
+                "citations_used": ["Placeholder full citation 1, Placeholder full citation 2"]
             }, indent=2)
+            
             
             # Prepare messages for Converse API
             messages = [
@@ -116,7 +119,15 @@ class LexicalLLMService(BaseLLMService):
                     "role": "user",
                     "content": [
                         {
-                            "text": f"follow your system prompt instructions for the word '{word}'. "
+                            "text": f"Here are the contextual citations to help inform the lexical analysis:\n\n{citations_text}"
+                        }
+                    ]
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "text": prompt
                         }
                     ]
                 },
@@ -130,14 +141,6 @@ class LexicalLLMService(BaseLLMService):
                     ]
                 },
                 # Second user message: Provide citations as context
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "text": f"Here are the contextual citations to help inform the lexical analysis:\n\n{citations_text}"
-                        }
-                    ]
-                }
             ]
             
             # Log the messages being sent for debugging
@@ -147,13 +150,13 @@ class LexicalLLMService(BaseLLMService):
             if stream:
                 return self.client.stream_generate(
                     messages=messages,
-                    system_prompt=LEXICAL_VALUE_TEMPLATE.format(word=word),
+                    system_prompt=f'You are an AI assistant specializing in ancient Greek lexicography and philology. You will build a lexical value based on validated texts analysis on a PhD level. Analyze the following word or lemma and its usage in the provided citations.',
                     max_tokens=max_tokens
                 )
             
             response: LLMResponse = await self.client.generate(
                 messages=messages,
-                system_prompt=LEXICAL_VALUE_TEMPLATE.format(word=word),
+                system_prompt=f'You are an AI assistant specializing in ancient Greek lexicography and philology. You will build a lexical value based on validated texts analysis on a PhD level. Analyze the following word or lemma and its usage in the provided citations.',
                 max_tokens=max_tokens
             )
             

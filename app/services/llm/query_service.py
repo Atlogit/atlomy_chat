@@ -291,12 +291,20 @@ class QueryLLMService(BaseLLMService):
         self,
         question: str,
         max_tokens: Optional[int] = None
-    ) -> str:
+    ):
         """Generate a SQL query based on a natural language question."""
-        prompt = QUERY_TEMPLATE.format(question=question)
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"text": QUERY_TEMPLATE.format(question=question)}
+                ]
+            }
+        ]
         response = await self.client.generate(
-            prompt=prompt,
-            max_tokens=max_tokens
+            messages=messages,
+            max_tokens=max_tokens,
+            system_prompt="You are an expert SQL query generator. Generate precise and efficient SQL queries based on the given natural language question."
         )
         return response
 
@@ -304,12 +312,20 @@ class QueryLLMService(BaseLLMService):
         self,
         lemma: str,
         max_tokens: Optional[int] = None
-    ) -> str:
+    ):
         """Generate a SQL query for lemma search."""
-        prompt = LEMMA_QUERY_TEMPLATE.format(lemma=lemma)
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"text": LEMMA_QUERY_TEMPLATE.format(lemma=lemma)}
+                ]
+            }
+        ]
         response = await self.client.generate(
-            prompt=prompt,
-            max_tokens=max_tokens
+            messages=messages,
+            max_tokens=max_tokens,
+            system_prompt="You are an expert SQL query generator. Generate precise queries to search for lemmas in the database."
         )
         return response
 
@@ -317,14 +333,23 @@ class QueryLLMService(BaseLLMService):
         self,
         category: str,
         max_tokens: Optional[int] = None
-    ) -> str:
+    ):
         """Generate a SQL query for category search."""
-        prompt = CATEGORY_QUERY_TEMPLATE.format(category=category)
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"text": CATEGORY_QUERY_TEMPLATE.format(category=category)}
+                ]
+            }
+        ]
         response = await self.client.generate(
-            prompt=prompt,
-            max_tokens=max_tokens
+            messages=messages,
+            max_tokens=max_tokens,
+            system_prompt="You are an expert SQL query generator. Generate precise queries to search for categories in the database."
         )
         return response
+
 
     async def _analyze_no_results(self, question: str, sql_query: str) -> Dict[str, Any]:
         """

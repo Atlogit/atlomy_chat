@@ -2,7 +2,7 @@
 LLM service for text analysis.
 """
 
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Union, AsyncGenerator
 import logging
 
 from app.services.llm.base_service import BaseLLMService, LLMServiceError
@@ -18,8 +18,9 @@ class AnalysisLLMService(BaseLLMService):
         self,
         term: str,
         contexts: List[Dict[str, Any]],
-        max_tokens: Optional[int] = None
-    ) -> str:
+        max_tokens: Optional[int] = None,
+        stream: bool = False
+    ) -> Union[str, AsyncGenerator[str, None]]:
         """Generate an analysis for a term using provided contexts."""
         try:
             # Format contexts into a string
@@ -34,13 +35,41 @@ class AnalysisLLMService(BaseLLMService):
                 context_str=context_str
             )
             
+            # Prepare messages for Converse API
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "text": f"Contextual information for analysis:\n\n{context_str}"
+                        }
+                    ]
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "text": prompt
+                        }
+                    ]
+                }
+            ]
+            
             # Get response from LLM
+            if stream:
+                return self.client.stream_generate(
+                    messages=messages,
+                    system_prompt=f"You are an expert linguistic and contextual analyzer. Provide a comprehensive analysis of the term '{term}' based on the given contexts.",
+                    max_tokens=max_tokens
+                )
+            
             response = await self.client.generate(
-                prompt=prompt,
+                messages=messages,
+                system_prompt=f"You are an expert linguistic and contextual analyzer. Provide a comprehensive analysis of the term '{term}' based on the given contexts.",
                 max_tokens=max_tokens
             )
             
-            return response
+            return response.text
             
         except Exception as e:
             logger.error(f"Error analyzing term {term}: {str(e)}", exc_info=True)
