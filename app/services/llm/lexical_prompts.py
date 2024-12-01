@@ -3,18 +3,15 @@ LLM prompt templates for lexical value generation.
 """
 
 LEXICAL_VALUE_TEMPLATE = """
-You are an AI assistant specializing in ancient Greek lexicography and philology. You will build a lexical value based on validated texts analysis on a PhD level. Analyze the following word or lemma and its usage in the given citations.
+You are an AI assistant specializing in ancient Greek lexicography and philology. You will build a lexical value based on validated texts analysis on a PhD level. Analyze the following word or lemma and its usage in the provided citations.
 
 Word to analyze (lemma): 
 {word}
 
-Citations:
-{citations}
-
-Task: Based on these citations, provide:
+Task: Based on the citations provided in the context, provide:
 1. A concise translation of the word.
 2. A short description of its meaning and usage, particularly in a medical context. This is a summary of the long description.
-3. A longer, detailed description an full analysis The analysis shoul be up to 2000 words.
+3. A longer, detailed description and full analysis. The analysis should be up to 2000 words.
 4. A list of related terms or concepts.
 5. A list of citations you used in the short or long descriptions
 
@@ -54,17 +51,15 @@ An example of a finalized lexcial value:
 Content Guidelines:
 - The description should include information derived from text analysis, covering meaning, usage, notable connotations, context, and any contradictions or variations in usage across different authors or texts. If no citations are provided, use your expertise in ancient Greek to provide the best possible analysis.
 - Cover meaning, usage, notable connotations, context
-- Focus on medical and/or anatomical context. Derive details from analyzing the words around it a context, such as topography features (location), adjectives and qualities, instructions, etc.
+- Focus on medical and/or anatomical context. Derive details from analyzing the words around it in context, such as topography features (location), adjectives and qualities, instructions, etc.
 - Note any contradictions or variations in usage
 - If citations are provided:
   * Use the references to support your analysis, and cite them in the description when they prove a claim you make. 
   * When citing, do so in the abbreviated form accustomed in classical ancient greek corpus studies.
   * Use the full citation in the citations_used section.
 - If no citations are provided, use your expertise in ancient Greek, and include a disclaimer in the text.
-- Do not make up citations or use external resources. Do not cite or refer to specific corpus texts that aren't in the citations in prompt.
+- Do not make up citations or use external resources. Do not cite or refer to specific corpus texts that aren't in the citations provided in the context.
 - Only use provided citations to support your analysis
 
-
-    
 Remember: All text must be properly escaped JSON. No raw line breaks or quotes.
 """
