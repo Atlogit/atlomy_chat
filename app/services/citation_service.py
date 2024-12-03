@@ -293,12 +293,12 @@ class CitationService:
             # Create location
             location = CitationLocation(
                 epistle=row.get("epistle"),
+                fragment=row.get("fragment"),
                 volume=row.get("volume"),
                 book=row.get("book"),
                 chapter=row.get("chapter"),
                 section=row.get("section"),
                 page=row.get("page"),
-                fragment=row.get("fragment"),
                 line=line_value
             )
             
@@ -365,7 +365,7 @@ class CitationService:
                 citation = f"{author} {work}"
 
                 # Add location components in standard order
-                for field in ["epistle", "fragment", "volume", "book", "chapter", "page", "section"]:
+                for field in ["epistle", "fragment", "volume", "book", "chapter", "section", "page"]:
                     if row.get(field):
                         citation += f".{row[field]}"
 
@@ -392,8 +392,8 @@ class CitationService:
                     "volume": "Volume",
                     "book": "Book",
                     "chapter": "Chapter",
-                    "page": "Page",
-                    "section": "Section"
+                    "section": "Section",
+                    "page": "Page"
                 }
 
                 for field, label in field_labels.items():
@@ -404,7 +404,7 @@ class CitationService:
                 line_numbers = row.get('line_numbers', [])
                 if line_numbers:
                     if len(line_numbers) > 1:
-                        components.append(f"Line {line_numbers[0]}-{line_numbers[-1]}")
+                        components.append(f"Lines {line_numbers[0]}-{line_numbers[-1]}")
                     else:
                         components.append(f"Line {line_numbers[0]}")
 
