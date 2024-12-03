@@ -185,11 +185,17 @@ class LexicalService:
             # Try cache first
             cached = await self._get_cached_value(lemma, version)
             if cached:
+                # Enhanced logging for cached metadata
+                logger.debug(f"Cached Metadata for {lemma}: {json.dumps(cached.get('metadata', {}), indent=2)}")
                 return LexicalValue.from_dict(cached)
 
             # Try JSON storage with version
             json_data = self.json_storage.load(lemma, version)
             if json_data:
+                # Enhanced logging for loaded metadata
+                logger.debug(f"Loaded JSON Metadata for {lemma}: {json.dumps(json_data.get('metadata', {}), indent=2)}")
+                
+                # Ensure full metadata is preserved during caching
                 await self._cache_value(lemma, json_data, version)
                 return LexicalValue.from_dict(json_data)
 
@@ -219,13 +225,25 @@ class LexicalService:
                 # Select the first (most recent) entry
                 entry = entries[0]
                 
-                # Cache and store in JSON for future requests
+                # Convert to dictionary with enhanced metadata preservation
                 entry_dict = entry.to_dict()
+                
+                # Ensure metadata is fully populated
+                if 'metadata' not in entry_dict or not entry_dict['metadata']:
+                    entry_dict['metadata'] = {
+                        'version': '1.0',
+                        'llm_config': {}
+                    }
+                
+                # Cache and store in JSON for future requests
                 await self._cache_value(lemma, entry_dict)
                 self.json_storage.save(lemma, entry_dict)
                 
+                # Enhanced logging for database-retrieved metadata
+                logger.debug(f"Database Retrieved Metadata for {lemma}: {json.dumps(entry_dict.get('metadata', {}), indent=2)}")
+                
                 return entry
-            
+        
         except Exception as e:
             logger.error(f"Error getting lexical value for {lemma}: {str(e)}", exc_info=True)
             raise
@@ -557,4 +575,3 @@ class LexicalService:
         except Exception as e:
             logger.error(f"Error getting linked citations for {lemma}: {str(e)}", exc_info=True)
             raise
-

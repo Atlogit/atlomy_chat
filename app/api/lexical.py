@@ -54,7 +54,7 @@ class LexicalListSchema(BaseModel):
 async def list_models():
     """List available LLM models."""
     try:
-        logger.info("Listing available LLM models")
+        logger.debug("Listing available LLM models")
         client = BedrockClient()
         models = await client.list_models()
         
@@ -160,30 +160,57 @@ def format_entry_for_response(entry: Dict[str, Any]) -> Dict[str, Any]:
     if 'sentence_contexts' in formatted_entry:
         del formatted_entry['sentence_contexts']
 
-    # Preserve original metadata if it exists
+    # Robust metadata extraction and normalization
     original_metadata = formatted_entry.get('metadata', {})
     
-    # Ensure metadata is preserved and properly structured
-    if 'metadata' not in formatted_entry or not isinstance(formatted_entry['metadata'], dict):
-        formatted_entry['metadata'] = {
-            'version': original_metadata.get('version', '1.0'),
-            'llm_config': original_metadata.get('llm_config', {})
-        }
+    # Prioritize full metadata from original entry
+    extracted_metadata = {
+        'version': original_metadata.get('version', '1.0'),
+        'llm_config': {}
+    }
     
-    # Ensure llm_config exists in metadata with safe defaults
-    if 'llm_config' not in formatted_entry['metadata'] or not formatted_entry['metadata']['llm_config']:
-        formatted_entry['metadata']['llm_config'] = original_metadata.get('llm_config', {
-            "model_id": "",
-            "temperature": None,
-            "top_p": None,
-            "top_k": None,
-            "max_length": None,
-            "stop_sequences": []
-        })
+    # Directly use LLM configuration from metadata if available
+    llm_config = original_metadata.get('llm_config', {})
     
-    # Detailed logging for metadata transformation
-    logger.info(f"Original Metadata: {json.dumps(original_metadata, indent=2)}")
-    logger.info(f"Formatted Metadata: {json.dumps(formatted_entry['metadata'], indent=2)}")
+    # If no LLM config in metadata, try alternative sources
+    if not llm_config:
+        llm_config = (
+            original_metadata.get('parameters') or 
+            entry.get('parameters') or 
+            entry.get('llm_config') or 
+            {}
+        )
+    
+    # Preserve original keys and values
+    extracted_metadata['llm_config'] = {
+        'modelId': llm_config.get('modelId', llm_config.get('model_id', '')),
+        'temperature': llm_config.get('temperature'),
+        'topP': llm_config.get('topP', llm_config.get('top_p')),
+        'topK': llm_config.get('topK', llm_config.get('top_k')),
+        'maxLength': llm_config.get('maxLength', llm_config.get('max_length')),
+        'stopSequences': llm_config.get('stopSequences', llm_config.get('stop_sequences', []))
+    }
+    
+    # Provide safe defaults only for truly missing values
+    default_config = {
+        'modelId': '',
+        'temperature': None,
+        'topP': None,
+        'topK': None,
+        'maxLength': None,
+        'stopSequences': []
+    }
+    
+    for key, default_value in default_config.items():
+        if extracted_metadata['llm_config'][key] is None:
+            extracted_metadata['llm_config'][key] = default_value
+    
+    # Update the entry's metadata
+    formatted_entry['metadata'] = extracted_metadata
+    
+    # Enhanced logging for diagnostic purposes
+    logger.debug(f"Original Entry Metadata: {json.dumps(original_metadata, indent=2)}")
+    logger.debug(f"Extracted Metadata: {json.dumps(extracted_metadata, indent=2)}")
     
     return formatted_entry
 
@@ -377,9 +404,11 @@ async def get_lexical_versions(
                 metadata = version.get('metadata', version)  # Fallback to entire version if no metadata
                 logger.debug(f"Extracted Metadata: {json.dumps(metadata, indent=2)}")
                 
+                # Prioritize extracting LLM config from multiple possible locations
                 llm_config = (
                     metadata.get('llm_config') or 
                     metadata.get('parameters') or 
+                    version.get('parameters') or 
                     {}
                 )
                 logger.debug(f"Extracted LLM Config: {json.dumps(llm_config, indent=2)}")
@@ -389,7 +418,12 @@ async def get_lexical_versions(
                     'version': version.get('version', ''),
                     'created_at': metadata.get('created_at', version.get('created_at', '')),
                     'updated_at': metadata.get('updated_at', version.get('updated_at', '')),
-                    'model': llm_config.get('model_id', llm_config.get('model', '')),
+                    'model': (
+                        llm_config.get('model_id') or 
+                        llm_config.get('model') or 
+                        metadata.get('model') or 
+                        version.get('model', '')
+                    ),
                     'parameters': {
                         'temperature': llm_config.get('temperature'),
                         'top_p': llm_config.get('top_p'),
@@ -644,3 +678,4 @@ async def delete_lexical_value(
                 "lemma": lemma
             }
         )
+
