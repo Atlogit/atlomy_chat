@@ -105,7 +105,9 @@ class LexicalService:
             
             # Delete cache for all versions
             for version in versions:
-                await self.redis.delete(f"lexical_value:{lemma}:{version}")
+                # Handle both string and object versions for backward compatibility
+                version_id = version['version'] if isinstance(version, dict) else version
+                await self.redis.delete(f"lexical_value:{lemma}:{version_id}")
                 
             logger.info(f"Invalidated cache for lexical value: {lemma} and all versions")
         except Exception as e:
@@ -227,15 +229,18 @@ class LexicalService:
         except Exception as e:
             logger.error(f"Error getting lexical value for {lemma}: {str(e)}", exc_info=True)
             raise
+
     async def create_lexical_entry(
         self,
         lemma: str,
         search_lemma: bool = False,
-        task_id: Optional[str] = None
+        task_id: Optional[str] = None,
+        llm_config: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Create a new lexical value entry with JSON storage."""
         start_time = time.time()
         logger.info(f"Starting creation of lexical entry for lemma: {lemma}")
+        logger.debug(f"LLM config: {llm_config}")
         
         try:
             # Check if entry already exists - using a new session to avoid keeping it open
@@ -265,7 +270,8 @@ class LexicalService:
             logger.info(f"Generating lexical value using LLM for {lemma}")
             analysis_result = await self.lexical_llm.create_lexical_value(
                 word=lemma,
-                citations=citations
+                citations=citations,
+                llm_config=llm_config
             )
             
             # Extract dictionary from tuple if needed
@@ -300,7 +306,7 @@ class LexicalService:
                 'citations_used': analysis.get('citations_used', [])
             })
 
-            # Create new entry in database using a fresh session
+            # Create new entry in database
             async with AsyncSession(self.session.bind) as db_session:
                 try:
                     logger.info(f"Creating database entry for {lemma}")
@@ -313,9 +319,9 @@ class LexicalService:
                     logger.error(f"Database error creating entry for {lemma}: {str(db_error)}")
                     raise
             
-            # Store in JSON format and cache after successful database insertion
+            # Store in JSON format with versioning and cache
             logger.debug(f"Entry dictionary: {entry_dict}")
-            self.json_storage.save(lemma, entry_dict)
+            self.json_storage.save(lemma, entry_dict, create_version=True, llm_config=llm_config)
             await self._cache_value(lemma, entry_dict)
             
             duration = time.time() - start_time
@@ -358,11 +364,11 @@ class LexicalService:
             logger.error(f"Missing required fields in lexical value data: {missing_fields}")
             raise ValueError(f"Missing required fields: {', '.join(missing_fields)}")
 
-
     async def update_lexical_value(
         self,
         lemma: str,
-        data: Dict[str, Any]
+        data: Dict[str, Any],
+        llm_config: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Update an existing lexical value."""
         try:
@@ -378,32 +384,71 @@ class LexicalService:
                         "message": "Lexical value not found",
                         "action": "update"
                     }
-
-                # Update fields
-                for key, value in data.items():
+            results_id, citations = await self._get_citations(lemma, search_lemma=True)
+            
+            if citations:
+                # Generate new lexical value using LLM with updated config
+                analysis_result = await self.lexical_llm.create_lexical_value(
+                    word=lemma,
+                    citations=citations,
+                    llm_config=llm_config
+                )
+                
+                # Extract dictionary from tuple if needed
+                if isinstance(analysis_result, tuple):
+                    analysis = analysis_result[0]
+                else:
+                    analysis = analysis_result
+                
+                # Update fields from analysis
+                for key, value in analysis.items():
                     if hasattr(entry, key):
-                        if key == 'sentence_id' and value:
-                            setattr(entry, key, int(value))
-                        else:
-                            setattr(entry, key, value)
+                        setattr(entry, key, value)
 
-                await db_session.commit()
-                await db_session.refresh(entry)
-                
-                # Update JSON storage and cache
-                entry_dict = entry.to_dict()
-                self.json_storage.save(lemma, entry_dict)
-                await self._invalidate_cache(lemma)
-                
-                return {
-                    "success": True,
-                    "message": "Lexical value updated successfully",
-                    "entry": entry_dict,
-                    "action": "update"
-                }
+            await db_session.commit()
+            await db_session.refresh(entry)
+            
+            # Update JSON storage with versioning and cache
+            entry_dict = entry.to_dict()
+            self.json_storage.save(lemma, entry_dict, create_version=True, llm_config=llm_config)
+            await self._invalidate_cache(lemma)
+            
+            return {
+                "success": True,
+                "message": "Lexical value updated successfully",
+                "entry": entry_dict,
+                "action": "update"
+            }
             
         except Exception as e:
             logger.error(f"Error updating lexical value for {lemma}: {str(e)}", exc_info=True)
+            raise
+
+    async def get_json_versions(self, lemma: str) -> List[Dict[str, Any]]:
+        """Get all available JSON versions for a lexical value with their metadata.
+        
+        Args:
+            lemma: The lemma to get versions for
+            
+        Returns:
+            List of dictionaries containing version info including model details and parameters
+        """
+        try:
+            # Get detailed version info including model details
+            versions = self.json_storage.list_versions(lemma)
+            logger.info(f"Retrieved {len(versions)} versions for {lemma}")
+            logger.debug(f"Version details: {json.dumps(versions, indent=2)}")
+            return versions
+        except Exception as e:
+            logger.error(f"Error getting JSON versions for {lemma}: {str(e)}", exc_info=True)
+            raise
+
+    async def get_storage_info(self) -> Dict[str, Any]:
+        """Get information about JSON storage."""
+        try:
+            return self.json_storage.get_storage_info()
+        except Exception as e:
+            logger.error(f"Error getting storage info: {str(e)}", exc_info=True)
             raise
 
     async def delete_lexical_value(self, lemma: str) -> bool:
@@ -513,18 +558,3 @@ class LexicalService:
             logger.error(f"Error getting linked citations for {lemma}: {str(e)}", exc_info=True)
             raise
 
-    async def get_json_versions(self, lemma: str) -> List[str]:
-        """Get all available JSON versions for a lexical value."""
-        try:
-            return self.json_storage.list_versions(lemma)
-        except Exception as e:
-            logger.error(f"Error getting JSON versions for {lemma}: {str(e)}", exc_info=True)
-            raise
-
-    async def get_storage_info(self) -> Dict[str, Any]:
-        """Get information about JSON storage."""
-        try:
-            return self.json_storage.get_storage_info()
-        except Exception as e:
-            logger.error(f"Error getting storage info: {str(e)}", exc_info=True)
-            raise

@@ -35,21 +35,17 @@ class JSONStorageService:
             if not base_dir:
                 # Determine the project root
                 project_root = Path(__file__).resolve().parents[2]
-                
-                # Prefer lexical_values in project root, fallback to amta/lexical_values
-                potential_paths = [
-                    project_root / 'lexical_values',
-                    project_root / 'amta' / 'lexical_values',
-                    Path.home() / 'amta' / 'lexical_values'
-                ]
-                
-                # Use the first existing path, or create the first preferred path
-                base_dir = next((str(p) for p in potential_paths if p.exists()), str(potential_paths[0]))
+                base_dir = project_root / 'lexical_values'
+        
+        # Convert to absolute path, resolving any relative paths
+        base_dir = str(Path(base_dir).resolve())
         
         self.base_dir = Path(base_dir)
         self._ensure_directory_structure()
+        
+        # Log the resolved absolute path for debugging
+        logger.info(f"JSON Storage Base Directory: {self.base_dir}")
 
-    # Rest of the class remains the same as in the previous implementation
     def _ensure_directory_structure(self):
         """Ensure the required directory structure exists with comprehensive logging."""
         try:
@@ -74,8 +70,6 @@ class JSONStorageService:
             logger.error(f"Failed to create directory structure: {e}")
             raise
 
-    # Remaining methods from the previous implementation stay the same
-    # (load, save, list_versions, delete, get_storage_info methods)
     
     def _get_file_path(self, lemma: str, version: Optional[str] = None) -> Path:
         """Get the file path for a lexical value.
@@ -114,13 +108,20 @@ class JSONStorageService:
         hashable_data = {k: v for k, v in data.items() if k != 'metadata'}
         return hashlib.md5(json.dumps(hashable_data, sort_keys=True).encode()).hexdigest()
 
-    def save(self, lemma: str, data: Dict[str, Any], create_version: bool = False) -> None:
+    def save(
+        self, 
+        lemma: str, 
+        data: Dict[str, Any], 
+        create_version: bool = False,
+        llm_config: Optional[Dict[str, Any]] = None
+    ) -> None:
         """Save lexical value data to JSON with improved version control.
         
         Args:
             lemma: The lemma to save
             data: The data to save
             create_version: Whether to create a versioned copy (default: False)
+            llm_config: Optional LLM configuration used for generation
         """
         try:
             # Sanitize lemma to prevent directory traversal
@@ -148,14 +149,27 @@ class JSONStorageService:
             # Create backup of existing file
             self._create_backup(safe_lemma)
             
-            # Add metadata
-            data["metadata"] = {
+            # Add metadata including LLM configuration
+            metadata = {
                 "created_at": datetime.now().isoformat(),
                 "updated_at": datetime.now().isoformat(),
                 "version": data.get("metadata", {}).get("version", "1.0"),
                 "content_hash": current_hash,
                 "storage_location": str(self.base_dir)
             }
+
+            # Add LLM configuration if provided
+            if llm_config:
+                metadata["llm_config"] = {
+                    "model_id": llm_config.get("modelId"),
+                    "temperature": llm_config.get("temperature"),
+                    "top_p": llm_config.get("topP"),
+                    "top_k": llm_config.get("topK"),
+                    "max_length": llm_config.get("maxLength"),
+                    "stop_sequences": llm_config.get("stopSequences", [])
+                }
+
+            data["metadata"] = metadata
             
             # Save current version with proper JSON serialization
             with open(current_file, 'w', encoding='utf-8') as f:
@@ -222,14 +236,14 @@ class JSONStorageService:
             logger.error(f"Error loading JSON for {lemma}: {str(e)}")
             raise
 
-    def list_versions(self, lemma: str) -> list:
-        """List all available versions for a lemma.
+    def list_versions(self, lemma: str) -> List[Dict[str, Any]]:
+        """List all available versions for a lemma with their metadata.
         
         Args:
             lemma: The lemma to list versions for
             
         Returns:
-            List of version strings
+            List of dictionaries containing version info and metadata
         """
         try:
             # Sanitize lemma to prevent directory traversal
@@ -237,10 +251,34 @@ class JSONStorageService:
             
             versions_dir = self.base_dir / "versions"
             versions = []
+            
             for file in versions_dir.glob(f"{safe_lemma}_*.json"):
                 version = file.stem.replace(f"{safe_lemma}_", "")
-                versions.append(version)
-            return sorted(versions)
+                try:
+                    with open(file, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                        metadata = data.get('metadata', {})
+                        
+                        version_info = {
+                            'version': version,
+                            'created_at': metadata.get('created_at'),
+                            'updated_at': metadata.get('updated_at'),
+                            'model': metadata.get('llm_config', {}).get('model_id'),
+                            'parameters': {
+                                'temperature': metadata.get('llm_config', {}).get('temperature'),
+                                'top_p': metadata.get('llm_config', {}).get('top_p'),
+                                'top_k': metadata.get('llm_config', {}).get('top_k'),
+                                'max_length': metadata.get('llm_config', {}).get('max_length'),
+                                'stop_sequences': metadata.get('llm_config', {}).get('stop_sequences', [])
+                            }
+                        }
+                        versions.append(version_info)
+                except Exception as e:
+                    logger.warning(f"Error reading version file {file}: {e}")
+                    # Include basic version info even if metadata read fails
+                    versions.append({'version': version})
+            
+            return sorted(versions, key=lambda x: x['version'], reverse=True)
             
         except Exception as e:
             logger.error(f"Error listing versions for {lemma}: {str(e)}")

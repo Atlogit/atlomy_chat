@@ -84,13 +84,14 @@ class LexicalLLMService(BaseLLMService):
         self,
         word: str,
         citations: List[Union[Citation, Dict[str, Any]]],
-        max_tokens: Optional[int] = None,
+        llm_config: Optional[Dict[str, Any]] = None,
         stream: bool = False
     ) -> Union[Tuple[Dict[str, Any], Dict[str, int]], AsyncGenerator[str, None]]:
         """Generate a lexical value analysis for a word/lemma."""
         try:
             logger.info(f"Creating lexical value for word: {word}")
             logger.debug(f"Number of citations: {len(citations)}")
+            logger.debug(f"LLM config: {llm_config}")
             
             # Validate input word
             if not word or not isinstance(word, str):
@@ -110,7 +111,6 @@ class LexicalLLMService(BaseLLMService):
                 "related_terms": ["placeholder_term1", "placeholder_term2"],
                 "citations_used": ["Placeholder full citation 1, Placeholder full citation 2"]
             }, indent=2)
-            
             
             # Prepare messages for Converse API
             messages = [
@@ -146,19 +146,32 @@ class LexicalLLMService(BaseLLMService):
             # Log the messages being sent for debugging
             logger.debug(f"Prepared messages:\n{json.dumps(messages, indent=2)}")
             
+            # Extract LLM configuration parameters
+            llm_params = {
+                "messages": messages,
+                "system_prompt": 'You are an AI assistant specializing in ancient Greek lexicography and philology. You will build a lexical value based on validated texts analysis on a PhD level. Analyze the following word or lemma and its usage in the provided citations.'
+            }
+
+            # Add optional LLM configuration if provided
+            if llm_config:
+                if 'modelId' in llm_config:
+                    llm_params['model_id'] = llm_config['modelId']
+                if 'temperature' in llm_config:
+                    llm_params['temperature'] = llm_config['temperature']
+                if 'topP' in llm_config:
+                    llm_params['top_p'] = llm_config['topP']
+                if 'topK' in llm_config:
+                    llm_params['top_k'] = llm_config['topK']
+                if 'maxLength' in llm_config:
+                    llm_params['max_tokens'] = llm_config['maxLength']
+                if 'stopSequences' in llm_config:
+                    llm_params['stop_sequences'] = llm_config['stopSequences']
+            
             # Get response from LLM
             if stream:
-                return self.client.stream_generate(
-                    messages=messages,
-                    system_prompt=f'You are an AI assistant specializing in ancient Greek lexicography and philology. You will build a lexical value based on validated texts analysis on a PhD level. Analyze the following word or lemma and its usage in the provided citations.',
-                    max_tokens=max_tokens
-                )
+                return self.client.stream_generate(**llm_params)
             
-            response: LLMResponse = await self.client.generate(
-                messages=messages,
-                system_prompt=f'You are an AI assistant specializing in ancient Greek lexicography and philology. You will build a lexical value based on validated texts analysis on a PhD level. Analyze the following word or lemma and its usage in the provided citations.',
-                max_tokens=max_tokens
-            )
+            response: LLMResponse = await self.client.generate(**llm_params)
             
             logger.debug(f"Raw LLM response:\n{response.text}")
                         

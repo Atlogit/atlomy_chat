@@ -5,7 +5,27 @@ import { Button } from '../../../components/ui/Button'
 import { useApi } from '../../../hooks/useApi'
 import { API } from '../../../utils/api/endpoints'
 import { SearchResult, ProcessingStatus } from '../../../utils/api/types/types'
-import { LexicalValue, CreateResponse, TaskStatus, LemmaCreate } from '../../../utils/api/types/lexical'
+import { CitationObject } from '../../../utils/api/types/citation'
+import { 
+  LexicalValue, 
+  CreateResponse, 
+  TaskStatus, 
+  LemmaCreate, 
+  VersionsResponse,
+  Version 
+} from '../../../utils/api/types/lexical'
+
+// Utility function for generating stable, unique keys
+const generateStableKey = (...parts: (string | number | undefined | null)[]) => {
+  const validParts = parts
+    .filter(part => part !== undefined && part !== null)
+    .map(part => String(part).trim())
+    .filter(part => part !== '')
+
+  return validParts.length > 0 
+    ? validParts.join('-').replace(/[^a-zA-Z0-9-]/g, '_')
+    : 'default-key'
+}
 
 interface Model {
   id: string
@@ -44,6 +64,33 @@ const convertToSearchResult = (entry: LexicalValue): SearchResult => ({
 })
 
 /**
+ * Safely renders a citation, handling both string and object citations
+ */
+const renderCitationContent = (citation: CitationObject | string) => {
+  if (typeof citation === 'string') {
+    return <div className="text-sm">{citation}</div>
+  }
+
+  // Safely extract and render citation object properties
+  return (
+    <div>
+      <div className="font-semibold">{citation.citation || 'Citation'}</div>
+      {citation.sentence?.text && (
+        <div className="text-sm mt-1">
+          {citation.sentence.text.length > 100 
+            ? citation.sentence.text.substring(0, 100) + '...'
+            : citation.sentence.text}
+        </div>
+      )}
+      <div className="text-xs opacity-70 mt-1">
+        {citation.source?.author && `Author: ${citation.source.author}`}
+        {citation.source?.work && ` | Work: ${citation.source.work}`}
+      </div>
+    </div>
+  )
+}
+
+/**
  * CreateForm Component
  * 
  * This component provides a form for creating new lexical values.
@@ -59,6 +106,7 @@ export function CreateForm() {
   const [retryCount, setRetryCount] = useState(0)
   const [selectedCitation, setSelectedCitation] = useState<SearchResult | string | null>(null)
   const [showCitationModal, setShowCitationModal] = useState(false)
+  const [versions, setVersions] = useState<Version[]>([])
 
   // LLM Configuration States
   const [showConfig, setShowConfig] = useState(false)
@@ -74,6 +122,7 @@ export function CreateForm() {
   const createApi = useApi<CreateResponse>()
   const statusApi = useApi<TaskStatus>()
   const modelsApi = useApi<{models: Model[]}>()
+  const versionsApi = useApi<VersionsResponse>()
 
   // Fetch available models on component mount
   useEffect(() => {
@@ -93,6 +142,23 @@ export function CreateForm() {
     }
     fetchModels()
   }, [])
+
+  // Fetch versions when entry exists
+  useEffect(() => {
+    const fetchVersions = async () => {
+      if (existingEntry?.lemma) {
+        try {
+          const response = await versionsApi.execute(API.lexical.versions(existingEntry.lemma), { method: 'GET' })
+          if (response?.versions) {
+            setVersions(response.versions)
+          }
+        } catch (error) {
+          console.error('Error fetching versions:', error)
+        }
+      }
+    }
+    fetchVersions()
+  }, [existingEntry?.lemma])
 
   // Task status polling
   useEffect(() => {
@@ -256,13 +322,88 @@ export function CreateForm() {
   }
 
   /**
+   * Renders version information with model details
+   */
+  const renderVersionInfo = (version: Version, index: number) => {
+    const versionKey = generateStableKey(
+      'version', 
+      version.version, 
+      version.created_at, 
+      version.model, 
+      index
+    )
+    
+    return (
+      <div key={versionKey} className="card bg-base-200 p-4 mb-4">
+        <div className="flex justify-between items-start">
+          <div>
+            <h4 className="font-semibold">Version {version.version}</h4>
+            {version.created_at && (
+              <p className="text-sm opacity-70">
+                Created: {new Date(version.created_at).toLocaleString()}
+              </p>
+            )}
+          </div>
+          {version.model && (
+            <div className="badge badge-primary">{version.model}</div>
+          )}
+        </div>
+        {version.parameters && (
+          <div className="mt-2 text-sm grid grid-cols-2 gap-2">
+            {version.parameters.temperature !== undefined && (
+              <div>Temperature: {version.parameters.temperature}</div>
+            )}
+            {version.parameters.top_p !== undefined && (
+              <div>Top P: {version.parameters.top_p}</div>
+            )}
+            {version.parameters.top_k !== undefined && (
+              <div>Top K: {version.parameters.top_k}</div>
+            )}
+            {version.parameters.max_length !== undefined && (
+              <div>Max Length: {version.parameters.max_length}</div>
+            )}
+            {version.parameters.stop_sequences && version.parameters.stop_sequences.length > 0 && (
+              <div className="col-span-2">
+                <div>Stop Sequences:</div>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {version.parameters.stop_sequences.map((seq, seqIndex) => (
+                    <div 
+                      key={generateStableKey(versionKey, 'stop-seq', seqIndex, seq)} 
+                      className="badge badge-sm"
+                    >
+                      {seq}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  /**
    * Renders a citation with context preview
    */
-  const renderCitation = (citation: SearchResult | string) => {
+  const renderCitation = (citation: CitationObject | string, index: number, context: string) => {
+    // Ensure citation is not null or undefined
+    if (!citation) return null;
+
+    const citationKey = typeof citation === 'string' 
+      ? generateStableKey(context, 'citation-string', index, citation.substring(0, 20)) 
+      : generateStableKey(
+          context, 
+          'citation', 
+          citation.sentence?.id, 
+          citation.citation, 
+          index
+        )
+
     if (typeof citation === 'string') {
       // For string citations (from LLM analysis)
       return (
-        <div key={citation} className="card bg-base-200 p-4 mb-4">
+        <div key={citationKey} className="card bg-base-200 p-4 mb-4">
           <div className="text-sm">{citation}</div>
         </div>
       )
@@ -270,27 +411,20 @@ export function CreateForm() {
     
     // For full citation objects
     return (
-      <div key={citation.sentence?.id} className="card bg-base-200 p-4 mb-4">
-        <div className="flex justify-between items-start">
-          <div>{citation.citation || 'Lexical Entry Citation'}</div>
+      <div key={citationKey} className="card bg-base-200 p-4 mb-4">
+        {renderCitationContent(citation)}
+        {typeof citation !== 'string' && (
           <Button
             onClick={() => {
               setSelectedCitation(citation)
               setShowCitationModal(true)
             }}
             variant="outline"
-            className="btn-sm"
+            className="btn-sm mt-2"
           >
             Show Context
           </Button>
-        </div>
-        <div className="mt-2 text-sm">
-          {citation.sentence?.text && (
-            citation.sentence.text.length > 100 
-              ? citation.sentence.text.substring(0, 100) + '...'
-              : citation.sentence.text
-          )}
-        </div>
+        )}
       </div>
     )
   }
@@ -342,27 +476,29 @@ export function CreateForm() {
           >
             {showConfig ? 'Hide' : 'Show'}
           </button>
-        </div>
-        
-        {/* Model Selection - Always visible */}
-        <div className="mb-2">
-          <select 
-            className="select select-bordered w-full"
-            value={modelId}
-            onChange={(e) => setModelId(e.target.value)}
-          >
-            {availableModels.map((model) => (
-              <option key={model.id} value={model.id}>
-                {model.name} ({model.provider})
-              </option>
-            ))}
-          </select>
-          {modelId && (
-            <div className="mt-1 text-sm opacity-70">
-              {availableModels.find(m => m.id === modelId)?.description}
-            </div>
-          )}
-        </div>
+        </div>      
+      {/* Model Selection - Always visible */}
+      <div className="mb-2">
+        <select 
+          className="select select-bordered w-full"
+          value={modelId}
+          onChange={(e) => setModelId(e.target.value)}
+        >
+          {availableModels.map((model) => (
+            <option 
+              key={generateStableKey('model', model.id, model.name)} 
+              value={model.id}
+            >
+              {model.name} ({model.provider})
+            </option>
+          ))}
+        </select>
+        {modelId && (
+          <div className="mt-1 text-sm opacity-70">
+            {availableModels.find(m => m.id === modelId)?.description}
+          </div>
+        )}
+      </div>
 
         {showConfig && (
           <div className="grid grid-cols-2 gap-2">
@@ -541,11 +677,12 @@ export function CreateForm() {
       )}
 
       {/* Error Display */}
-      {(createApi.error || statusApi.error || modelsApi.error) && (
+      {(createApi.error || statusApi.error || modelsApi.error || versionsApi.error) && (
         <div className="mt-4">
           {createApi.error && renderError(createApi.error)}
           {statusApi.error && renderError(statusApi.error)}
           {modelsApi.error && renderError(modelsApi.error)}
+          {versionsApi.error && renderError(versionsApi.error)}
         </div>
       )}
 
@@ -568,33 +705,43 @@ export function CreateForm() {
             <div className="divider">Related Terms</div>
             <div className="flex flex-wrap gap-2">
               {taskStatus.entry.related_terms?.map((term: string, index: number) => (
-                <div key={`${term}-${index}`} className="badge badge-primary">{term}</div>
+                <div 
+                  key={generateStableKey('related-term', term, index)} 
+                  className="badge badge-primary"
+                >
+                  {term}
+                </div>
               ))}
             </div>
             
             <div className="divider">Citations Used</div>
             <div className="space-y-4">
-              {taskStatus.entry.citations_used?.map((citation: SearchResult | string, index: number) => (
-                <div key={index}>
-                  {renderCitation(citation)}
-                </div>
-              ))}
+              {taskStatus.entry.citations_used?.map((citation: string, index: number) => (
+                renderCitation(citation, index, 'citations-used')
+              )) || 'No citations used'}
             </div>
 
             <div className="divider">References</div>
             <div className="space-y-4">
               {taskStatus.entry.references?.citations?.map((citation, index: number) => (
-                <div key={index}>
-                  {renderCitation(citation)}
-                </div>
-              ))}
+                renderCitation(citation, index, 'references')
+              )) || 'No references found'}
             </div>
             
             <div className="divider">Version Info</div>
             <div className="text-sm">
               <p>Created: {new Date(taskStatus.entry.created_at).toLocaleString()}</p>
-              <p>Updated: {new Date(taskStatus.entry.updated_at).toLocaleString()}</p>
+              <p>Updated: {taskStatus.entry.updated_at ? new Date(taskStatus.entry.updated_at).toLocaleString() : 'Not updated'}</p>
               <p>Version: {taskStatus.entry.version}</p>
+              
+              {versions.length > 0 && (
+                <>
+                  <div className="divider">Previous Versions</div>
+                  <div className="space-y-4">
+                    {versions.map((version, index) => renderVersionInfo(version, index))}
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>

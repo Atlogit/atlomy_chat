@@ -241,6 +241,12 @@ class BedrockClient(BaseLLMClient):
         try:
             logger.info("Generating response from AWS Bedrock")
             
+            # Remove potential duplicate parameters from kwargs
+            kwargs.pop('model_id', None)
+            kwargs.pop('top_p', None)
+            kwargs.pop('top_k', None)
+            kwargs.pop('stop_sequences', None)
+            
             # Prepare payload for Converse API
             payload = self._prepare_converse_payload(
                 messages=messages,
@@ -252,7 +258,6 @@ class BedrockClient(BaseLLMClient):
                 top_p=kwargs.get('top_p'),
                 top_k=kwargs.get('top_k'),
                 stop_sequences=kwargs.get('stop_sequences'),
-                model_id=kwargs.get('model_id'),
                 **kwargs
             )
             

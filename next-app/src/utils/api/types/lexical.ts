@@ -1,6 +1,22 @@
 import { UUID } from './types';
 import { CitationObject } from './citation';
 
+export interface LLMParameters {
+  temperature?: number;
+  top_p?: number;
+  top_k?: number;
+  max_length?: number;
+  stop_sequences?: string[];
+}
+
+export interface Version {
+  version: string;
+  created_at?: string;
+  updated_at?: string;
+  model?: string;
+  parameters?: LLMParameters;
+}
+
 export interface LemmaAnalysis {
   id: UUID;
   analysis_text: string;
@@ -27,6 +43,16 @@ export interface LexicalValue {
   created_at: string;
   updated_at: string;
   version: string;
+  metadata?: {
+    llm_config?: {
+      model_id?: string;
+      temperature?: number;
+      top_p?: number;
+      top_k?: number;
+      max_length?: number;
+      stop_sequences?: string[];
+    }
+  }
 }
 
 export interface LemmaCreate {
@@ -54,4 +80,8 @@ export interface DeleteTriggerResponse {
   trigger_id: string;
   message: string;
   entry: LexicalValue;
+}
+
+export interface VersionsResponse {
+  versions: Version[];
 }

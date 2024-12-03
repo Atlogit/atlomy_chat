@@ -159,6 +159,31 @@ def format_entry_for_response(entry: Dict[str, Any]) -> Dict[str, Any]:
     # Remove sentence_contexts since the data is now embedded in citations
     if 'sentence_contexts' in formatted_entry:
         del formatted_entry['sentence_contexts']
+
+    # Preserve original metadata if it exists
+    original_metadata = formatted_entry.get('metadata', {})
+    
+    # Ensure metadata is preserved and properly structured
+    if 'metadata' not in formatted_entry or not isinstance(formatted_entry['metadata'], dict):
+        formatted_entry['metadata'] = {
+            'version': original_metadata.get('version', '1.0'),
+            'llm_config': original_metadata.get('llm_config', {})
+        }
+    
+    # Ensure llm_config exists in metadata with safe defaults
+    if 'llm_config' not in formatted_entry['metadata'] or not formatted_entry['metadata']['llm_config']:
+        formatted_entry['metadata']['llm_config'] = original_metadata.get('llm_config', {
+            "model_id": "",
+            "temperature": None,
+            "top_p": None,
+            "top_k": None,
+            "max_length": None,
+            "stop_sequences": []
+        })
+    
+    # Detailed logging for metadata transformation
+    logger.info(f"Original Metadata: {json.dumps(original_metadata, indent=2)}")
+    logger.info(f"Formatted Metadata: {json.dumps(formatted_entry['metadata'], indent=2)}")
     
     return formatted_entry
 
@@ -338,9 +363,47 @@ async def get_lexical_versions(
         lexical_service = LexicalService(db)
         versions = await lexical_service.get_json_versions(lemma)
         
+        # Log the entire version data structure
+        logger.debug(f"Full Version Data Structure: {json.dumps(versions, indent=2)}")
+        
         if versions:
-            logger.debug(f"Found {len(versions)} versions for {lemma}")
-            return {"versions": versions}
+            # Ensure consistent format for all versions
+            formatted_versions = []
+            for version in versions:
+                # Log the entire version item
+                logger.debug(f"Full Version Item: {json.dumps(version, indent=2)}")
+                
+                # More robust metadata extraction
+                metadata = version.get('metadata', version)  # Fallback to entire version if no metadata
+                logger.debug(f"Extracted Metadata: {json.dumps(metadata, indent=2)}")
+                
+                llm_config = (
+                    metadata.get('llm_config') or 
+                    metadata.get('parameters') or 
+                    {}
+                )
+                logger.debug(f"Extracted LLM Config: {json.dumps(llm_config, indent=2)}")
+                
+                # Handle legacy versions that might not have the new metadata structure
+                formatted_version = {
+                    'version': version.get('version', ''),
+                    'created_at': metadata.get('created_at', version.get('created_at', '')),
+                    'updated_at': metadata.get('updated_at', version.get('updated_at', '')),
+                    'model': llm_config.get('model_id', llm_config.get('model', '')),
+                    'parameters': {
+                        'temperature': llm_config.get('temperature'),
+                        'top_p': llm_config.get('top_p'),
+                        'top_k': llm_config.get('top_k'),
+                        'max_length': llm_config.get('max_length'),
+                        'stop_sequences': llm_config.get('stop_sequences', [])
+                    }
+                }
+                
+                logger.info(f"Formatted Version: {json.dumps(formatted_version, indent=2)}")
+                formatted_versions.append(formatted_version)
+            
+            logger.debug(f"Found {len(formatted_versions)} versions for {lemma}")
+            return {"versions": formatted_versions}
             
         logger.warning(f"No versions found for: {lemma}")
         return {"versions": []}

@@ -6,7 +6,12 @@ from sqlalchemy import Column, String, Text, DateTime, func, ForeignKey, Integer
 from sqlalchemy.dialects.postgresql import UUID, ARRAY, JSONB
 from sqlalchemy.orm import relationship, Mapped
 import uuid
+from datetime import datetime
+import logging
+
 from app.models import Base
+
+logger = logging.getLogger(__name__)
 
 class LexicalValue(Base):
     """Model for storing lexical values with their analyses and sentence contexts."""
@@ -34,7 +39,7 @@ class LexicalValue(Base):
     }
 
     def to_dict(self):
-        """Convert the model to a dictionary."""
+        """Convert the model to a dictionary with robust handling of optional fields."""
         # Get citations from references if available
         citations = []
         if self.references and 'citations' in self.references:
@@ -50,19 +55,41 @@ class LexicalValue(Base):
                         'tokens': context.get('tokens', {})
                     })
 
+        # Robust timestamp handling
+        default_timestamp = datetime.utcnow().isoformat()
+        try:
+            created_at = self.created_at.isoformat() if self.created_at else default_timestamp
+            updated_at = self.updated_at.isoformat() if self.updated_at else default_timestamp
+        except Exception as e:
+            logger.error(f"Timestamp conversion error: {e}")
+            created_at = default_timestamp
+            updated_at = default_timestamp
+
         return {
-            "id": str(self.id),
-            "lemma": self.lemma,
-            "translation": self.translation,
-            "short_description": self.short_description,
-            "long_description": self.long_description,
-            "related_terms": self.related_terms,
-            "citations_used": self.citations_used or [],  # Ensure we always return a list
+            "id": str(self.id) if self.id else str(uuid.uuid4()),
+            "lemma": self.lemma or "",
+            "translation": self.translation or "",
+            "short_description": self.short_description or "",
+            "long_description": self.long_description or "",
+            "related_terms": self.related_terms or [],
+            "citations_used": self.citations_used or [],
             "references": {
                 "citations": citations  # System-generated citations with context
             },
-            "created_at": self.created_at.isoformat() if self.created_at else None,
-            "updated_at": self.updated_at.isoformat() if self.updated_at else None
+            "created_at": created_at,
+            "updated_at": updated_at,
+            "metadata": {
+                "version": "1.0",  # Explicitly set version
+                "llm_config": {
+                    # Placeholder for LLM configuration
+                    "model_id": "",
+                    "temperature": None,
+                    "top_p": None,
+                    "top_k": None,
+                    "max_length": None,
+                    "stop_sequences": []
+                }
+            }
         }
 
     @classmethod
@@ -74,10 +101,10 @@ class LexicalValue(Base):
             citations_used = [str(citations_used)]
         
         return cls(
-            lemma=data["lemma"],
-            translation=data.get("translation"),
-            short_description=data.get("short_description"),
-            long_description=data.get("long_description"),
+            lemma=data.get("lemma", ""),
+            translation=data.get("translation", ""),
+            short_description=data.get("short_description", ""),
+            long_description=data.get("long_description", ""),
             related_terms=data.get("related_terms", []),
             citations_used=citations_used,  # Store as JSON array
             references=data.get("references", {}),          # System citations

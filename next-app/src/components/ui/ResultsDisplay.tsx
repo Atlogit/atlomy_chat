@@ -8,7 +8,7 @@ interface ResultsDisplayProps {
   className?: string
   isHtml?: boolean
   onShowCitation?: (citation: Citation) => void
-  noResultsMetadata?: NoResultsMetadata  // New optional prop
+  noResultsMetadata?: NoResultsMetadata
 }
 
 function sanitizeHtml(html: string): string {
@@ -125,7 +125,7 @@ export function ResultsDisplay({
   className = '',
   isHtml = false,
   onShowCitation,
-  noResultsMetadata,  // Add to destructured props
+  noResultsMetadata,
 }: ResultsDisplayProps) {
   // If no results metadata is provided, show the no results display
   if (noResultsMetadata) {
@@ -233,9 +233,10 @@ export function ResultsDisplay({
                 </>
               )}
 
-              {(content.created_at || content.updated_at || content.version) && (
+              {/* Metadata and Version Info */}
+              {(content.created_at || content.updated_at || content.version || content.metadata) && (
                 <>
-                  <div className="divider">Version Info</div>
+                  <div className="divider">Version and Metadata</div>
                   <div className="text-sm">
                     {content.created_at && (
                       <p>Created: {new Date(content.created_at).toLocaleString()}</p>
@@ -245,6 +246,47 @@ export function ResultsDisplay({
                     )}
                     {content.version && (
                       <p>Version: {content.version}</p>
+                    )}
+
+                    {/* Enhanced Metadata Rendering */}
+                    {content.metadata && (
+                      <div className="mt-2">
+                        <h4 className="font-semibold">Metadata Details</h4>
+                        
+                        {/* Render LLM Configuration if available */}
+                        {content.metadata.llm_config && Object.keys(content.metadata.llm_config).length > 0 && (
+                          <div className="mt-2">
+                            <h5 className="font-medium">LLM Configuration</h5>
+                            <div className="grid grid-cols-2 gap-1">
+                              {Object.entries(content.metadata.llm_config).map(([key, value]) => (
+                                <div key={key}>
+                                  {key}: {typeof value === 'object' ? JSON.stringify(value) : value}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Render other metadata fields */}
+                        {Object.entries(content.metadata)
+                          .filter(([key]) => key !== 'llm_config')
+                          .map(([key, value]) => (
+                            <div key={key} className="mt-1">
+                              <span className="font-medium">{key}:</span>{' '}
+                              {typeof value === 'object' 
+                                ? JSON.stringify(value, null, 2) 
+                                : String(value)}
+                            </div>
+                          ))}
+
+                        {/* Full Metadata Details */}
+                        <details className="mt-2">
+                          <summary className="font-semibold cursor-pointer">Full Metadata</summary>
+                          <pre className="bg-base-200 p-2 rounded text-xs overflow-x-auto">
+                            {JSON.stringify(content.metadata, null, 2)}
+                          </pre>
+                        </details>
+                      </div>
                     )}
                   </div>
                 </>

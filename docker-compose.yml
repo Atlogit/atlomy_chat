@@ -79,9 +79,9 @@ services:
       - "8081:8081"
     volumes:
       - ~/amta/logs:/amta/logs
+      - ${PWD}/${JSON_STORAGE_BASE_DIR}:${PWD}/${JSON_STORAGE_BASE_DIR}  # Use PWD to resolve relative path
       - ./.env:/amta/.env
       - ./alembic:/amta/alembic
-      - lexical_values:${JSON_STORAGE_BASE_DIR:-/home/ec2-user/amta/lexical_values}
     env_file:
       - .env
     environment:
@@ -101,7 +101,7 @@ services:
       - LOGGING_CONFIG=/amta/logging_config.json
       - LOG_LEVEL=debug
       - DEBUG=true
-      - JSON_STORAGE_BASE_DIR=${JSON_STORAGE_BASE_DIR:-/home/ec2-user/amta/lexical_values}
+      - JSON_STORAGE_BASE_DIR=${JSON_STORAGE_BASE_DIR}
     restart: unless-stopped
     depends_on:
       - postgres
@@ -170,11 +170,8 @@ services:
         soft: 26677
         hard: 46677
 
-
 volumes:
   postgres_data:
     driver: local
   redis_data:
-    driver: local
-  lexical_values:
     driver: local
