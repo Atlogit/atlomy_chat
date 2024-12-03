@@ -10,6 +10,7 @@ import logging
 import json
 import time
 import uuid
+from datetime import datetime
 
 from app.core.pagination_config import PaginationConfig
 from app.models.lexical_value import LexicalValue
@@ -55,6 +56,46 @@ class LexicalService:
         logger.info(f"Initialized LexicalService with page size {self.DEFAULT_PAGE_SIZE}")
         logger.debug(f"Session initialized: {session}")
 
+    def _generate_dynamic_version(self) -> str:
+        """Generate a dynamic version using current timestamp."""
+        return datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    def _ensure_metadata_version(self, entry_dict: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Ensure metadata has a dynamic version and comprehensive details.
+        
+        Args:
+            entry_dict: Dictionary representing the lexical entry
+        
+        Returns:
+            Updated dictionary with comprehensive metadata
+        """
+        # Ensure metadata exists
+        if 'metadata' not in entry_dict:
+            entry_dict['metadata'] = {}
+        
+        # Generate or preserve version
+        if not entry_dict['metadata'].get('version'):
+            entry_dict['metadata']['version'] = self._generate_dynamic_version()
+        
+        # Ensure timestamps
+        current_time = datetime.now().isoformat()
+        entry_dict['metadata']['created_at'] = (
+            entry_dict['metadata'].get('created_at') or 
+            entry_dict.get('created_at') or 
+            current_time
+        )
+        entry_dict['metadata']['updated_at'] = current_time
+        
+        # Ensure LLM config
+        if 'llm_config' not in entry_dict['metadata']:
+            entry_dict['metadata']['llm_config'] = {}
+        
+        # Top-level version for frontend compatibility
+        entry_dict['version'] = entry_dict['metadata']['version']
+        
+        return entry_dict
+    
     async def _get_cached_value(self, lemma: str, version: Optional[str] = None) -> Optional[Dict]:
         """Get lexical value from cache with enhanced error handling and logging."""
         try:
@@ -64,7 +105,16 @@ class LexicalService:
             if cached:
                 logger.info(f"Cache hit for lexical value: {lemma} (version: {version})")
                 try:
-                    return json.loads(cached)
+                    cached_data = json.loads(cached)
+                    
+                    # Ensure dynamic version generation
+                    if not cached_data.get('metadata', {}).get('version'):
+                        cached_data['metadata']['version'] = self._generate_dynamic_version()
+                    
+                    # Update top-level version
+                    cached_data['version'] = cached_data['metadata']['version']
+                    
+                    return cached_data
                 except json.JSONDecodeError as e:
                     logger.error(f"JSON decoding error for cached value {lemma}: {e}")
                     return None
@@ -79,6 +129,17 @@ class LexicalService:
     async def _cache_value(self, lemma: str, data: Dict, version: Optional[str] = None):
         """Cache lexical value data with enhanced error handling."""
         try:
+            # Ensure version is present
+            if 'metadata' not in data:
+                data['metadata'] = {}
+            
+            # Generate or preserve version
+            if not data['metadata'].get('version'):
+                data['metadata']['version'] = self._generate_dynamic_version()
+            
+            # Ensure top-level version matches metadata
+            data['version'] = data['metadata']['version']
+            
             cache_key = f"lexical_value:{lemma}:{version}" if version else f"lexical_value:{lemma}"
             
             # Add additional logging for cache operations
@@ -185,6 +246,9 @@ class LexicalService:
             # Try cache first
             cached = await self._get_cached_value(lemma, version)
             if cached:
+                # Ensure metadata version
+                cached = self._ensure_metadata_version(cached)
+                
                 # Enhanced logging for cached metadata
                 logger.debug(f"Cached Metadata for {lemma}: {json.dumps(cached.get('metadata', {}), indent=2)}")
                 return LexicalValue.from_dict(cached)
@@ -192,6 +256,9 @@ class LexicalService:
             # Try JSON storage with version
             json_data = self.json_storage.load(lemma, version)
             if json_data:
+                # Ensure metadata version
+                json_data = self._ensure_metadata_version(json_data)
+                
                 # Enhanced logging for loaded metadata
                 logger.debug(f"Loaded JSON Metadata for {lemma}: {json.dumps(json_data.get('metadata', {}), indent=2)}")
                 
@@ -228,12 +295,8 @@ class LexicalService:
                 # Convert to dictionary with enhanced metadata preservation
                 entry_dict = entry.to_dict()
                 
-                # Ensure metadata is fully populated
-                if 'metadata' not in entry_dict or not entry_dict['metadata']:
-                    entry_dict['metadata'] = {
-                        'version': '1.0',
-                        'llm_config': {}
-                    }
+                # Ensure metadata version and details
+                entry_dict = self._ensure_metadata_version(entry_dict)
                 
                 # Cache and store in JSON for future requests
                 await self._cache_value(lemma, entry_dict)
@@ -268,10 +331,12 @@ class LexicalService:
                 existing = result.scalar_one_or_none()
                 if existing:
                     logger.info(f"Lexical value already exists for {lemma}")
+                    existing_dict = existing.to_dict()
+                    existing_dict = self._ensure_metadata_version(existing_dict)
                     return {
                         "success": False,
                         "message": "Lexical value already exists",
-                        "entry": existing.to_dict(),
+                        "entry": existing_dict,
                         "action": "update"
                     }
 
@@ -336,6 +401,9 @@ class LexicalService:
                 except Exception as db_error:
                     logger.error(f"Database error creating entry for {lemma}: {str(db_error)}")
                     raise
+            
+            # Ensure metadata version
+            entry_dict = self._ensure_metadata_version(entry_dict)
             
             # Store in JSON format with versioning and cache
             logger.debug(f"Entry dictionary: {entry_dict}")

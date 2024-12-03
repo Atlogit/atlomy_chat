@@ -50,6 +50,21 @@ class LexicalListSchema(BaseModel):
     offset: int = 0
     limit: int = 100
 
+def convert_snake_to_camel_case(snake_dict: Dict[str, Any]) -> Dict[str, Any]:
+    """Convert snake_case keys to camelCase while preserving values."""
+    key_mapping = {
+        'model_id': 'modelId',
+        'top_p': 'topP',
+        'top_k': 'topK',
+        'max_length': 'maxLength',
+        'stop_sequences': 'stopSequences'
+    }
+    
+    return {
+        key_mapping.get(k, k): v 
+        for k, v in snake_dict.items()
+    }
+
 @router.get("/models")
 async def list_models():
     """List available LLM models."""
@@ -93,6 +108,74 @@ def format_entry_for_response(entry: Dict[str, Any]) -> Dict[str, Any]:
         
     # Create a deep copy to avoid modifying the original
     formatted_entry = json.loads(json.dumps(entry))
+    
+    # Robust metadata extraction
+    original_metadata = formatted_entry.get('metadata', {})
+    
+    # Prioritize version extraction
+    version_paths = [
+        original_metadata.get('version'),
+        formatted_entry.get('version'),
+        original_metadata.get('version_id'),
+        '1.0'  # Fallback
+    ]
+    version = next((v for v in version_paths if v), '1.0')
+    
+    # Multiple paths for LLM config extraction
+    llm_config_paths = [
+        original_metadata.get('llm_config', {}),
+        original_metadata.get('parameters', {}),
+        entry.get('parameters', {}),
+        entry.get('llm_config', {})
+    ]
+    
+    # Find the first non-empty LLM config
+    llm_config = next((config for config in llm_config_paths if config), {})
+    
+    # Normalize keys to camelCase
+    normalized_config = {
+        'modelId': (
+            llm_config.get('model_id') or 
+            llm_config.get('modelId') or 
+            llm_config.get('model') or 
+            ''
+        ),
+        'temperature': (
+            llm_config.get('temperature') or 
+            llm_config.get('temp') or 
+            None
+        ),
+        'topP': (
+            llm_config.get('top_p') or 
+            llm_config.get('topP') or 
+            None
+        ),
+        'topK': (
+            llm_config.get('top_k') or 
+            llm_config.get('topK') or 
+            None
+        ),
+        'maxLength': (
+            llm_config.get('max_length') or 
+            llm_config.get('maxLength') or 
+            None
+        ),
+        'stopSequences': (
+            llm_config.get('stop_sequences') or 
+            llm_config.get('stopSequences') or 
+            []
+        )
+    }
+    
+    # Update metadata with robust LLM config and version
+    formatted_entry['metadata'] = {
+        'version': version,
+        'llm_config': normalized_config
+    }
+    
+    # Enhanced logging for diagnostic purposes
+    logger.debug(f"Original Entry Metadata: {json.dumps(original_metadata, indent=2)}")
+    logger.debug(f"Extracted Metadata: {json.dumps(formatted_entry['metadata'], indent=2)}")
     
     # Ensure citations_used exists and is a list of strings
     if 'citations_used' not in formatted_entry:
@@ -163,54 +246,61 @@ def format_entry_for_response(entry: Dict[str, Any]) -> Dict[str, Any]:
     # Robust metadata extraction and normalization
     original_metadata = formatted_entry.get('metadata', {})
     
-    # Prioritize full metadata from original entry
-    extracted_metadata = {
-        'version': original_metadata.get('version', '1.0'),
-        'llm_config': {}
-    }
+    # Multiple paths for LLM config extraction
+    llm_config_paths = [
+        original_metadata.get('llm_config', {}),
+        original_metadata.get('parameters', {}),
+        entry.get('parameters', {}),
+        entry.get('llm_config', {})
+    ]
     
-    # Directly use LLM configuration from metadata if available
-    llm_config = original_metadata.get('llm_config', {})
+    # Find the first non-empty LLM config
+    llm_config = next((config for config in llm_config_paths if config), {})
     
-    # If no LLM config in metadata, try alternative sources
-    if not llm_config:
-        llm_config = (
-            original_metadata.get('parameters') or 
-            entry.get('parameters') or 
-            entry.get('llm_config') or 
-            {}
+    # Normalize keys to camelCase
+    normalized_config = {
+        'modelId': (
+            llm_config.get('model_id') or 
+            llm_config.get('modelId') or 
+            llm_config.get('model') or 
+            ''
+        ),
+        'temperature': (
+            llm_config.get('temperature') or 
+            llm_config.get('temp') or 
+            None
+        ),
+        'topP': (
+            llm_config.get('top_p') or 
+            llm_config.get('topP') or 
+            None
+        ),
+        'topK': (
+            llm_config.get('top_k') or 
+            llm_config.get('topK') or 
+            None
+        ),
+        'maxLength': (
+            llm_config.get('max_length') or 
+            llm_config.get('maxLength') or 
+            None
+        ),
+        'stopSequences': (
+            llm_config.get('stop_sequences') or 
+            llm_config.get('stopSequences') or 
+            []
         )
-    
-    # Preserve original keys and values
-    extracted_metadata['llm_config'] = {
-        'modelId': llm_config.get('modelId', llm_config.get('model_id', '')),
-        'temperature': llm_config.get('temperature'),
-        'topP': llm_config.get('topP', llm_config.get('top_p')),
-        'topK': llm_config.get('topK', llm_config.get('top_k')),
-        'maxLength': llm_config.get('maxLength', llm_config.get('max_length')),
-        'stopSequences': llm_config.get('stopSequences', llm_config.get('stop_sequences', []))
     }
     
-    # Provide safe defaults only for truly missing values
-    default_config = {
-        'modelId': '',
-        'temperature': None,
-        'topP': None,
-        'topK': None,
-        'maxLength': None,
-        'stopSequences': []
+    # Update metadata with robust LLM config
+    formatted_entry['metadata'] = {
+        'version': original_metadata.get('version', '1.0'),
+        'llm_config': normalized_config
     }
-    
-    for key, default_value in default_config.items():
-        if extracted_metadata['llm_config'][key] is None:
-            extracted_metadata['llm_config'][key] = default_value
-    
-    # Update the entry's metadata
-    formatted_entry['metadata'] = extracted_metadata
     
     # Enhanced logging for diagnostic purposes
     logger.debug(f"Original Entry Metadata: {json.dumps(original_metadata, indent=2)}")
-    logger.debug(f"Extracted Metadata: {json.dumps(extracted_metadata, indent=2)}")
+    logger.debug(f"Extracted Metadata: {json.dumps(formatted_entry['metadata'], indent=2)}")
     
     return formatted_entry
 
@@ -678,4 +768,3 @@ async def delete_lexical_value(
                 "lemma": lemma
             }
         )
-

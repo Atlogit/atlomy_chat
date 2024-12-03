@@ -70,7 +70,6 @@ class JSONStorageService:
             logger.error(f"Failed to create directory structure: {e}")
             raise
 
-    
     def _get_file_path(self, lemma: str, version: Optional[str] = None) -> Path:
         """Get the file path for a lexical value.
         
@@ -108,92 +107,105 @@ class JSONStorageService:
         hashable_data = {k: v for k, v in data.items() if k != 'metadata'}
         return hashlib.md5(json.dumps(hashable_data, sort_keys=True).encode()).hexdigest()
 
+    def _extract_llm_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Extract and normalize LLM configuration.
+        
+        Args:
+            config: Raw LLM configuration dictionary
+        
+        Returns:
+            Normalized LLM configuration
+        """
+        return {
+            "model_id": config.get("modelId", config.get("model_id", "")),
+            "temperature": config.get("temperature"),
+            "top_p": config.get("topP", config.get("top_p")),
+            "top_k": config.get("topK", config.get("top_k")),
+            "max_length": config.get("maxLength", config.get("max_length")),
+            "stop_sequences": config.get("stopSequences", config.get("stop_sequences", []))
+        }
+
     def save(
         self, 
         lemma: str, 
         data: Dict[str, Any], 
         create_version: bool = False,
         llm_config: Optional[Dict[str, Any]] = None
-    ) -> None:
-        """Save lexical value data to JSON with improved version control.
+    ) -> str:
+        """
+        Save lexical value data with intelligent versioning.
         
         Args:
-            lemma: The lemma to save
+            lemma: The lexical entry's lemma
             data: The data to save
-            create_version: Whether to create a versioned copy (default: False)
+            create_version: Flag to create a versioned copy
             llm_config: Optional LLM configuration used for generation
+        
+        Returns:
+            The version identifier for this save operation
         """
         try:
             # Sanitize lemma to prevent directory traversal
             safe_lemma = "".join(c for c in lemma if c.isalnum() or c in ['_', '-'])
             
-            # Compute content hash
+            # Compute content hash to detect meaningful changes
             current_hash = self._compute_content_hash(data)
             
-            # Check if current file exists and has the same content
-            current_file = self._get_file_path(safe_lemma)
+            # Generate version using precise timestamp
+            version = datetime.now().strftime("%Y%m%d_%H%M%S")
             
-            # Ensure parent directory exists
+            # Comprehensive timestamp extraction
+            original_created_at = (
+                data.get('created_at') or 
+                data.get('metadata', {}).get('created_at') or 
+                datetime.now().isoformat()
+            )
+            
+            current_time = datetime.now().isoformat()
+            
+            # Prepare comprehensive metadata
+            metadata = {
+                "created_at": original_created_at,
+                "updated_at": current_time,
+                "version": version,
+                "content_hash": current_hash,
+                "llm_config": self._extract_llm_config(llm_config) if llm_config else {}
+            }
+            
+            # Create a new data dictionary with updated metadata
+            updated_data = data.copy()
+            
+            # Ensure both top-level and metadata have consistent version and timestamps
+            updated_data.update({
+                "metadata": metadata,
+                "version": version,
+                "created_at": original_created_at,
+                "updated_at": current_time
+            })
+            
+            # Save current version
+            current_file = self._get_file_path(safe_lemma)
             current_file.parent.mkdir(parents=True, exist_ok=True)
             
-            if current_file.exists():
-                with open(current_file, 'r', encoding='utf-8') as f:
-                    existing_data = json.load(f)
-                    existing_hash = self._compute_content_hash(existing_data)
-                    
-                    # If content is identical, skip saving
-                    if current_hash == existing_hash:
-                        logger.info(f"No changes detected for {safe_lemma}. Skipping save.")
-                        return
-
-            # Create backup of existing file
-            self._create_backup(safe_lemma)
-            
-            # Add metadata including LLM configuration
-            metadata = {
-                "created_at": datetime.now().isoformat(),
-                "updated_at": datetime.now().isoformat(),
-                "version": data.get("metadata", {}).get("version", "1.0"),
-                "content_hash": current_hash,
-                "storage_location": str(self.base_dir)
-            }
-
-            # Add LLM configuration if provided
-            if llm_config:
-                metadata["llm_config"] = {
-                    "model_id": llm_config.get("modelId"),
-                    "temperature": llm_config.get("temperature"),
-                    "top_p": llm_config.get("topP"),
-                    "top_k": llm_config.get("topK"),
-                    "max_length": llm_config.get("maxLength"),
-                    "stop_sequences": llm_config.get("stopSequences", [])
-                }
-
-            data["metadata"] = metadata
-            
-            # Save current version with proper JSON serialization
             with open(current_file, 'w', encoding='utf-8') as f:
-                json.dump(data, f, ensure_ascii=False, indent=2, default=str)
+                json.dump(updated_data, f, ensure_ascii=False, indent=2, default=str)
             
-            # Set file permissions for broader access
             os.chmod(current_file, 0o666)
+            logger.info(f"Saved current version for {safe_lemma}: {version}")
             
-            logger.info(f"Saved current version: {current_file}")
-            
-            # Create versioned copy if requested and content has changed
+            # Optional versioned copy
             if create_version:
-                version = datetime.now().strftime("%Y%m%d_%H%M%S")
                 version_file = self._get_file_path(safe_lemma, version)
-                
-                # Ensure version directory exists
                 version_file.parent.mkdir(parents=True, exist_ok=True)
-                
                 shutil.copy2(current_file, version_file)
                 os.chmod(version_file, 0o666)
-                logger.info(f"Created version: {version_file}")
-                
+                logger.info(f"Created versioned copy: {version_file}")
+            
+            return version
+        
         except Exception as e:
-            logger.error(f"Error saving JSON for {lemma}: {str(e)}")
+            logger.error(f"Version save failed for {lemma}: {e}")
             raise
 
     def load(self, lemma: str, version: Optional[str] = None) -> Optional[Dict[str, Any]]:
@@ -237,52 +249,83 @@ class JSONStorageService:
             raise
 
     def list_versions(self, lemma: str) -> List[Dict[str, Any]]:
-        """List all available versions for a lemma with their metadata.
+        """
+        List all available versions for a lemma with comprehensive metadata.
         
         Args:
             lemma: The lemma to list versions for
-            
+        
         Returns:
-            List of dictionaries containing version info and metadata
+            Sorted list of version metadata
         """
         try:
-            # Sanitize lemma to prevent directory traversal
             safe_lemma = "".join(c for c in lemma if c.isalnum() or c in ['_', '-'])
-            
             versions_dir = self.base_dir / "versions"
-            versions = []
             
-            for file in versions_dir.glob(f"{safe_lemma}_*.json"):
-                version = file.stem.replace(f"{safe_lemma}_", "")
+            version_details = []
+            for file in sorted(versions_dir.glob(f"{safe_lemma}_*.json"), reverse=True):
                 try:
                     with open(file, 'r', encoding='utf-8') as f:
                         data = json.load(f)
-                        metadata = data.get('metadata', {})
                         
-                        version_info = {
-                            'version': version,
-                            'created_at': metadata.get('created_at'),
-                            'updated_at': metadata.get('updated_at'),
-                            'model': metadata.get('llm_config', {}).get('model_id'),
-                            'parameters': {
-                                'temperature': metadata.get('llm_config', {}).get('temperature'),
-                                'top_p': metadata.get('llm_config', {}).get('top_p'),
-                                'top_k': metadata.get('llm_config', {}).get('top_k'),
-                                'max_length': metadata.get('llm_config', {}).get('max_length'),
-                                'stop_sequences': metadata.get('llm_config', {}).get('stop_sequences', [])
-                            }
+                    # Comprehensive metadata extraction
+                    metadata = data.get('metadata', {})
+                    
+                    # Fallback version extraction
+                    version = (
+                        metadata.get('version') or 
+                        data.get('version') or 
+                        file.stem.split('_', 1)[1]
+                    )
+                    
+                    # Fallback timestamp extraction
+                    created_at = (
+                        metadata.get('created_at') or 
+                        data.get('created_at') or 
+                        datetime.now().isoformat()
+                    )
+                    
+                    updated_at = (
+                        metadata.get('updated_at') or 
+                        data.get('updated_at') or 
+                        created_at
+                    )
+                    
+                    # Extract LLM config with comprehensive fallback
+                    llm_config = (
+                        metadata.get('llm_config') or 
+                        data.get('llm_config') or 
+                        {}
+                    )
+                    
+                    version_info = {
+                        "version": version,
+                        "created_at": created_at,
+                        "updated_at": updated_at,
+                        "model": (
+                            llm_config.get('model_id') or 
+                            llm_config.get('modelId') or 
+                            ''
+                        ),
+                        "parameters": {
+                            k: llm_config.get(k)
+                            for k in ['temperature', 'top_p', 'top_k', 'max_length']
+                            if llm_config.get(k) is not None
                         }
-                        versions.append(version_info)
+                    }
+                    
+                    version_details.append(version_info)
+                
+                except json.JSONDecodeError:
+                    logger.warning(f"Corrupted version file: {file}")
                 except Exception as e:
-                    logger.warning(f"Error reading version file {file}: {e}")
-                    # Include basic version info even if metadata read fails
-                    versions.append({'version': version})
+                    logger.error(f"Error processing version file {file}: {e}")
             
-            return sorted(versions, key=lambda x: x['version'], reverse=True)
-            
+            return version_details
+        
         except Exception as e:
-            logger.error(f"Error listing versions for {lemma}: {str(e)}")
-            raise
+            logger.error(f"Error listing versions for {lemma}: {e}")
+            return []
 
     def delete(self, lemma: str, delete_versions: bool = False) -> bool:
         """Delete a lexical value's JSON files.
