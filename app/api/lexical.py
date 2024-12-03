@@ -13,7 +13,7 @@ import json
 from app.core.database import get_db
 from app.services.lexical_service import LexicalService
 from app.services.llm_service import LLMServiceError
-from app.services.llm.bedrock import BedrockClientError
+from app.services.llm.bedrock import BedrockClient, BedrockClientError
 from app.models.lexical_value import LexicalValue
 
 # Configure logging
@@ -25,15 +25,66 @@ router = APIRouter(tags=["lexical"])
 task_status = {}
 delete_triggers = {}
 
+class LLMConfigSchema(BaseModel):
+    """Schema for LLM configuration."""
+    modelId: Optional[str] = None
+    temperature: Optional[float] = None
+    topP: Optional[float] = None
+    topK: Optional[int] = None
+    maxLength: Optional[int] = None
+    stopSequences: Optional[List[str]] = None
+
 class LexicalCreateSchema(BaseModel):
     """Schema for lexical value creation request."""
     lemma: str
     search_lemma: bool = True  # Default to True since all inputs are lemmas
+    llmConfig: Optional[LLMConfigSchema] = None
+
+class LexicalUpdateSchema(BaseModel):
+    """Schema for lexical value update request."""
+    lemma: str
+    llmConfig: Optional[LLMConfigSchema] = None
 
 class LexicalListSchema(BaseModel):
     """Schema for lexical value list request."""
     offset: int = 0
     limit: int = 100
+
+@router.get("/models")
+async def list_models():
+    """List available LLM models."""
+    try:
+        logger.info("Listing available LLM models")
+        client = BedrockClient()
+        models = await client.list_models()
+        
+        # Format models for response while keeping all available models
+        formatted_models = []
+        for model in models:
+            model_id = model.get('modelId', '')
+            formatted_models.append({
+                'id': model_id,
+                'name': model.get('modelName', model_id),
+                'provider': model.get('providerName', 'Unknown'),
+                'description': model.get('modelDescription', ''),
+                'inputModalities': model.get('inputModalities', []),
+                'outputModalities': model.get('outputModalities', []),
+                'customizationsSupported': model.get('customizationsSupported', [])
+            })
+        
+        logger.debug(f"Found {len(formatted_models)} available models")
+        return {
+            "models": formatted_models
+        }
+    except Exception as e:
+        logger.error(f"Error listing models: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "message": str(e),
+                "type": type(e).__name__
+            }
+        )
 
 def format_entry_for_response(entry: Dict[str, Any]) -> Dict[str, Any]:
     """Format entry data to match frontend expectations."""
@@ -115,12 +166,14 @@ async def create_lexical_value_task(
     lemma: str,
     search_lemma: bool,
     task_id: str,
-    db: AsyncSession
+    db: AsyncSession,
+    llm_config: Optional[Dict[str, Any]] = None
 ):
     """Background task for lexical value creation."""
     try:
         logger.info(f"Starting lexical value creation task for: {lemma}")
         logger.debug(f"Task parameters - lemma: {lemma}, search_lemma: {search_lemma}, task_id: {task_id}")
+        logger.debug(f"LLM config: {llm_config}")
         
         task_status[task_id] = {
             "status": "in_progress",
@@ -134,7 +187,8 @@ async def create_lexical_value_task(
         result = await lexical_service.create_lexical_entry(
             lemma=lemma,
             search_lemma=search_lemma,
-            task_id=task_id
+            task_id=task_id,
+            llm_config=llm_config
         )
         logger.debug(f"Create lexical entry result for {lemma}: {json.dumps(result, indent=2)}")
         
@@ -204,7 +258,8 @@ async def create_lexical_value(
         data.lemma,
         data.search_lemma,
         task_id,
-        db
+        db,
+        data.llmConfig.dict() if data.llmConfig else None
     )
     logger.info(f"Added lexical value creation task to background tasks: {task_id}")
     
@@ -346,16 +401,20 @@ async def list_lexical_values(
 @router.put("/update/{lemma}")
 async def update_lexical_value(
     lemma: str,
-    data: Dict[str, Any],
+    data: LexicalUpdateSchema,
     db: AsyncSession = Depends(get_db)
 ):
     """Update an existing lexical value."""
     try:
         logger.info(f"Updating lexical value for: {lemma}")
-        logger.debug(f"Update data: {json.dumps(data, indent=2)}")
+        logger.debug(f"Update data: {json.dumps(data.dict(), indent=2)}")
         
         lexical_service = LexicalService(db)
-        result = await lexical_service.update_lexical_value(lemma, data)
+        result = await lexical_service.update_lexical_value(
+            lemma=lemma,
+            data={},  # Empty data since we're regenerating with new LLM config
+            llm_config=data.llmConfig.dict() if data.llmConfig else None
+        )
         
         if not result["success"]:
             logger.warning(f"Failed to update lexical value for {lemma}: {result['message']}")

@@ -19,6 +19,7 @@ export const API = {
     deleteTrigger: (lemma: string) => `/api/v1/lexical/delete/${encodeURIComponent(lemma)}/trigger`,
     status: (taskId: UUID) => `/api/v1/lexical/status/${encodeURIComponent(taskId)}`,
     versions: (lemma: string) => `/api/v1/lexical/versions/${encodeURIComponent(lemma)}`,
+    models: '/api/v1/lexical/models',  // Added new models endpoint
   },
   corpus: {
     list: '/api/v1/corpus/list',

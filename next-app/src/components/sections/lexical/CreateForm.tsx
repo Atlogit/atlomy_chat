@@ -7,6 +7,16 @@ import { API } from '../../../utils/api/endpoints'
 import { SearchResult, ProcessingStatus } from '../../../utils/api/types/types'
 import { LexicalValue, CreateResponse, TaskStatus, LemmaCreate } from '../../../utils/api/types/lexical'
 
+interface Model {
+  id: string
+  name: string
+  provider: string
+  description: string
+  inputModalities: string[]
+  outputModalities: string[]
+  customizationsSupported: string[]
+}
+
 /**
  * Converts a LexicalValue to a SearchResult for standardized display
  */
@@ -49,9 +59,40 @@ export function CreateForm() {
   const [retryCount, setRetryCount] = useState(0)
   const [selectedCitation, setSelectedCitation] = useState<SearchResult | string | null>(null)
   const [showCitationModal, setShowCitationModal] = useState(false)
+
+  // LLM Configuration States
+  const [showConfig, setShowConfig] = useState(false)
+  const [availableModels, setAvailableModels] = useState<Model[]>([])
+  const [modelId, setModelId] = useState('')
+  const [temperature, setTemperature] = useState(0.5)
+  const [topP, setTopP] = useState(1)
+  const [topK, setTopK] = useState(250)
+  const [maxLength, setMaxLength] = useState(2048)
+  const [stopSequences, setStopSequences] = useState<string[]>([])
+  const [newStopSequence, setNewStopSequence] = useState('')
   
   const createApi = useApi<CreateResponse>()
   const statusApi = useApi<TaskStatus>()
+  const modelsApi = useApi<{models: Model[]}>()
+
+  // Fetch available models on component mount
+  useEffect(() => {
+    const fetchModels = async () => {
+      try {
+        const response = await modelsApi.execute(API.lexical.models, { method: 'GET' })
+        if (response?.models) {
+          setAvailableModels(response.models)
+          // Set default model if none selected
+          if (!modelId && response.models.length > 0) {
+            setModelId(response.models[0].id)
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching models:', error)
+      }
+    }
+    fetchModels()
+  }, [])
 
   // Task status polling
   useEffect(() => {
@@ -104,12 +145,29 @@ export function CreateForm() {
     if (!lemma.trim()) return
 
     try {
-      console.log('Submitting form with data:', { lemma })
+      console.log('Submitting form with data:', { 
+        lemma,
+        modelId,
+        temperature,
+        topP,
+        topK,
+        maxLength,
+        stopSequences
+      })
+
       const result = await createApi.execute(API.lexical.create, {
         method: 'POST',
         body: JSON.stringify({
           lemma: lemma.trim(),
-          searchLemma: true
+          searchLemma: true,
+          llmConfig: {
+            modelId,
+            temperature,
+            topP,
+            topK,
+            maxLength,
+            stopSequences
+          }
         })
       })
 
@@ -141,6 +199,23 @@ export function CreateForm() {
   }
 
   /**
+   * Handles adding a new stop sequence
+   */
+  const handleAddStopSequence = () => {
+    if (newStopSequence.trim()) {
+      setStopSequences([...stopSequences, newStopSequence.trim()])
+      setNewStopSequence('')
+    }
+  }
+
+  /**
+   * Handles removing a stop sequence
+   */
+  const handleRemoveStopSequence = (index: number) => {
+    setStopSequences(stopSequences.filter((_, i) => i !== index))
+  }
+
+  /**
    * Handles the update confirmation when a lemma already exists.
    */
   const handleUpdateConfirmation = async (confirm: boolean) => {
@@ -152,7 +227,14 @@ export function CreateForm() {
           method: 'PUT',
           body: JSON.stringify({
             lemma: existingEntry.lemma,
-            // Add any update fields here
+            llmConfig: {
+              modelId,
+              temperature,
+              topP,
+              topK,
+              maxLength,
+              stopSequences
+            }
           })
         })
 
@@ -250,6 +332,192 @@ export function CreateForm() {
         />
       </div>
 
+      {/* LLM Configuration Section */}
+      <div className="card bg-base-200 p-4">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-lg font-semibold">LLM Configuration</h3>
+          <button 
+            className="btn btn-ghost btn-xs"
+            onClick={() => setShowConfig(!showConfig)}
+          >
+            {showConfig ? 'Hide' : 'Show'}
+          </button>
+        </div>
+        
+        {/* Model Selection - Always visible */}
+        <div className="mb-2">
+          <select 
+            className="select select-bordered w-full"
+            value={modelId}
+            onChange={(e) => setModelId(e.target.value)}
+          >
+            {availableModels.map((model) => (
+              <option key={model.id} value={model.id}>
+                {model.name} ({model.provider})
+              </option>
+            ))}
+          </select>
+          {modelId && (
+            <div className="mt-1 text-sm opacity-70">
+              {availableModels.find(m => m.id === modelId)?.description}
+            </div>
+          )}
+        </div>
+
+        {showConfig && (
+          <div className="grid grid-cols-2 gap-2">
+            {/* Temperature */}
+            <div className="form-control">
+              <label className="label py-0">
+                <span className="label-text text-sm">Temperature</span>
+              </label>
+              <div className="flex gap-2 items-center">
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.1"
+                  value={temperature}
+                  onChange={(e) => setTemperature(parseFloat(e.target.value))}
+                  className="range range-sm flex-1"
+                />
+                <input
+                  type="number"
+                  min="0"
+                  max="1"
+                  step="0.1"
+                  value={temperature}
+                  onChange={(e) => setTemperature(parseFloat(e.target.value))}
+                  className="input input-bordered input-sm w-20"
+                />
+              </div>
+            </div>
+
+            {/* Top P */}
+            <div className="form-control">
+              <label className="label py-0">
+                <span className="label-text text-sm">Top P</span>
+              </label>
+              <div className="flex gap-2 items-center">
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.1"
+                  value={topP}
+                  onChange={(e) => setTopP(parseFloat(e.target.value))}
+                  className="range range-sm flex-1"
+                />
+                <input
+                  type="number"
+                  min="0"
+                  max="1"
+                  step="0.1"
+                  value={topP}
+                  onChange={(e) => setTopP(parseFloat(e.target.value))}
+                  className="input input-bordered input-sm w-20"
+                />
+              </div>
+            </div>
+
+            {/* Top K */}
+            <div className="form-control">
+              <label className="label py-0">
+                <span className="label-text text-sm">Top K</span>
+              </label>
+              <div className="flex gap-2 items-center">
+                <input
+                  type="range"
+                  min="0"
+                  max="500"
+                  step="10"
+                  value={topK}
+                  onChange={(e) => setTopK(parseInt(e.target.value))}
+                  className="range range-sm flex-1"
+                />
+                <input
+                  type="number"
+                  min="0"
+                  max="500"
+                  step="10"
+                  value={topK}
+                  onChange={(e) => setTopK(parseInt(e.target.value))}
+                  className="input input-bordered input-sm w-20"
+                />
+              </div>
+            </div>
+
+            {/* Max Length */}
+            <div className="form-control">
+              <label className="label py-0">
+                <span className="label-text text-sm">Max Length</span>
+              </label>
+              <div className="flex gap-2 items-center">
+                <input
+                  type="range"
+                  min="256"
+                  max="4096"
+                  step="256"
+                  value={maxLength}
+                  onChange={(e) => setMaxLength(parseInt(e.target.value))}
+                  className="range range-sm flex-1"
+                />
+                <input
+                  type="number"
+                  min="256"
+                  max="4096"
+                  step="256"
+                  value={maxLength}
+                  onChange={(e) => setMaxLength(parseInt(e.target.value))}
+                  className="input input-bordered input-sm w-20"
+                />
+              </div>
+            </div>
+
+            {/* Stop Sequences */}
+            <div className="col-span-2">
+              <label className="label py-0">
+                <span className="label-text text-sm">Stop Sequences</span>
+              </label>
+              <div className="flex gap-2 items-center">
+                <input
+                  type="text"
+                  className="input input-bordered input-sm flex-1"
+                  placeholder="Enter stop sequence..."
+                  value={newStopSequence}
+                  onChange={(e) => setNewStopSequence(e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      handleAddStopSequence();
+                    }
+                  }}
+                />
+                <button 
+                  onClick={handleAddStopSequence}
+                  className="btn btn-sm"
+                  disabled={!newStopSequence.trim()}
+                >
+                  Add
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-1 mt-1">
+                {stopSequences.map((seq, index) => (
+                  <div key={index} className="badge badge-sm gap-1">
+                    {seq}
+                    <button 
+                      className="btn btn-ghost btn-xs"
+                      onClick={() => handleRemoveStopSequence(index)}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
       <Button
         onClick={handleSubmit}
         isLoading={createApi.isLoading || statusApi.isLoading || (taskStatus?.status === 'in_progress')}
@@ -273,10 +541,11 @@ export function CreateForm() {
       )}
 
       {/* Error Display */}
-      {(createApi.error || statusApi.error) && (
+      {(createApi.error || statusApi.error || modelsApi.error) && (
         <div className="mt-4">
           {createApi.error && renderError(createApi.error)}
           {statusApi.error && renderError(statusApi.error)}
+          {modelsApi.error && renderError(modelsApi.error)}
         </div>
       )}
 

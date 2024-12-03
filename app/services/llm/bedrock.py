@@ -40,10 +40,10 @@ class BedrockClient(BaseLLMClient):
             logger.debug(f"Model ID from env: {os.getenv('BEDROCK_MODEL_ID', 'not set')}")
             
             self.config = Config(
-            region_name=settings.llm.AWS_REGION,
-            retries={
-                'max_attempts': settings.llm.MAX_RETRIES,
-                'mode': 'adaptive'
+                region_name=settings.llm.AWS_REGION,
+                retries={
+                    'max_attempts': settings.llm.MAX_RETRIES,
+                    'mode': 'adaptive'
                 }
             )
             
@@ -78,10 +78,24 @@ class BedrockClient(BaseLLMClient):
                     region_name=settings.llm.AWS_REGION,
                     config=self.config
                 )
+                
+                # Initialize bedrock client for model listing
+                self.bedrock = boto3.client(
+                    'bedrock',
+                    aws_access_key_id=settings.llm.AWS_ACCESS_KEY_ID,
+                    aws_secret_access_key=settings.llm.AWS_SECRET_ACCESS_KEY,
+                    region_name=settings.llm.AWS_REGION,
+                    config=self.config
+                )
             else:
                 # Running on EC2 with IAM role
                 self.client = boto3.client(
                     'bedrock-runtime',
+                    region_name=settings.llm.AWS_REGION,
+                    config=self.config
+                )
+                self.bedrock = boto3.client(
+                    'bedrock',
                     region_name=settings.llm.AWS_REGION,
                     config=self.config
                 )
@@ -123,6 +137,30 @@ class BedrockClient(BaseLLMClient):
                 }
             )
 
+    async def list_models(self) -> List[Dict[str, Any]]:
+        """List available foundation models that the account has access to."""
+        try:
+            logger.info("Listing available Bedrock models")
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(
+                None,
+                self.bedrock.list_foundation_models
+            )
+            models = response.get('modelSummaries', [])
+            logger.debug(f"Found {len(models)} accessible models")
+            return models
+            
+        except Exception as e:
+            logger.error(f"Error listing models: {str(e)}", exc_info=True)
+            raise BedrockClientError(
+                "Failed to list models",
+                {
+                    "message": str(e),
+                    "error_type": "list_models_error",
+                    "service": "AWS Bedrock"
+                }
+            )
+
     def _prepare_converse_payload(
         self, 
         messages: Optional[List[Dict[str, Any]]] = None,
@@ -131,23 +169,33 @@ class BedrockClient(BaseLLMClient):
         system_prompt: Optional[str] = None,
         max_tokens: Optional[int] = None,
         temperature: Optional[float] = None,
+        top_p: Optional[float] = None,
+        top_k: Optional[int] = None,
+        stop_sequences: Optional[List[str]] = None,
         **kwargs
     ) -> Dict[str, Any]:
         """Prepare payload for Converse API."""
         # Default to config values if not provided
         max_tokens = max_tokens or settings.llm.MAX_TOKENS
         temperature = temperature or settings.llm.TEMPERATURE
+        top_p = top_p or settings.llm.TOP_P
 
         # Prepare payload
         payload = {
-            "modelId": self.model_id,
+            "modelId": kwargs.get('model_id', self.model_id),
             "messages": [],
             "inferenceConfig": {
                 "maxTokens": max_tokens,
                 "temperature": temperature,
-                "topP": kwargs.get('top_p', settings.llm.TOP_P)
+                "topP": top_p
             }
         }
+
+        # Add optional parameters
+        if top_k is not None:
+            payload["inferenceConfig"]["topK"] = top_k
+        if stop_sequences:
+            payload["inferenceConfig"]["stopSequences"] = stop_sequences
 
         # Add system prompt if provided
         if system_prompt:
@@ -176,11 +224,6 @@ class BedrockClient(BaseLLMClient):
         else:
             raise ValueError("Must provide either messages, content, or prompt")
 
-        # Add stop sequences
-        stop_sequences = kwargs.get('stop_sequences', ["\n\nHuman:"])
-        if stop_sequences:
-            payload["inferenceConfig"]["stopSequences"] = stop_sequences
-
         return payload
 
     async def generate(
@@ -206,6 +249,10 @@ class BedrockClient(BaseLLMClient):
                 system_prompt=system_prompt,
                 max_tokens=max_tokens,
                 temperature=temperature,
+                top_p=kwargs.get('top_p'),
+                top_k=kwargs.get('top_k'),
+                stop_sequences=kwargs.get('stop_sequences'),
+                model_id=kwargs.get('model_id'),
                 **kwargs
             )
             
@@ -234,7 +281,7 @@ class BedrockClient(BaseLLMClient):
                         "error_type": "aws_invoke_error",
                         "error_code": error_code,
                         "service": "AWS Bedrock",
-                        "model_id": self.model_id
+                        "model_id": payload["modelId"]
                     }
                 )
             
@@ -251,7 +298,7 @@ class BedrockClient(BaseLLMClient):
                         "message": "Received empty completion from model",
                         "error_type": "empty_response",
                         "service": "AWS Bedrock",
-                        "model_id": self.model_id,
+                        "model_id": payload["modelId"],
                         "response": response
                     }
                 )
@@ -275,7 +322,7 @@ class BedrockClient(BaseLLMClient):
                     'completion_tokens': output_tokens,
                     'total_tokens': input_tokens + output_tokens
                 },
-                model=self.model_id,
+                model=payload["modelId"],
                 raw_response=response
             )
             
@@ -289,7 +336,7 @@ class BedrockClient(BaseLLMClient):
                     "message": str(e),
                     "error_type": "generation_error",
                     "service": "AWS Bedrock",
-                    "model_id": self.model_id,
+                    "model_id": payload.get("modelId", self.model_id),
                     "prompt_length": len(prompt) if prompt else 0
                 }
             )
@@ -316,6 +363,10 @@ class BedrockClient(BaseLLMClient):
                 system_prompt=system_prompt,
                 max_tokens=max_tokens,
                 temperature=temperature,
+                top_p=kwargs.get('top_p'),
+                top_k=kwargs.get('top_k'),
+                stop_sequences=kwargs.get('stop_sequences'),
+                model_id=kwargs.get('model_id'),
                 **kwargs
             )
             
@@ -342,7 +393,7 @@ class BedrockClient(BaseLLMClient):
                         "error_type": "aws_stream_error",
                         "error_code": error_code,
                         "service": "AWS Bedrock",
-                        "model_id": self.model_id
+                        "model_id": payload["modelId"]
                     }
                 )
             
@@ -365,7 +416,7 @@ class BedrockClient(BaseLLMClient):
                     "message": str(e),
                     "error_type": "stream_error",
                     "service": "AWS Bedrock",
-                    "model_id": self.model_id,
+                    "model_id": payload.get("modelId", self.model_id),
                     "prompt_length": len(prompt) if prompt else 0
                 }
             )
