@@ -79,7 +79,7 @@ services:
       - "8081:8081"
     volumes:
       - ~/amta/logs:/amta/logs
-      - ${PWD}/${JSON_STORAGE_BASE_DIR}:${PWD}/${JSON_STORAGE_BASE_DIR}  # Use PWD to resolve relative path
+      - ${JSON_STORAGE_BASE_DIR:-/home/ec2-user/amta/lexical_values}:/home/ec2-user/amta/lexical_values
       - ./.env:/amta/.env
       - ./alembic:/amta/alembic
     env_file:
