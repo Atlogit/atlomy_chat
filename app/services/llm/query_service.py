@@ -174,7 +174,8 @@ class QueryLLMService(BaseLLMService):
             "usage": {},
             "model": "",
             "raw_response": None,
-            "error": None
+            "error": None,
+            "no_results_metadata": None  # Add this field
         }
 
         try:
@@ -199,10 +200,10 @@ class QueryLLMService(BaseLLMService):
 
                 # Handle no results scenario
                 if total_rows == 0:
-                    if query_type == QueryType.NATURAL_LANGUAGE:
-                        no_results_metadata = await self._analyze_no_results(question, sql_query)
-                        result_template["error"] = "No results found"
-                        result_template["raw_response"] = no_results_metadata
+                    # Analyze no results for more detailed error information
+                    no_results_metadata = await self._analyze_no_results(question, sql_query)
+                    result_template["error"] = "No results found"
+                    result_template["no_results_metadata"] = no_results_metadata  # Set no_results_metadata
                     return result_template
 
                 # Process results in chunks

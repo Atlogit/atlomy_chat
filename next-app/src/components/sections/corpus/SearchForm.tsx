@@ -4,7 +4,16 @@ import { useState } from 'react'
 import { Button } from '../../../components/ui/Button'
 import { ResultsDisplay } from '../../../components/ui/ResultsDisplay'
 import { useLoading } from '../../../hooks/useLoading'
-import { fetchApi, API, TextSearchRequest, Citation, CitationObject, TokenInfo } from '../../../utils/api'
+import { 
+  fetchApi, 
+  API, 
+  TextSearchRequest, 
+  Citation, 
+  CitationObject, 
+  TokenInfo, 
+  SearchResponse 
+} from '../../../utils/api'
+import { NoResultsMetadata } from '../../../utils/api/types/types'
 
 interface SearchFormProps {
   onResultSelect: (textId: string) => void
@@ -22,7 +31,8 @@ export function SearchForm({ onResultSelect }: SearchFormProps) {
   const [searchLemma, setSearchLemma] = useState(false)
   const [selectedCategories, setSelectedCategories] = useState<string[]>([])
   const [results, setResults] = useState<CitationObject[]>([])
-  const { isLoading, error, execute } = useLoading<CitationObject[]>()
+  const [noResultsMetadata, setNoResultsMetadata] = useState<NoResultsMetadata | undefined>(undefined)
+  const { isLoading, error, execute } = useLoading<SearchResponse>()
 
   // Categories for ancient medical texts
   const availableCategories = [
@@ -43,21 +53,34 @@ export function SearchForm({ onResultSelect }: SearchFormProps) {
   const handleSubmit = async () => {
     if (!query.trim()) return
 
+    // Reset results and no results metadata before new search
+    setResults([])
+    setNoResultsMetadata(undefined)
+
     const request: TextSearchRequest = {
       query: query.trim(),
       search_lemma: searchLemma,
       categories: selectedCategories.length > 0 ? selectedCategories : undefined
     }
 
-    const searchResults = await execute(
-      fetchApi<CitationObject[]>(API.corpus.search, {
+    const searchResponse = await execute(
+      fetchApi<SearchResponse>(API.corpus.search, {
         method: 'POST',
         body: JSON.stringify(request)
       })
     )
 
-    if (searchResults) {
-      setResults(searchResults)
+    if (searchResponse) {
+      // Always set results
+      setResults(searchResponse.results as CitationObject[])
+      
+      // Check for no results scenario
+      if (searchResponse.total_results === 0) {
+        setNoResultsMetadata(searchResponse.no_results_metadata)
+      } else {
+        // Clear no results metadata if results found
+        setNoResultsMetadata(undefined)
+      }
     }
   }
 
@@ -180,6 +203,12 @@ export function SearchForm({ onResultSelect }: SearchFormProps) {
 
       {error ? (
         <ResultsDisplay error={error} content={null} />
+      ) : noResultsMetadata ? (
+        <ResultsDisplay 
+          content={null} 
+          noResultsMetadata={noResultsMetadata} 
+          title="No Results Found" 
+        />
       ) : results.length > 0 ? (
         <div className="search-results space-y-6">
           {results.map((result, idx) => (
@@ -237,10 +266,6 @@ export function SearchForm({ onResultSelect }: SearchFormProps) {
               </div>
             </div>
           ))}
-        </div>
-      ) : query.trim() && !isLoading ? (
-        <div className="text-center py-8">
-          <p className="text-base-content/70">No results found</p>
         </div>
       ) : null}
     </div>

@@ -127,8 +127,17 @@ export function ResultsDisplay({
   onShowCitation,
   noResultsMetadata,
 }: ResultsDisplayProps) {
+  // Debug logging
+  console.log('ResultsDisplay Props:', {
+    title,
+    content,
+    error,
+    noResultsMetadata
+  });
+
   // If no results metadata is provided, show the no results display
   if (noResultsMetadata) {
+    console.log('Rendering No Results Metadata:', noResultsMetadata);
     return (
       <div className={`mt-6 ${className}`}>
         <h3 className="font-bold mb-2">{title}</h3>
@@ -151,12 +160,14 @@ export function ResultsDisplay({
               </ul>
             </div>
             
-            <details className="text-yellow-700 mt-2">
-              <summary>Original Query Details</summary>
-              <pre className="bg-yellow-100 p-2 rounded text-xs overflow-x-auto">
-                {noResultsMetadata.generated_query}
-              </pre>
-            </details>
+            {noResultsMetadata.generated_query && (
+              <details className="text-yellow-700 mt-2">
+                <summary>Original Query Details</summary>
+                <pre className="bg-yellow-100 p-2 rounded text-xs overflow-x-auto">
+                  {noResultsMetadata.generated_query}
+                </pre>
+              </details>
+            )}
           </div>
         </div>
       </div>

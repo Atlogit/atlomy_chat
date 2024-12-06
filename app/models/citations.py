@@ -16,7 +16,7 @@ These models are used for:
 - Frontend type definitions
 """
 
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from pydantic import BaseModel
 
 class SentenceContext(BaseModel):
@@ -113,13 +113,17 @@ class Citation(BaseModel):
 class SearchResponse(BaseModel):
     """
     Response model for search operations.
-    Includes both results and pagination metadata.
+    Includes results, pagination metadata, and optional error handling.
     
     Attributes:
         results: List of citations matching the search
         results_id: Unique ID for retrieving more results
         total_results: Total number of results available
+        error: Optional error message for zero-results or search failures
+        no_results_metadata: Optional detailed information about why no results were found
     """
     results: List[Citation]
     results_id: str
     total_results: int
+    error: Optional[str] = None
+    no_results_metadata: Optional[Dict[str, Any]] = None

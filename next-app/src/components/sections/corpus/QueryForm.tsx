@@ -158,10 +158,22 @@ export function QueryForm() {
             body: JSON.stringify(lemmaRequest)
           });
 
+          console.log('Lemma Search Result:', lemmaResult);
+
           if (isSearchResponse(lemmaResult)) {
-            setQueryResults(lemmaResult.results);
-            setResultsId(lemmaResult.results_id);
-            setTotalResults(lemmaResult.total_results);
+            if (lemmaResult.results.length > 0) {
+              setQueryResults(lemmaResult.results);
+              setResultsId(lemmaResult.results_id);
+              setTotalResults(lemmaResult.total_results);
+            } else {
+              // Handle no results for lemma search
+              setQueryError({
+                message: 'No Results Found',
+                detail: lemmaResult.no_results_metadata 
+                  ? `Search Description: ${lemmaResult.no_results_metadata.search_description}` 
+                  : `No results found for lemma: ${lemma}`
+              });
+            }
           }
           break;
 
@@ -169,10 +181,22 @@ export function QueryForm() {
           if (!category.trim()) return;
           const categoryResult = await executeSearch(API.corpus.category(category.trim()));
           
+          console.log('Category Search Result:', categoryResult);
+
           if (isSearchResponse(categoryResult)) {
-            setQueryResults(categoryResult.results);
-            setResultsId(categoryResult.results_id);
-            setTotalResults(categoryResult.total_results);
+            if (categoryResult.results.length > 0) {
+              setQueryResults(categoryResult.results);
+              setResultsId(categoryResult.results_id);
+              setTotalResults(categoryResult.total_results);
+            } else {
+              // Handle no results for category search
+              setQueryError({
+                message: 'No Results Found',
+                detail: categoryResult.no_results_metadata 
+                  ? `Search Description: ${categoryResult.no_results_metadata.search_description}` 
+                  : `No results found in category: ${category}`
+              });
+            }
           }
           break;
 
@@ -188,10 +212,22 @@ export function QueryForm() {
             body: JSON.stringify(citationRequest)
           });
 
+          console.log('Citation Search Result:', citationResult);
+
           if (isSearchResponse(citationResult)) {
-            setQueryResults(citationResult.results);
-            setResultsId(citationResult.results_id);
-            setTotalResults(citationResult.total_results);
+            if (citationResult.results.length > 0) {
+              setQueryResults(citationResult.results);
+              setResultsId(citationResult.results_id);
+              setTotalResults(citationResult.total_results);
+            } else {
+              // Handle no results for citation search
+              setQueryError({
+                message: 'No Results Found',
+                detail: citationResult.no_results_metadata 
+                  ? `Search Description: ${citationResult.no_results_metadata.search_description}` 
+                  : `No results found for author ${authorId}, work ${workNumber}`
+              });
+            }
           }
           break;
       }
@@ -351,47 +387,19 @@ export function QueryForm() {
 
       {(queryError || searchError || pageError) && renderError(queryError || searchError || pageError)}
 
-      {(isSearching || isGenerating || isLoadingPage) && (
-        <div className="flex items-center justify-center p-8">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-          <p className="ml-4">
-            {isGenerating ? 'Analyzing your question...' : 
-             isLoadingPage ? 'Loading more results...' : 'Searching corpus...'}
-          </p>
-        </div>
-      )}
-
-      {generatedQuery && queryType === 'natural' && (
-        <ResultsDisplay
-          title="Generated Query"
-          content={generatedQuery}
-          className="p-4 bg-base-200 rounded-lg"
-        />
-      )}
-
-      {queryType === 'natural' && queryResults.length > 0 && (
+      {/* Modify results rendering to handle all query types */}
+      {(queryType === 'natural' && queryResults.length > 0) || 
+       (queryType !== 'natural' && searchResults && 'results' in searchResults && searchResults.results.length > 0) ? (
         <PaginatedResults
           title={`Search Results (${totalResults} total)`}
-          results={queryResults}
+          results={queryType === 'natural' ? queryResults : (searchResults as SearchResponse).results}
           pageSize={10}
           className="mt-4"
-          isLoading={isGenerating || isLoadingPage}
+          isLoading={isGenerating || isLoadingPage || isSearching}
           onPageChange={fetchResultsPage}
           totalResults={totalResults}
         />
-      )}
-
-      {queryType !== 'natural' && searchResults?.results && searchResults.results.length > 0 && (
-        <PaginatedResults
-          title={`Search Results (${totalResults} total)`}
-          results={searchResults.results}
-          pageSize={10}
-          className="mt-4"
-          isLoading={isSearching}
-          onPageChange={fetchResultsPage}
-          totalResults={totalResults}
-        />
-      )}
+      ) : null}
     </div>
   )
 }
